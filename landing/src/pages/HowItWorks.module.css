@@ -1,0 +1,183 @@
+.pageContainer {
+    padding-top: 100px;
+    background-color: var(--color-bg);
+    min-height: 100vh;
+    color: var(--color-text-main);
+}
+
+.hero {
+    text-align: center;
+    padding: 4rem 1rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.title {
+    font-size: 3rem;
+    margin-bottom: 1.5rem;
+    line-height: 1.1;
+}
+
+.title span {
+    color: var(--color-primary);
+}
+
+.subtitle {
+    font-size: 1.25rem;
+    color: var(--color-text-muted);
+    line-height: 1.6;
+}
+
+.stepsContainer {
+    max-width: 1200px;
+    margin: 4rem auto;
+    padding: 0 2rem;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+}
+
+.card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-lg);
+    padding: 2.5rem;
+    transition: transform 0.3s, background-color 0.3s;
+    height: 100%;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.cardHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+}
+
+.cardImage {
+    width: 150px;
+    height: 100px;
+    object-fit: cover;
+    object-position: top;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.card:hover .cardImage {
+    transform: scale(1.05) rotate(2deg);
+    border-color: var(--color-primary);
+}
+
+.pill {
+    display: inline-block;
+    padding: 0.4rem 1rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--color-bg);
+}
+
+.pill.give {
+    background: #4C7B4B;
+    color: white;
+}
+
+.pill.sell {
+    background: #FFB02E;
+    color: black;
+}
+
+.pill.rent {
+    background: #5D9CEC;
+    color: white;
+}
+
+.pill.win {
+    background: #AC92EC;
+    color: white;
+}
+
+.cardTitle {
+    font-size: 1.8rem;
+    margin-bottom: 2rem;
+    color: var(--color-text-main);
+    line-height: 1.2;
+}
+
+.flowSteps {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.flowStep {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.stepIcon {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stepIcon.final {
+    background: var(--color-primary);
+    color: white;
+    border: none;
+}
+
+.stepInfo {
+    flex: 1;
+}
+
+.stepTitle {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--color-text-main);
+    margin-bottom: 0.4rem;
+}
+
+.stepDesc {
+    font-size: 0.95rem;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+    .stepsContainer {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+
+    .step,
+    .step:nth-child(even) {
+        flex-direction: column;
+        text-align: center;
+        gap: 1.5rem;
+    }
+
+    .stepIcon {
+        margin: 0 auto;
+    }
+
+    .stepNumber {
+        display: none;
+    }
+}

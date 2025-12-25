@@ -1,0 +1,110 @@
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    padding: 1.5rem 0;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    background-color: transparent;
+}
+
+.scrolled {
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 1rem 0;
+    box-shadow: var(--shadow-soft);
+}
+
+.container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    /* justify-content: space-between; Removed to use flex-grow */
+}
+
+.logo {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    min-width: 150px;
+}
+
+.links {
+    display: flex;
+    gap: 2rem;
+    flex: 1;
+    justify-content: center;
+    /* Removed absolute positioning to prevent overlaps */
+}
+
+.links a {
+    font-weight: 500;
+    font-size: 0.95rem;
+    /* Increased slightly */
+    color: var(--color-text-muted);
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.ctaGroup {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-shrink: 0;
+    justify-content: flex-end;
+    min-width: 150px;
+}
+
+.miniInputGroup {
+    background: white;
+    /* Force white background */
+    padding: 4px;
+    border-radius: var(--radius-pill);
+    display: flex;
+    align-items: center;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+.miniInput {
+    background: transparent;
+    border: none;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    outline: none;
+    width: 180px;
+    /* Increased width */
+    color: var(--color-text-main);
+}
+
+.miniButton {
+    background: var(--color-primary);
+    color: var(--color-forest);
+    /* Use forest for contrast on neon green */
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 0.5rem 1.2rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: filter 0.2s;
+}
+
+.miniButton:hover {
+    filter: brightness(0.95);
+}
+
+@media (max-width: 1024px) {
+    .links {
+        display: none;
+    }
+}

@@ -1,0 +1,225 @@
+.pageContainer {
+    padding-top: 100px;
+    background-color: var(--color-bg-main);
+    min-height: 100vh;
+    color: var(--color-text-main);
+    padding-bottom: 6rem;
+    overflow-x: hidden;
+}
+
+.hero {
+    text-align: center;
+    padding: 6rem 1rem;
+    max-width: 900px;
+    margin: 0 auto;
+    position: relative;
+    /* Ensure no overlap */
+    z-index: 10;
+}
+
+.hero::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(76, 123, 75, 0.15) 0%, transparent 70%);
+    z-index: 0;
+    pointer-events: none;
+}
+
+.title {
+    font-size: 3rem;
+    line-height: 1.1;
+    margin-bottom: 1.5rem;
+    font-weight: 800;
+    position: relative;
+    z-index: 1;
+}
+
+.highlight {
+    background: linear-gradient(135deg, #4C7B4B 0%, #00E34F 50%, #5D9CEC 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 5s linear infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+.intro {
+    font-size: 1.25rem;
+    color: var(--color-text-muted);
+    line-height: 1.6;
+    max-width: 800px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+}
+
+.valuesGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 5rem auto;
+    padding: 0 2rem;
+    width: 100%;
+    justify-content: center;
+}
+
+.valueCard {
+    background: var(--color-white);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 2.5rem;
+    border-radius: var(--radius-lg);
+    text-align: center;
+    transition: transform 0.3s, box-shadow 0.3s;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    /* Slight shadow for visibility */
+}
+
+.valueCard:hover {
+    transform: translateY(-8px);
+    background: var(--color-white);
+    border-color: var(--color-primary);
+    box-shadow: 0 15px 40px rgba(0, 227, 79, 0.2);
+    /* Green glow on hover */
+}
+
+.valueCard:hover .icon {
+    animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
+}
+
+@keyframes shake {
+
+    10%,
+    90% {
+        transform: translate3d(-1px, 0, 0);
+    }
+
+    20%,
+    80% {
+        transform: translate3d(2px, 0, 0);
+    }
+
+    30%,
+    50%,
+    70% {
+        transform: translate3d(-4px, 0, 0);
+    }
+
+    40%,
+    60% {
+        transform: translate3d(4px, 0, 0);
+    }
+}
+
+.icon {
+    font-size: 4rem;
+    margin-bottom: 2rem;
+    display: block;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+    transition: transform 0.3s ease;
+}
+
+.valueTitle {
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+    color: var(--color-text-main);
+    font-weight: 700;
+}
+
+.valueDesc {
+    color: var(--color-text-muted);
+    line-height: 1.6;
+    font-size: 1.1rem;
+}
+
+.visionSection {
+    margin-top: 10rem;
+    display: flex;
+    align-items: center;
+    gap: 6rem;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 0 2rem;
+}
+
+.visionContent {
+    flex: 1;
+}
+
+.visionContent h2 {
+    font-size: 3rem;
+    margin-bottom: 2rem;
+    /* Changed from white to dark gradient for Light Mode visibility */
+    background: linear-gradient(90deg, var(--color-forest), var(--color-primary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.visionContent p {
+    font-size: 1.2rem;
+    color: var(--color-text-muted);
+    line-height: 1.8;
+    margin-bottom: 2rem;
+}
+
+.visionImage {
+    flex: 1;
+    border-radius: 24px;
+    overflow: hidden;
+    position: relative;
+    height: 500px;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.visionImgTag {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.7s ease;
+}
+
+.visionSection:hover .visionImgTag {
+    transform: scale(1.05);
+}
+
+@media (max-width: 768px) {
+    .valuesGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .visionSection {
+        flex-direction: column;
+        text-align: center;
+        margin-top: 6rem;
+        gap: 3rem;
+    }
+
+    .title {
+        font-size: 2.5rem;
+    }
+
+    .visionImage {
+        height: 300px;
+        width: 100%;
+    }
+}

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yondly Analytics - Observatoire</title>
+    <style>
+        :root {
+            --primary: #4C7B4B;
+            --primary-light: #6B9B6A;
+            --bg-dark: #0f0f0f;
+            --bg-card: #1a1a1a;
+            --bg-card-hover: #252525;
+            --text: #ffffff;
+            --text-muted: #888888;
+            --border: #333333;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --info: #60a5fa;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+            opacity: 0.9;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .filter-group label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+        
+        .filter-group input, .filter-group select {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            align-self: flex-end;
+        }
+        
+        .btn:hover {
+            background: var(--primary-light);
+            transform: translateY(-2px);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.2s;
+        }
+        
+        .stat-card:hover {
+            background: var(--bg-card-hover);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .stat-card .icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+        
+        .stat-card .value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-card .label {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        
+        .stat-card.donations .value { color: var(--success); }
+        .stat-card.sales .value { color: var(--warning); }
+        .stat-card.rentals .value { color: var(--info); }
+        
+        .territory-table {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        
+        .territory-table h3 {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 1rem 1.5rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        th {
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+        }
+        
+        tr:hover {
+            background: var(--bg-card-hover);
+        }
+        
+        .category-badge {
+            background: var(--primary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 4rem;
+            color: var(--text-muted);
+        }
+        
+        .error {
+            background: #ff4444;
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        @media (max-width: 768px) {
+            .container { padding: 1rem; }
+            .filters { flex-direction: column; }
+            .stat-card .value { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌿 Yondly Observatoire</h1>
+        <p>Statistiques pour les collectivités</p>
+    </div>
+    
+    <div class="container">
+        <div class="filters">
+            <div class="filter-group">
+                <label>Date de début</label>
+                <input type="date" id="startDate" value="2025-01-01">
+            </div>
+            <div class="filter-group">
+                <label>Date de fin</label>
+                <input type="date" id="endDate">
+            </div>
+            <div class="filter-group">
+                <label>Code territoire</label>
+                <input type="text" id="territoryCode" placeholder="Ex: 75018">
+            </div>
+            <button class="btn" onclick="fetchStats()">🔍 Actualiser</button>
+        </div>
+        
+        <div id="error" class="error" style="display:none;"></div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="icon">📊</div>
+                <div class="value" id="totalTransactions">-</div>
+                <div class="label">Total transactions</div>
+            </div>
+            <div class="stat-card donations">
+                <div class="icon">🎁</div>
+                <div class="value" id="donationsCount">-</div>
+                <div class="label">Dons réalisés</div>
+            </div>
+            <div class="stat-card sales">
+                <div class="icon">💰</div>
+                <div class="value" id="salesCount">-</div>
+                <div class="label">Ventes seconde main</div>
+            </div>
+            <div class="stat-card rentals">
+                <div class="icon">🔄</div>
+                <div class="value" id="rentalsCount">-</div>
+                <div class="label">Locations</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">💶</div>
+                <div class="value" id="totalValue">-</div>
+                <div class="label">Valeur estimée (€)</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">🏷️</div>
+                <div class="value" id="topCategory">-</div>
+                <div class="label">Catégorie principale</div>
+            </div>
+        </div>
+        
+        <div class="territory-table">
+            <h3>📍 Statistiques par territoire</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Période</th>
+                        <th>Transactions</th>
+                        <th>Dons</th>
+                        <th>Ventes</th>
+                        <th>Locations</th>
+                        <th>Catégorie top</th>
+                        <th>Valeur (€)</th>
+                    </tr>
+                </thead>
+                <tbody id="territoryBody">
+                    <tr><td colspan="8" class="loading">Cliquez sur "Actualiser" pour charger les données</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        // Set default end date to today
+        document.getElementById('endDate').value = new Date().toISOString().split('T')[0];
+        
+        // API base URL - change this to your backend URL
+        const API_BASE = 'http://localhost:8000';
+        
+        async function fetchStats() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const territoryCode = document.getElementById('territoryCode').value;
+            
+            const errorDiv = document.getElementById('error');
+            errorDiv.style.display = 'none';
+            
+            try {
+                let url = `${API_BASE}/api/stats/territories?start_date=${startDate}T00:00:00&end_date=${endDate}T23:59:59`;
+                if (territoryCode) {
+                    url += `&territory_code=${territoryCode}`;
+                }
+                
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Erreur API: ' + response.status);
+                
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error('Erreur serveur');
+                }
+                
+                updateDashboard(result.data);
+                
+            } catch (error) {
+                errorDiv.textContent = '❌ Erreur: ' + error.message + '. Vérifiez que le backend est lancé.';
+                errorDiv.style.display = 'block';
+            }
+        }
+        
+        function updateDashboard(data) {
+            // Calculate totals
+            const totals = data.reduce((acc, item) => {
+                acc.transactions += item.total_transactions || 0;
+                acc.donations += item.donations_count || 0;
+                acc.sales += item.second_hand_sales_count || 0;
+                acc.rentals += item.rentals_count || 0;
+                acc.value += item.estimated_value_total || 0;
+                if (item.top_category) {
+                    acc.categories[item.top_category] = (acc.categories[item.top_category] || 0) + item.total_transactions;
+                }
+                return acc;
+            }, { transactions: 0, donations: 0, sales: 0, rentals: 0, value: 0, categories: {} });
+            
+            // Find top category
+            const topCategory = Object.entries(totals.categories).sort((a, b) => b[1] - a[1])[0];
+            
+            // Update cards
+            document.getElementById('totalTransactions').textContent = totals.transactions.toLocaleString();
+            document.getElementById('donationsCount').textContent = totals.donations.toLocaleString();
+            document.getElementById('salesCount').textContent = totals.sales.toLocaleString();
+            document.getElementById('rentalsCount').textContent = totals.rentals.toLocaleString();
+            document.getElementById('totalValue').textContent = totals.value.toLocaleString('fr-FR', { minimumFractionDigits: 2 });
+            document.getElementById('topCategory').textContent = topCategory ? topCategory[0] : '-';
+            
+            // Update table
+            const tbody = document.getElementById('territoryBody');
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="loading">Aucune donnée pour cette période</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = data.map(item => `
+                <tr>
+                    <td><strong>${item.territory_code}</strong></td>
+                    <td>${item.period}</td>
+                    <td>${item.total_transactions}</td>
+                    <td>${item.donations_count}</td>
+                    <td>${item.second_hand_sales_count}</td>
+                    <td>${item.rentals_count}</td>
+                    <td>${item.top_category ? `<span class="category-badge">${item.top_category}</span>` : '-'}</td>
+                    <td>${item.estimated_value_total.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</td>
+                </tr>
+            `).join('');
+        }
+    </script>
+</body>
+</html>

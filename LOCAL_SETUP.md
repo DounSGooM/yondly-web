@@ -1,0 +1,96 @@
+# Guide de Configuration Locale
+
+Ce guide vous explique comment lancer l'application Loop entièrement en local, sans dépendre de serveurs externes.
+
+## Prérequis
+
+- Python 3.8+
+- Node.js & npm
+- MongoDB (doit être installé et lancé sur le port 27017)
+- Un terminal (Terminal, iTerm, VS Code, etc.)
+
+## 1. Backend (API)
+
+Le backend est une application Python FastAPI.
+
+### Installation
+
+Il est recommandé d'utiliser un environnement virtuel :
+
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate  # Sur Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### Configuration MongoDB Atlas (Cloud)
+
+Puisque vous avez choisi MongoDB Atlas :
+
+1. Créez un compte sur [MongoDB Atlas](https://www.mongodb.com/cloud/atlas).
+2. Créez un cluster gratuit (M0).
+3. Créez un utilisateur de base de données (Database Access) et notez le mot de passe.
+4. Autorisez l'accès réseau (Network Access) depuis n'importe où (`0.0.0.0/0`) pour simplifier le développement.
+5. Récupérez votre chaîne de connexion (Connect -> Drivers -> Python). Elle ressemble à :
+   `mongodb+srv://<username>:<password>@cluster0.xyz.mongodb.net/?retryWrites=true&w=majority`
+
+Ensuite, lancez le backend avec votre chaîne de connexion :
+
+```bash
+export MONGO_URL="votre_chaine_de_connexion_ici"
+./start_backend.sh
+```
+
+Ou modifiez directement le fichier `start_backend.sh` pour y mettre votre URL.
+
+
+### Lancement
+
+Nous avons créé un script pour faciliter le lancement :
+
+```bash
+./start_backend.sh
+```
+
+Le serveur sera accessible sur `http://localhost:8000`.
+La documentation de l'API est disponible sur `http://localhost:8000/docs`.
+
+## 2. Frontend (Application Mobile)
+
+Le frontend est une application React Native avec Expo.
+
+### Configuration
+
+Créez un fichier `.env` dans le dossier `frontend` avec le contenu suivant :
+
+```
+EXPO_PUBLIC_BACKEND_URL=http://localhost:8000
+```
+
+### Installation
+
+```bash
+cd frontend
+npm install
+```
+
+### Lancement
+
+```bash
+cd frontend
+npm start
+```
+
+Appuyez sur `w` pour ouvrir dans le navigateur web, ou scannez le QR code avec l'application Expo Go sur votre téléphone (assurez-vous que votre téléphone et votre ordinateur sont sur le même réseau Wi-Fi).
+
+> **Note pour Expo Go sur téléphone :**
+> Si vous utilisez votre téléphone, remplacez `localhost` par l'adresse IP locale de votre ordinateur dans le fichier `.env` (ex: `http://192.168.1.15:8000`).
+
+## 3. Tests
+
+Pour vérifier que tout fonctionne, vous pouvez lancer le script de test automatisé (assurez-vous que le backend est lancé dans un autre terminal) :
+
+```bash
+python3 backend_test.py
+```
