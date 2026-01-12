@@ -26,7 +26,7 @@ export default function MyItemsScreen() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'donation' | 'sale'>('all');
+  const [filter, setFilter] = useState<'all' | 'donation' | 'sale' | 'rent'>('all');
 
   useEffect(() => {
     fetchMyItems();
@@ -204,6 +204,14 @@ export default function MyItemsScreen() {
         >
           <Text style={[styles.filterText, filter === 'sale' && styles.filterTextActive]}>
             Ventes ({items.filter(i => i.type === 'sale').length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterButton, filter === 'rent' && styles.filterButtonActive]}
+          onPress={() => setFilter('rent')}
+        >
+          <Text style={[styles.filterText, filter === 'rent' && styles.filterTextActive]}>
+            Locations ({items.filter(i => i.type === 'rent').length})
           </Text>
         </TouchableOpacity>
       </View>

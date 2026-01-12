@@ -219,6 +219,13 @@ export default function OrderDetailScreen() {
               <Text style={styles.scanTitle}>Scanner le QR code de l'acheteur</Text>
               <Text style={styles.scanSubtitle}>ou entrez le code manuellement:</Text>
 
+              <TouchableOpacity
+                style={{ position: 'absolute', top: 0, right: 0, padding: 8 }}
+                onPress={() => router.push(`/order/dispute?orderId=${order.id}` as any)}
+              >
+                <Text style={{ color: '#d32f2f', fontSize: 12 }}>Signaler un litige</Text>
+              </TouchableOpacity>
+
               <TextInput
                 style={styles.codeInput}
                 placeholder="XXXXXX"
@@ -251,6 +258,19 @@ export default function OrderDetailScreen() {
                   ? 'Vous avez reçu votre article.'
                   : `Le paiement de ${formatPrice(order.payout_cents)} a été libéré`}
               </Text>
+
+              {/* Dispute Button */}
+              {isBuyer && !canRate && (
+                <TouchableOpacity
+                  style={{ marginTop: 12, padding: 8 }}
+                  onPress={() => router.push(`/order/dispute?orderId=${order.id}` as any)}
+                >
+                  <Text style={{ color: '#d32f2f', textDecorationLine: 'underline', fontSize: 13 }}>
+                    Signaler un problème avec cette commande
+                  </Text>
+                </TouchableOpacity>
+              )}
+
               {isBuyer && canRate && (
                 <TouchableOpacity
                   style={styles.rateButton}

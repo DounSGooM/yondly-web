@@ -50,6 +50,15 @@ class EventFilter(BaseModel):
     date_to: Optional[datetime] = None
     admin_area_id: Optional[str] = None
 
+class DisputeResolution(BaseModel):
+    resolution: str
+    notes: Optional[str] = None
+    refund_percentage: Optional[int] = None
+
+class TrustUpdate(BaseModel):
+    trust_level: str
+    manual_adjustment_reason: str
+
 # ============ SEED DATA ============
 
 INITIAL_DATA_DICTIONARY = [
@@ -559,6 +568,417 @@ def create_admin_routes(db, get_current_user_func):
         
         return logs
     
+    # ============ USERS & TRUST ============
+
+    @router.get("/users")
+    async def get_users(current_user: dict = Depends(get_current_user_func)):
+        """Get all users with trust details"""
+        users = await db.users.find().sort("created_at", -1).to_list(1000)
+        results = []
+        for u in users:
+            results.append({
+                "id": u["id"],
+                "display_name": u.get("display_name", "Inconnu"),
+                "email": u.get("email", ""),
+                "trust_level": u.get("trust_level", "new"),
+                "risk_score": u.get("risk_score", 0),
+                "verified": u.get("is_verified", False),
+                "co2_saved": u.get("impact_stats", {}).get("co2_saved_kg", 0)
+            })
+        return results
+
+    @router.put("/users/{user_id}/trust")
+    async def update_user_trust(
+        user_id: str, 
+        update: TrustUpdate,
+        current_user: dict = Depends(get_current_user_func)
+    ):
+        """Manually update user trust level"""
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": {
+                "trust_level": update.trust_level, 
+                "risk_score": 0 if update.trust_level == "verified" else 50
+            }}
+        )
+        await log_admin_action(db, current_user["id"], "UPDATE_TRUST", "user", user_id, {"level": update.trust_level, "reason": update.manual_adjustment_reason})
+        return {"message": "Trust level updated"}
+
+    # ============ DISPUTES ============
+
+    @router.get("/disputes")
+    async def get_admin_disputes(status: str = None, current_user: dict = Depends(get_current_user_func)):
+        """Get disputes for admin with optional status filter"""
+        query = {}
+        if status:
+            query["status"] = status
+        
+        disputes = await db.disputes.find(query).sort("created_at", -1).to_list(100)
+        for d in disputes:
+            d.pop("_id", None)
+        return disputes
+
+    @router.post("/disputes/{dispute_id}/resolve")
+    async def resolve_dispute(
+        dispute_id: str, 
+        resolution: DisputeResolution,
+        current_user: dict = Depends(get_current_user_func)
+    ):
+        """Resolve a dispute"""
+        dispute = await db.disputes.find_one({"id": dispute_id})
+        if not dispute:
+            raise HTTPException(status_code=404, detail="Dispute not found")
+            
+        update_data = {
+            "status": "resolved_buyer" if "refund" in resolution.resolution else "resolved_seller",
+            "resolution": resolution.resolution,
+            "admin_notes": resolution.notes,
+            "resolved_at": datetime.utcnow(),
+            "resolved_by": current_user["id"]
+        }
+        
+        if resolution.refund_percentage:
+            update_data["refund_amount_cents"] = int(dispute.get("amount_cents", 0) * (resolution.refund_percentage / 100))
+        elif resolution.resolution == "refund_full":
+            update_data["refund_amount_cents"] = dispute.get("amount_cents", 0)
+            
+        await db.disputes.update_one({"id": dispute_id}, {"$set": update_data})
+        
+        # Trigger actual refund via Stripe if needed (mocked here)
+        
+        await log_admin_action(db, current_user["id"], "RESOLVE_DISPUTE", "dispute", dispute_id, resolution.dict())
+        return {"message": "Dispute resolved"}
+
+    # ============ SAFETY EVENTS ============
+
+    @router.get("/safety-events")
+    async def get_safety_events(limit: int = 100, current_user: dict = Depends(get_current_user_func)):
+        """Get safety/inspection events"""
+        events = await db.safety_events.find().sort("timestamp", -1).limit(limit).to_list(limit)
+        for e in events:
+            e.pop("_id", None)
+        return events
+
+    # ============ PRO VERIFICATION ============
+
+    @router.get("/pro/verifications")
+    async def get_pro_verifications(status: str = None, current_user: dict = Depends(get_current_user_func)):
+        """Get all PRO verification requests"""
+        query = {}
+        if status:
+            query["status"] = status
+        
+        verifications = await db.trader_verifications.find(query).sort("created_at", -1).to_list(100)
+        results = []
+        for v in verifications:
+            v.pop("_id", None)
+            # Get PRO profile info
+            pro = await db.pro_profiles.find_one({"pro_id": v.get("pro_id")})
+            v["pro_profile"] = {
+                "legal_name": pro.get("legal_name") if pro else "N/A",
+                "siret": pro.get("siret") if pro else "N/A",
+                "trade_name": pro.get("trade_name") if pro else None
+            }
+            results.append(v)
+        
+        return results
+
+    @router.post("/pro/verifications/{verification_id}/approve")
+    async def approve_verification(
+        verification_id: str,
+        current_user: dict = Depends(get_current_user_func)
+    ):
+        """Approve a PRO verification request"""
+        verif = await db.trader_verifications.find_one({"id": verification_id})
+        if not verif:
+            raise HTTPException(status_code=404, detail="Verification not found")
+        
+        if verif.get("status") == "APPROVED":
+            return {"message": "Already approved"}
+        
+        now = datetime.utcnow()
+        await db.trader_verifications.update_one(
+            {"id": verification_id},
+            {"$set": {
+                "status": "APPROVED",
+                "approved_at": now,
+                "approved_by": current_user["id"],
+                "updated_at": now
+            }}
+        )
+        
+        await log_admin_action(db, current_user["id"], "APPROVE_PRO", "verification", verification_id)
+        return {"message": "Verification approved", "status": "APPROVED"}
+
+    @router.post("/pro/verifications/{verification_id}/reject")
+    async def reject_verification(
+        verification_id: str,
+        reason: str,
+        current_user: dict = Depends(get_current_user_func)
+    ):
+        """Reject a PRO verification request"""
+        verif = await db.trader_verifications.find_one({"id": verification_id})
+        if not verif:
+            raise HTTPException(status_code=404, detail="Verification not found")
+        
+        now = datetime.utcnow()
+        await db.trader_verifications.update_one(
+            {"id": verification_id},
+            {"$set": {
+                "status": "REJECTED",
+                "rejection_reason": reason,
+                "rejected_at": now,
+                "rejected_by": current_user["id"],
+                "updated_at": now
+            }}
+        )
+        
+        await log_admin_action(db, current_user["id"], "REJECT_PRO", "verification", verification_id, {"reason": reason})
+        return {"message": "Verification rejected", "status": "REJECTED"}
+
+    # ============ PRO OFFERS MODERATION ============
+
+    @router.get("/pro/offers")
+    async def get_pro_offers(status: str = None, current_user: dict = Depends(get_current_user_func)):
+        """Get all PRO offers for moderation"""
+        query = {}
+        if status:
+            query["status"] = status
+        
+        offers = await db.offers_pro.find(query).sort("created_at", -1).to_list(200)
+        results = []
+        for o in offers:
+            o.pop("_id", None)
+            # Get PRO profile info
+            pro = await db.pro_profiles.find_one({"pro_id": o.get("pro_id")})
+            o["pro_info"] = {
+                "legal_name": pro.get("legal_name") if pro else "N/A",
+                "siret": pro.get("siret") if pro else "N/A",
+            }
+            results.append(o)
+        
+        return results
+
+    @router.post("/pro/offers/{offer_id}/suspend")
+    async def suspend_offer(
+        offer_id: str,
+        reason: str,
+        current_user: dict = Depends(get_current_user_func)
+    ):
+        """Suspend a PRO offer"""
+        offer = await db.offers_pro.find_one({"id": offer_id})
+        if not offer:
+            raise HTTPException(status_code=404, detail="Offer not found")
+        
+        now = datetime.utcnow()
+        await db.offers_pro.update_one(
+            {"id": offer_id},
+            {"$set": {
+                "status": "SUSPENDED",
+                "suspension_reason": reason,
+                "suspended_at": now,
+                "suspended_by": current_user["id"],
+                "updated_at": now
+            }}
+        )
+        
+        await log_admin_action(db, current_user["id"], "SUSPEND_OFFER", "offer_pro", offer_id, {"reason": reason})
+        return {"message": "Offer suspended", "status": "SUSPENDED"}
+
+    @router.post("/pro/offers/{offer_id}/unsuspend")
+    async def unsuspend_offer(
+        offer_id: str,
+        current_user: dict = Depends(get_current_user_func)
+    ):
+        """Unsuspend a PRO offer"""
+        offer = await db.offers_pro.find_one({"id": offer_id})
+        if not offer:
+            raise HTTPException(status_code=404, detail="Offer not found")
+        
+        if offer.get("status") != "SUSPENDED":
+            return {"message": "Offer is not suspended", "status": offer.get("status")}
+        
+        now = datetime.utcnow()
+        await db.offers_pro.update_one(
+            {"id": offer_id},
+            {"$set": {
+                "status": "PUBLISHED",
+                "unsuspended_at": now,
+                "unsuspended_by": current_user["id"],
+                "updated_at": now
+            },
+            "$unset": {"suspension_reason": "", "suspended_at": "", "suspended_by": ""}}
+        )
+        
+        await log_admin_action(db, current_user["id"], "UNSUSPEND_OFFER", "offer_pro", offer_id)
+        return {"message": "Offer unsuspended", "status": "PUBLISHED"}
+
+    @router.delete("/pro/offers/{offer_id}")
+    async def delete_offer(
+        offer_id: str,
+        reason: str,
+        current_user: dict = Depends(get_current_user_func)
+    ):
+        """Delete a PRO offer (hard delete with audit)"""
+        offer = await db.offers_pro.find_one({"id": offer_id})
+        if not offer:
+            raise HTTPException(status_code=404, detail="Offer not found")
+        
+        # Archive before delete
+        offer["deleted_reason"] = reason
+        offer["deleted_at"] = datetime.utcnow()
+        offer["deleted_by"] = current_user["id"]
+        await db.offers_pro_archive.insert_one(offer)
+        
+        # Delete from main collection
+        await db.offers_pro.delete_one({"id": offer_id})
+        
+        await log_admin_action(db, current_user["id"], "DELETE_OFFER", "offer_pro", offer_id, {"reason": reason})
+        return {"message": "Offer deleted and archived"}
+
+    # ============ TRANSPARENCY EDITOR ============
+
+    @router.get("/transparency")
+    async def get_transparency_config(current_user: dict = Depends(get_current_user_func)):
+        """Get transparency configuration"""
+        config = await db.platform_transparency.find_one({})
+        if config:
+            config.pop("_id", None)
+            return config
+        
+        # Return defaults
+        return {
+            "ranking_text": """Trier / classer les offres :
+- Proximité géographique (ville/zone)
+- Disponibilités (créneaux de retrait / dates de location)
+- Pertinence catégorie & mots-clés
+- Qualité de l'annonce (photos, description complète, infos légales)
+- Historique de fiabilité (annulations, no-show, litiges)
+- Signalements et modération
+
+Yondly ne vend pas les produits : le professionnel reste responsable.""",
+            "dereferencing_rules_text": """Une offre peut être suspendue ou supprimée si :
+- Informations obligatoires manquantes
+- Contenu trompeur, illégal ou dangereux
+- Signalements répétés ou fraude
+- Professionnel non vérifié ou paiements désactivés
+- Non-respect des conditions de retrait/remise
+- Litiges graves"""
+        }
+
+    @router.put("/transparency")
+    async def update_transparency_config(
+        ranking_text: str,
+        dereferencing_rules_text: str,
+        current_user: dict = Depends(get_current_user_func)
+    ):
+        """Update transparency configuration"""
+        now = datetime.utcnow()
+        
+        existing = await db.platform_transparency.find_one({})
+        if existing:
+            await db.platform_transparency.update_one(
+                {"_id": existing["_id"]},
+                {"$set": {
+                    "ranking_text": ranking_text,
+                    "dereferencing_rules_text": dereferencing_rules_text,
+                    "updated_at": now,
+                    "updated_by": current_user["id"]
+                }}
+            )
+        else:
+            await db.platform_transparency.insert_one({
+                "id": str(uuid.uuid4()),
+                "ranking_text": ranking_text,
+                "dereferencing_rules_text": dereferencing_rules_text,
+                "created_at": now,
+                "updated_at": now,
+                "updated_by": current_user["id"]
+            })
+        
+        await log_admin_action(db, current_user["id"], "UPDATE_TRANSPARENCY", "platform_transparency")
+        return {"message": "Transparency config updated"}
+
+    # ============ PRO STATS ============
+
+    @router.get("/pro/stats")
+    async def get_pro_stats(current_user: dict = Depends(get_current_user_func)):
+        """Get PRO module statistics"""
+        # Count verifications by status
+        total_pros = await db.pro_profiles.count_documents({})
+        pending_verifications = await db.trader_verifications.count_documents({"status": "PENDING"})
+        approved_pros = await db.trader_verifications.count_documents({"status": "APPROVED"})
+        rejected_pros = await db.trader_verifications.count_documents({"status": "REJECTED"})
+        
+        # Count offers by status
+        total_offers = await db.offers_pro.count_documents({})
+        published_offers = await db.offers_pro.count_documents({"status": "PUBLISHED"})
+        suspended_offers = await db.offers_pro.count_documents({"status": "SUSPENDED"})
+        
+        # Count transactions
+        antigaspi_orders = await db.orders_pro.count_documents({})
+        rentals = await db.rentals.count_documents({})
+        
+        # Count disputes
+        open_disputes = await db.disputes.count_documents({"status": "OPEN"})
+        mediation_disputes = await db.disputes.count_documents({"status": "MEDIATION"})
+        
+        return {
+            "pros": {
+                "total": total_pros,
+                "pending_verification": pending_verifications,
+                "approved": approved_pros,
+                "rejected": rejected_pros
+            },
+            "offers": {
+                "total": total_offers,
+                "published": published_offers,
+                "suspended": suspended_offers
+            },
+            "transactions": {
+                "antigaspi_orders": antigaspi_orders,
+                "rentals": rentals
+            },
+            "disputes": {
+                "open": open_disputes,
+                "in_mediation": mediation_disputes
+            }
+        }
+
+    # ============ DAC7 EXPORTS ============
+
+    @router.get("/dac7/jobs")
+    async def get_dac7_jobs(current_user: dict = Depends(get_current_user_func)):
+        """Get all DAC7 export jobs"""
+        jobs = await db.dac7_export_jobs.find().sort("created_at", -1).to_list(100)
+        for j in jobs:
+            j.pop("_id", None)
+        return jobs
+
+    @router.post("/dac7/generate")
+    async def generate_dac7_export(
+        year: int,
+        current_user: dict = Depends(get_current_user_func)
+    ):
+        """Generate DAC7 export for a given year"""
+        import os
+        from dac7_exporter import generate_dac7_from_db
+        
+        output_dir = os.path.join(os.path.dirname(__file__), "dac7_exports")
+        result = await generate_dac7_from_db(db, year, output_dir)
+        
+        await log_admin_action(db, current_user["id"], "GENERATE_DAC7", "dac7_export", result["job_id"], {"year": year})
+        return result
+
+    @router.get("/dac7/jobs/{job_id}")
+    async def get_dac7_job(job_id: str, current_user: dict = Depends(get_current_user_func)):
+        """Get DAC7 job details"""
+        job = await db.dac7_export_jobs.find_one({"id": job_id})
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        job.pop("_id", None)
+        return job
+
     return router
 
 
@@ -645,3 +1065,174 @@ async def aggregate_data_for_export(db, period_start: str, period_end: str, geo_
             result.append(masked)
     
     return result
+
+# ============ ADMIN DISPUTE SETTLEMENT ============
+
+async def create_admin_settlement_routes(db, get_current_user_func):
+    """Create admin routes for dispute settlement management"""
+    
+    @admin_routes.get("/disputes/{dispute_id}/detail")
+    async def get_dispute_detail(
+        dispute_id: str,
+        current_user: dict = Depends(get_current_user_func)
+    ):
+        """Get full dispute details including settlement offers and evidence"""
+        dispute = await db.disputes.find_one({"id": dispute_id})
+        if not dispute:
+            raise HTTPException(status_code=404, detail="Dispute not found")
+        
+        dispute.pop("_id", None)
+        
+        # Get settlement offers
+        offers = await db.settlement_offers.find({"dispute_id": dispute_id}).sort("created_at", -1).to_list(50)
+        for o in offers:
+            o.pop("_id", None)
+            author = await db.users.find_one({"id": o.get("created_by_user_id")})
+            o["created_by_name"] = author.get("display_name", "Admin") if author else "Admin"
+        
+        # Get evidence
+        evidence = await db.dispute_evidence.find({"dispute_id": dispute_id}).to_list(100)
+        for e in evidence:
+            e.pop("_id", None)
+        
+        # Get parties info
+        opener = await db.users.find_one({"id": dispute.get("opened_by")})
+        other = await db.users.find_one({"id": dispute.get("other_party_id")})
+        pro = await db.pro_profiles.find_one({"pro_id": dispute.get("pro_id")})
+        
+        return {
+            "dispute": dispute,
+            "settlement_offers": offers,
+            "evidence": evidence,
+            "opener": {
+                "id": opener.get("id") if opener else None,
+                "display_name": opener.get("display_name") if opener else "Inconnu",
+                "email": opener.get("email") if opener else None
+            },
+            "other_party": {
+                "id": other.get("id") if other else None,
+                "display_name": other.get("display_name") if other else "Inconnu",
+                "email": other.get("email") if other else None
+            },
+            "pro_profile": {
+                "legal_name": pro.get("legal_name") if pro else None,
+                "mediator_name": pro.get("mediator_name") if pro else None,
+                "mediator_url": pro.get("mediator_url") if pro else None
+            } if pro else None
+        }
+    
+    @admin_routes.post("/disputes/{dispute_id}/settlement-offer")
+    async def admin_create_settlement_offer(
+        dispute_id: str,
+        offer_type: str,
+        details_text: str,
+        amount_cents: int = None,
+        current_user: dict = Depends(get_current_user_func)
+    ):
+        """
+        Admin creates a settlement offer suggestion.
+        Note: This is a suggestion, not a binding decision.
+        Yondly facilite la résolution amiable mais n'est pas médiateur.
+        """
+        dispute = await db.disputes.find_one({"id": dispute_id})
+        if not dispute:
+            raise HTTPException(status_code=404, detail="Dispute not found")
+        
+        if dispute.get("stage") in ["RESOLVED", "ESCALATED_TO_MEDIATOR", "CLOSED_NO_AGREEMENT"]:
+            raise HTTPException(status_code=400, detail="Dispute is closed")
+        
+        from datetime import timedelta
+        now = datetime.utcnow()
+        
+        offer = {
+            "id": str(uuid.uuid4()),
+            "dispute_id": dispute_id,
+            "created_by_user_id": current_user["id"],
+            "type": offer_type,
+            "amount_cents": amount_cents,
+            "currency": "EUR",
+            "details_text": f"[Suggestion Admin] {details_text}",
+            "status": "PROPOSED",
+            "expires_at": now + timedelta(days=7),
+            "created_at": now
+        }
+        
+        await db.settlement_offers.insert_one(offer)
+        
+        # Update dispute stage
+        await db.disputes.update_one(
+            {"id": dispute_id},
+            {"$set": {"stage": "NEGOTIATION", "updated_at": now},
+             "$push": {"settlement_offers": offer["id"]}}
+        )
+        
+        # Add system message
+        await db.disputes.update_one(
+            {"id": dispute_id},
+            {"$push": {"messages": {
+                "id": str(uuid.uuid4()),
+                "author_id": "ADMIN",
+                "content": f"L'équipe Yondly a suggéré une proposition d'accord: {offer_type}",
+                "is_system": True,
+                "created_at": now
+            }}}
+        )
+        
+        offer.pop("_id", None)
+        return {
+            "message": "Proposition admin créée",
+            "offer": offer,
+            "disclaimer": "Yondly facilite la résolution amiable mais n'est pas médiateur."
+        }
+    
+    @admin_routes.post("/disputes/{dispute_id}/force-escalate")
+    async def admin_force_escalate(
+        dispute_id: str,
+        current_user: dict = Depends(get_current_user_func)
+    ):
+        """Force escalade vers médiateur (admin override)"""
+        dispute = await db.disputes.find_one({"id": dispute_id})
+        if not dispute:
+            raise HTTPException(status_code=404, detail="Dispute not found")
+        
+        if dispute.get("stage") == "ESCALATED_TO_MEDIATOR":
+            raise HTTPException(status_code=400, detail="Already escalated")
+        
+        now = datetime.utcnow()
+        
+        await db.disputes.update_one(
+            {"id": dispute_id},
+            {"$set": {
+                "stage": "ESCALATED_TO_MEDIATOR",
+                "status": "ESCALATED_TO_MEDIATOR",
+                "escalated_at": now,
+                "updated_at": now
+            }}
+        )
+        
+        return {"message": "Litige escaladé vers le médiateur", "stage": "ESCALATED_TO_MEDIATOR"}
+    
+    @admin_routes.post("/disputes/{dispute_id}/close-no-agreement")
+    async def admin_close_no_agreement(
+        dispute_id: str,
+        reason: str = "",
+        current_user: dict = Depends(get_current_user_func)
+    ):
+        """Fermer le litige sans accord (après échec de résolution amiable)"""
+        dispute = await db.disputes.find_one({"id": dispute_id})
+        if not dispute:
+            raise HTTPException(status_code=404, detail="Dispute not found")
+        
+        now = datetime.utcnow()
+        
+        await db.disputes.update_one(
+            {"id": dispute_id},
+            {"$set": {
+                "stage": "CLOSED_NO_AGREEMENT",
+                "status": "CLOSED_NO_AGREEMENT",
+                "resolution": reason or "Fermé sans accord - les parties peuvent saisir le médiateur",
+                "updated_at": now
+            }}
+        )
+        
+        return {"message": "Litige fermé sans accord", "stage": "CLOSED_NO_AGREEMENT"}

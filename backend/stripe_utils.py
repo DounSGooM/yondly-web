@@ -43,9 +43,15 @@ def calculate_platform_fee(amount_cents: int, user_level: str = 'Novice') -> dic
         'discount_applied': user_level if discount_multiplier < 1.0 else None
     }
 
+import hashlib
+
 def generate_handoff_code(length: int = 6) -> str:
     """Generate a random alphanumeric handoff code."""
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
+
+def hash_handoff_code(code: str) -> str:
+    """Hash the handoff code for storage."""
+    return hashlib.sha256(code.encode('utf-8')).hexdigest()
 
 def get_stripe_config():
     """Get Stripe configuration from environment."""

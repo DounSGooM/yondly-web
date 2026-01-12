@@ -31,7 +31,7 @@ interface Rental {
     price_per_day_cents: number;
     total_price_cents: number;
     deposit_cents: number;
-    status: 'pending' | 'confirmed' | 'active' | 'returned' | 'cancelled' | 'dispute';
+    status: 'pending' | 'confirmed' | 'active' | 'returned' | 'completed' | 'cancelled' | 'dispute';
     payment_status: string;
     pickup_code?: string;
     return_code?: string;
@@ -87,9 +87,12 @@ export default function RentalDetailScreen() {
                 params: {
                     orderId: rental?.id || '',
                     type: 'rental',
-                    itemTitle: rental?.item?.title || 'Location démarrée',
+                    itemTitle: rental?.item?.title || 'Location',
                     amount: (rental?.total_price_cents || 0).toString(),
                     co2_kg: response.data?.co2_kg?.toString() || '3',
+                    successTitle: 'Location démarrée !',
+                    successMessage: 'Bonne utilisation ! Vous devrez scanner un second code au retour.',
+                    nextPath: `../rental/detail?id=${rental?.id}`
                 }
             });
         } catch (error: any) {
@@ -140,6 +143,9 @@ export default function RentalDetailScreen() {
                     itemTitle: rental?.item?.title || 'Location terminée',
                     amount: (rental?.deposit_cents || 0).toString(), // Show deposit returned
                     co2_kg: response.data?.co2_kg?.toString() || '5',
+                    successTitle: 'Location terminée !',
+                    successMessage: 'Merci pour votre confiance. La caution a été débloquée.',
+                    nextPath: '/(tabs)/profile'
                 }
             });
         } catch (error: any) {
@@ -202,6 +208,18 @@ export default function RentalDetailScreen() {
                         </Text>
                     </View>
                 </View>
+
+                {/* Dispute Button */}
+                {rental.status !== 'cancelled' && rental.status !== 'dispute' && (
+                    <TouchableOpacity
+                        style={{ alignSelf: 'center', marginBottom: 16 }}
+                        onPress={() => router.push(`/order/dispute?rentalId=${rental.id}` as any)}
+                    >
+                        <Text style={{ color: '#d32f2f', textDecorationLine: 'underline', fontSize: 13 }}>
+                            Signaler un problème avec cette location
+                        </Text>
+                    </TouchableOpacity>
+                )}
 
                 {/* Item Info */}
                 {rental.item && (
@@ -387,6 +405,48 @@ export default function RentalDetailScreen() {
                         </View>
                     </View>
                 )}
+
+                {/* Inspection Buttons (Etat des lieux) */}
+                {rental.status === 'confirmed' && (
+                    <View style={styles.section}>
+                        <TouchableOpacity
+                            style={styles.inspectionButton}
+                            onPress={() => router.push({
+                                pathname: '/rental/inspection',
+                                params: { bookingId: rental.id, type: 'in' }
+                            } as any)}
+                        >
+                            <Ionicons name="clipboard-outline" size={24} color="#fff" />
+                            <Text style={styles.inspectionButtonText}>Remplir l'état des lieux d'entrée</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {rental.status === 'active' && (
+                    <View style={styles.section}>
+                        <TouchableOpacity
+                            style={[styles.inspectionButton, { backgroundColor: '#FF9800' }]}
+                            onPress={() => router.push({
+                                pathname: '/rental/inspection',
+                                params: { bookingId: rental.id, type: 'out' }
+                            } as any)}
+                        >
+                            <Ionicons name="clipboard-outline" size={24} color="#fff" />
+                            <Text style={styles.inspectionButtonText}>Remplir l'état des lieux de sortie</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* Dispute Button */}
+                {(rental.status === 'active' || rental.status === 'completed') && (
+                    <TouchableOpacity
+                        style={styles.disputeButton}
+                        onPress={() => router.push({ pathname: '/order/dispute', params: { rentalId: rental.id } } as any)}
+                    >
+                        <Ionicons name="flag-outline" size={20} color="#ff4444" />
+                        <Text style={styles.disputeButtonText}>Signaler un problème / Litige</Text>
+                    </TouchableOpacity>
+                )}
             </ScrollView>
         </View>
     );
@@ -563,6 +623,39 @@ const styles = StyleSheet.create({
     },
     confirmButtonText: {
         color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    inspectionButton: {
+        flexDirection: 'row',
+        backgroundColor: '#2196F3',
+        padding: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        marginBottom: 16,
+    },
+    inspectionButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    disputeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: '#ff4444',
+        borderRadius: 12,
+        gap: 8,
+        marginTop: 16,
+        marginBottom: 32,
+    },
+    disputeButtonText: {
+        color: '#ff4444',
         fontSize: 16,
         fontWeight: '600',
     },

@@ -101,7 +101,10 @@ export default function PublicListsScreen() {
     };
 
     const renderItem = ({ item }: { item: PublicList }) => (
-        <View style={styles.card}>
+        <TouchableOpacity
+            style={styles.card}
+            onPress={() => router.push(`/profile/public-lists/${item.id}`)}
+        >
             <View style={styles.iconContainer}>
                 <Ionicons name="list" size={24} color="#ffb74d" />
             </View>
@@ -115,7 +118,7 @@ export default function PublicListsScreen() {
             <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item.id)}>
                 <Ionicons name="trash-outline" size={20} color="#ff5252" />
             </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
     );
 
     return (

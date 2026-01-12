@@ -86,8 +86,8 @@ export default function ProDashboardScreen() {
             <View style={styles.chartBars}>
                 {['J-6', 'J-5', 'J-4', 'J-3', 'J-2', 'Hier', 'Ajdh'].map((day, index) => {
                     const value = data?.[index] || 0;
-                    const maxValue = Math.max(...(data || [1]));
-                    const height = (value / maxValue) * 80;
+                    const maxValue = Math.max(1, ...(data || [0]));
+                    const height = maxValue > 0 ? (value / maxValue) * 80 : 10;
                     const isToday = index === 6;
 
                     return (

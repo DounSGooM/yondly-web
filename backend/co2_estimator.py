@@ -407,10 +407,11 @@ async def estimate_co2_with_ai(
     description: str,
     category: str,
     price_cents: Optional[int] = None,
-    condition: Optional[str] = None
+    condition: Optional[str] = None,
+    image_urls: Optional[list[str]] = None
 ) -> Dict[str, Any]:
     """
-    Use Gemini AI to estimate CO2 savings with high precision.
+    Use Gemini AI to estimate CO2 savings with high precision, including image analysis.
     
     Args:
         title: Item title
@@ -418,6 +419,7 @@ async def estimate_co2_with_ai(
         category: Item category
         price_cents: Item price in cents (helps estimate size/quality)
         condition: Item condition (new, like_new, good, fair)
+        image_urls: List of image URLs to analyze
         
     Returns:
         Dict with co2_kg estimate and breakdown
@@ -445,7 +447,8 @@ async def estimate_co2_with_ai(
         
         price_info = f"{price_cents/100:.2f}€" if price_cents else "non spécifié"
         
-        prompt = f"""Tu es un expert en impact environnemental et économie circulaire.
+        # Prepare content parts (text + optional image)
+        prompt_text = f"""Tu es un expert en impact environnemental et économie circulaire.
         
 Estime précisément les kg de CO2 économisés en réutilisant cet article au lieu d'en acheter un neuf.
 
@@ -459,10 +462,11 @@ Estime précisément les kg de CO2 économisés en réutilisant cet article au l
 **Base de référence ADEME pour cette catégorie:** {base_estimate} kg CO2
 
 **Instructions:**
-1. Identifie précisément le type de produit
-2. Estime le poids et les matériaux principaux
-3. Calcule l'empreinte carbone de fabrication (extraction, transport, production)
-4. Ajuste selon l'état (un article neuf = 100%, usé = 70-80%)
+1. Identifie précisément le type de produit (et le matériau si visible sur la photo).
+2. Estime le poids et les matériaux principaux.
+3. Calcule l'empreinte carbone de fabrication (extraction, transport, production).
+4. Ajuste selon l'état (un article neuf = 100%, usé = 70-80%).
+5. Si une photo est fournie, utilise-la pour affiner l'estimation (taille, matériaux, état réel).
 
 **Réponds UNIQUEMENT en JSON valide:**
 {{
@@ -474,7 +478,30 @@ Estime précisément les kg de CO2 économisés en réutilisant cet article au l
     "explanation": "<explication courte en français>"
 }}"""
 
-        response = model.generate_content(prompt)
+        content = [prompt_text]
+        
+        # Try to download and add the first image if available
+        if image_urls and len(image_urls) > 0:
+            import httpx
+            import PIL.Image
+            import io
+            
+            try:
+                # Use the first image
+                img_url = image_urls[0]
+                async with httpx.AsyncClient() as client:
+                    resp = await client.get(img_url, timeout=10.0)
+                    if resp.status_code == 200:
+                        image_data = resp.content
+                        image = PIL.Image.open(io.BytesIO(image_data))
+                        content.append(image)
+                        print(f"Added image to Gemini analysis: {img_url}")
+            except Exception as e:
+                print(f"Failed to process image for CO2 estimation: {e}")
+                # Continue without image
+                pass
+
+        response = await model.generate_content_async(content)
         response_text = response.text.strip()
         
         # Extract JSON from response
@@ -487,7 +514,7 @@ Estime précisément les kg de CO2 économisés en réutilisant cet article au l
         
         return {
             "co2_saved_kg": round(ai_result.get("co2_saved_kg", base_estimate), 2),
-            "method": "ademe_ai_hybrid",
+            "method": "ademe_ai_hybrid_multimodal",
             "confidence": ai_result.get("confidence", 0.8),
             "breakdown": {
                 "category_base": base_estimate,
@@ -496,7 +523,7 @@ Estime précisément les kg de CO2 économisés en réutilisant cet article au l
                 "estimated_weight_kg": ai_result.get("estimated_weight_kg"),
                 "main_materials": ai_result.get("main_materials", []),
             },
-            "source": "ADEME + Analyse IA Gemini",
+            "source": "ADEME + Analyse IA Gemini (Multimodale)",
             "explanation": ai_result.get("explanation", "Estimation par IA")
         }
         

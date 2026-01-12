@@ -20,6 +20,7 @@ import { Item } from '../../src/types';
 import { useAuthStore } from '../../src/store/authStore';
 import InteractiveMap from '../../src/components/InteractiveMap';
 import ItemGridCard from '../../src/components/ItemGridCard';
+import MarketHeader from '../../src/components/MarketHeader';
 import * as Location from 'expo-location';
 
 import { API_URL } from '../../src/config/api';
@@ -98,7 +99,7 @@ export default function MarketScreen() {
       });
       setUnreadNotifications(response.data.count);
     } catch (error) {
-      console.log('Error fetching unread notifications');
+
     }
   };
 
@@ -106,7 +107,7 @@ export default function MarketScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        console.log('Location permission denied');
+
         return;
       }
       const location = await Location.getCurrentPositionAsync({});
@@ -182,16 +183,7 @@ export default function MarketScreen() {
     setShowFilters(false);
   };
 
-  const formatPrice = (item: Item) => {
-    if (item.type === 'donation') return 'FREE';
-    if (item.type === 'rent' && item.price_per_day_cents) {
-      return `€${(item.price_per_day_cents / 100).toFixed(0)}`;
-    }
-    if (item.price_cents) {
-      return `€${(item.price_cents / 100).toFixed(0)}`;
-    }
-    return '';
-  };
+
 
   const toggleViewMode = () => {
     // Circle: Grid -> List -> Map -> Grid
@@ -207,125 +199,7 @@ export default function MarketScreen() {
     return 'grid-outline';
   };
 
-  const renderItem = ({ item }: { item: Item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => router.push(`/item-detail?id=${item.id}` as any)}
-      activeOpacity={0.8}
-    >
-      <View style={styles.imageContainer}>
-        {item.photos && item.photos.length > 0 ? (
-          <Image
-            source={{ uri: item.photos[0] }}
-            style={styles.productImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.productImage, styles.placeholderImage]}>
-            <Ionicons name="image-outline" size={40} color="#ccc" />
-          </View>
-        )}
-      </View>
 
-      <View style={styles.cardContent}>
-        <Text style={styles.productTitle} numberOfLines={1}>
-          {item.title}
-        </Text>
-
-        <View style={styles.priceRow}>
-          {item.type === 'donation' ? (
-            <View style={styles.freeBadge}>
-              <Text style={styles.freeText}>FREE</Text>
-            </View>
-          ) : (
-            <Text style={styles.price}>{formatPrice(item)}</Text>
-          )}
-          {/* Pro Badge */}
-          {item.store_id && (
-            <View style={{ backgroundColor: '#4C7B4B', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
-              <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>PRO</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.bottomRow}>
-          {item.distance_km !== undefined && (
-            <View style={styles.distanceRow}>
-              <Ionicons name="location" size={14} color="#666" />
-              <Text style={styles.distance}>{item.distance_km.toFixed(1)}km</Text>
-            </View>
-          )}
-
-          {item.owner?.photo_url && (
-            <Image
-              source={{ uri: item.owner.photo_url }}
-              style={styles.avatar}
-            />
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderListItem = ({ item }: { item: Item }) => (
-    <TouchableOpacity
-      style={styles.listCard}
-      onPress={() => router.push(`/item-detail?id=${item.id}` as any)}
-      activeOpacity={0.8}
-    >
-      <View style={styles.listImageContainer}>
-        {item.photos && item.photos.length > 0 ? (
-          <Image
-            source={{ uri: item.photos[0] }}
-            style={styles.productImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.productImage, styles.placeholderImage]}>
-            <Ionicons name="image-outline" size={30} color="#ccc" />
-          </View>
-        )}
-      </View>
-
-      <View style={styles.listCardContent}>
-        <View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={[styles.productTitle, { flex: 1 }]} numberOfLines={2}>
-              {item.title}
-            </Text>
-            {item.store_id && (
-              <View style={{ backgroundColor: '#4C7B4B', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 4 }}>
-                <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>PRO</Text>
-              </View>
-            )}
-          </View>
-
-          {item.distance_km !== undefined && (
-            <View style={styles.distanceRow}>
-              <Ionicons name="location" size={14} color="#666" />
-              <Text style={styles.distance}>{item.distance_km.toFixed(1)}km</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          {item.type === 'donation' ? (
-            <View style={styles.freeBadge}>
-              <Text style={styles.freeText}>FREE</Text>
-            </View>
-          ) : (
-            <Text style={styles.price}>{formatPrice(item)}</Text>
-          )}
-          {item.owner?.photo_url && (
-            <Image
-              source={{ uri: item.owner.photo_url }}
-              style={styles.avatar}
-            />
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
 
   if (loading) {
     return (
@@ -337,65 +211,23 @@ export default function MarketScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Image
-          source={require('../../assets/images/loop-logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <View style={styles.locationBadge}>
-          <Ionicons name="location" size={16} color="#4C7B4B" />
-          <Text style={styles.locationText}>Poitiers</Text>
-        </View>
+      <MarketHeader
+        location="Poitiers" // Could be dynamic
+        onLocationPress={() => { }} // Future
+        onNotificationPress={() => router.push('/notifications' as any)}
+        onMessagePress={() => router.push('/messages' as any)}
+        onViewToggle={toggleViewMode}
+        viewModeIcon={getViewIcon()}
+        notificationCount={unreadNotifications}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onFilterPress={handleOpenFilters}
+        onSaveSearchPress={handleSaveSearch}
+        showSaveSearch={searchQuery.length > 0 || selectedCategory !== 'Tous'}
+        activeFilters={!!(minRating || radiusKm)}
+      />
 
-        {/* View Mode Toggle */}
-        <TouchableOpacity
-          style={styles.viewToggle}
-          onPress={toggleViewMode}
-        >
-          <Ionicons
-            name={getViewIcon() as any}
-            size={22}
-            color="#333"
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.notificationButton}
-          onPress={() => router.push('/notifications' as any)}
-        >
-          <Ionicons name="notifications-outline" size={24} color="#333" />
-          {unreadNotifications > 0 && <View style={styles.notificationDot} />}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.notificationButton}
-          onPress={() => router.push('/messages' as any)}
-        >
-          <Ionicons name="chatbubbles-outline" size={24} color="#333" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search for items in Poitiers..."
-          placeholderTextColor="#999"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {(searchQuery.length > 0 || selectedCategory !== 'Tous') && (
-          <TouchableOpacity onPress={handleSaveSearch} style={{ padding: 8 }}>
-            <Ionicons name="bookmark-outline" size={22} color="#4C7B4B" />
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity onPress={handleOpenFilters} style={{ padding: 8, marginLeft: 4 }}>
-          <Ionicons name="filter" size={22} color={(minRating || radiusKm) ? "#4C7B4B" : "#666"} />
-        </TouchableOpacity>
-      </View>
+      {/* Category Dropdown */}
 
       {/* Category Dropdown */}
       <View style={styles.categorySelector}>
@@ -503,6 +335,14 @@ export default function MarketScreen() {
               <Text style={styles.emptyText}>Aucun article trouvé</Text>
             </View>
           }
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#4C7B4B']}
+              tintColor={'#4C7B4B'}
+            />
+          }
         />
       )}
 
@@ -579,81 +419,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f8f9fa',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 12,
-    backgroundColor: '#fff',
-  },
-  logo: {
-    width: 80,
-    height: 32,
-  },
-  locationBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginLeft: 12,
-    flex: 1,
-  },
-  locationText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginLeft: 4,
-  },
-  viewToggle: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 20,
-  },
-  notificationButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-    marginLeft: 4,
-  },
-  notificationDot: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ff4444',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#4C7B4B',
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#333',
-  },
+  // Header styles removed (moved to MarketHeader)
   categorySelector: {
     paddingHorizontal: 16,
     paddingVertical: 12,

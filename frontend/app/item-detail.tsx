@@ -67,8 +67,8 @@ export default function ItemDetailScreen() {
       const response = await axios.get(`${API_URL}/items/${id}`);
       setItem(response.data);
 
-      // Si c'est un article en vente, charger les offres (pour vendeur ET acheteur)
-      if (response.data.type === 'sale') {
+      // Si c'est un article en vente ou location, charger les offres
+      if (response.data.type === 'sale' || response.data.type === 'rent') {
         fetchOffers();
       }
     } catch (error) {
@@ -82,11 +82,11 @@ export default function ItemDetailScreen() {
   const fetchOffers = async () => {
     try {
       setLoadingOffers(true);
-      console.log('Fetching offers for item:', id);
+
       const response = await axios.get(`${API_URL}/offers/item/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log('Offers received:', response.data);
+
       setOffers(response.data);
     } catch (error: any) {
       console.error('Error fetching offers:', error.response?.data || error.message);
@@ -543,7 +543,8 @@ export default function ItemDetailScreen() {
       <MakeOfferModal
         visible={showOfferModal}
         onClose={() => setShowOfferModal(false)}
-        originalPrice={item.price_cents || 0}
+        originalPrice={item?.type === 'rent' ? (item.price_per_day_cents || 0) : (item?.price_cents || 0)}
+        isRental={item?.type === 'rent'}
         onOfferSubmit={handleMakeOffer}
       />
 
@@ -583,13 +584,13 @@ export default function ItemDetailScreen() {
               </TouchableOpacity>
             )
           ) : (
-            // For market sales
+            // For rentals or sales
             item.owner_id === user?.id ? (
               <View style={styles.ownerFooterInfo}>
                 <Text style={styles.ownerInfoText}>✅ C'est votre annonce</Text>
               </View>
             ) : myAcceptedOffer ? (
-              // Offre acceptée - afficher bouton payer avec compte à rebours
+              // Offre acceptée
               <View style={styles.acceptedOfferContainer}>
                 <View style={styles.acceptedOfferInfo}>
                   <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
@@ -598,76 +599,66 @@ export default function ItemDetailScreen() {
                       ✅ Votre offre a été acceptée !
                     </Text>
                     <Text style={styles.acceptedOfferPrice}>
-                      Prix négocié : {(myAcceptedOffer.amount_cents / 100).toFixed(2)}€
+                      {(myAcceptedOffer.amount_cents / 100).toFixed(2)}€
                     </Text>
                     <Text style={styles.acceptedOfferTimer}>
-                      ⏰ Temps restant : {getTimeRemaining()}
+                      Paiement requis: {getTimeRemaining()}
                     </Text>
                   </View>
                 </View>
+
                 <TouchableOpacity
                   style={[styles.actionButton, styles.payButton]}
                   onPress={handleBuy}
-                  disabled={purchasing}
                 >
-                  <Text style={styles.actionButtonText}>
-                    {purchasing ? 'Paiement...' : 'Payer maintenant'}
-                  </Text>
+                  <Text style={styles.actionButtonText}>Payer maintenant</Text>
                 </TouchableOpacity>
-              </View>
-            ) : acceptedOffer ? (
-              // Une autre offre a été acceptée - pas de nouvelle offre possible
-              <View style={styles.offerAcceptedByOther}>
-                <Ionicons name="lock-closed" size={20} color="#999" />
-                <Text style={styles.offerAcceptedText}>
-                  Une offre a été acceptée pour cet article
-                </Text>
               </View>
             ) : (
-              // Aucune offre acceptée - afficher les boutons normaux
-              <View style={styles.buyerActions}>
+              // Standard View (Sale or Rent)
+              <View style={styles.footerActions}>
                 <TouchableOpacity
-                  style={[styles.actionButton, styles.contactButton]}
-                  onPress={handleContact}
-                >
-                  <Ionicons name="chatbubble-outline" size={24} color="#4C7B4B" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.offerButton]}
+                  style={[styles.actionButton, styles.secondaryButton]}
                   onPress={() => setShowOfferModal(true)}
                 >
-                  <Ionicons name="pricetag-outline" size={20} color="#4C7B4B" />
-                  <Text style={styles.offerButtonText}>Faire une offre</Text>
+                  <Ionicons name="pricetag-outline" size={24} color="#4C7B4B" />
+                  <Text style={styles.secondaryButtonText}>
+                    {item.type === 'rent' ? 'Négocier' : 'Faire une offre'}
+                  </Text>
                 </TouchableOpacity>
+
                 <TouchableOpacity
-                  style={[styles.actionButton, styles.buyButton]}
+                  style={[styles.actionButton, styles.primaryButton]}
                   onPress={handleBuy}
-                  disabled={purchasing}
                 >
-                  <Text style={styles.actionButtonText}>
-                    {purchasing ? 'Traitement...' : item.type === 'rent' ? 'Louer' : 'Acheter'}
+                  <Ionicons name={item.type === 'rent' ? "calendar-outline" : "cart-outline"} size={24} color="#fff" />
+                  <Text style={styles.primaryButtonText}>
+                    {item.type === 'rent' ? 'Louer' : 'Acheter'}
                   </Text>
                 </TouchableOpacity>
               </View>
             )
-          )}
+          )
+          }
         </View>
       )}
 
-      {item.status !== 'active' && (
-        <View style={styles.footer}>
-          <View style={styles.statusBadge}>
-            <Text style={styles.statusText}>
-              {item.status === 'reserved'
-                ? 'Réservé'
-                : item.status === 'completed'
-                  ? 'Terminé'
-                  : 'Expiré'}
-            </Text>
+      {
+        item.status !== 'active' && (
+          <View style={styles.footer}>
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusText}>
+                {item.status === 'reserved'
+                  ? 'Réservé'
+                  : item.status === 'completed'
+                    ? 'Terminé'
+                    : 'Expiré'}
+              </Text>
+            </View>
           </View>
-        </View>
-      )}
-    </View>
+        )
+      }
+    </View >
   );
 }
 
@@ -1037,10 +1028,38 @@ const styles = StyleSheet.create({
     color: '#f57c00',
     fontWeight: '600',
   },
-  payButton: {
-    backgroundColor: '#4caf50',
+  footerActions: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  primaryButton: {
+    backgroundColor: '#4C7B4B',
     flex: 1,
   },
+  secondaryButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#4C7B4B',
+    flex: 1,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  secondaryButtonText: {
+    color: '#4C7B4B',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  payButton: {
+    backgroundColor: '#4C7B4B',
+    width: '100%',
+  },
+
   offerAcceptedByOther: {
     flex: 1,
     flexDirection: 'row',

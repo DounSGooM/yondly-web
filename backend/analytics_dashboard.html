@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,60 +19,61 @@
             --warning: #fbbf24;
             --info: #60a5fa;
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg-dark);
             color: var(--text);
             min-height: 100vh;
         }
-        
+
         .header {
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
             padding: 2rem;
             text-align: center;
         }
-        
+
         .header h1 {
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }
-        
+
         .header p {
             opacity: 0.9;
         }
-        
+
         .container {
             max-width: 1400px;
             margin: 0 auto;
             padding: 2rem;
         }
-        
+
         .filters {
             display: flex;
             gap: 1rem;
             margin-bottom: 2rem;
             flex-wrap: wrap;
         }
-        
+
         .filter-group {
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
         }
-        
+
         .filter-group label {
             font-size: 0.875rem;
             color: var(--text-muted);
         }
-        
-        .filter-group input, .filter-group select {
+
+        .filter-group input,
+        .filter-group select {
             background: var(--bg-card);
             border: 1px solid var(--border);
             color: var(--text);
@@ -79,7 +81,7 @@
             border-radius: 8px;
             font-size: 1rem;
         }
-        
+
         .btn {
             background: var(--primary);
             color: white;
@@ -91,19 +93,19 @@
             transition: all 0.2s;
             align-self: flex-end;
         }
-        
+
         .btn:hover {
             background: var(--primary-light);
             transform: translateY(-2px);
         }
-        
+
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
-        
+
         .stat-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -111,80 +113,89 @@
             padding: 1.5rem;
             transition: all 0.2s;
         }
-        
+
         .stat-card:hover {
             background: var(--bg-card-hover);
             transform: translateY(-4px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
         }
-        
+
         .stat-card .icon {
             font-size: 2rem;
             margin-bottom: 1rem;
         }
-        
+
         .stat-card .value {
             font-size: 2.5rem;
             font-weight: 700;
             margin-bottom: 0.5rem;
         }
-        
+
         .stat-card .label {
             color: var(--text-muted);
             font-size: 0.9rem;
         }
-        
-        .stat-card.donations .value { color: var(--success); }
-        .stat-card.sales .value { color: var(--warning); }
-        .stat-card.rentals .value { color: var(--info); }
-        
+
+        .stat-card.donations .value {
+            color: var(--success);
+        }
+
+        .stat-card.sales .value {
+            color: var(--warning);
+        }
+
+        .stat-card.rentals .value {
+            color: var(--info);
+        }
+
         .territory-table {
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 16px;
             overflow: hidden;
         }
-        
+
         .territory-table h3 {
             padding: 1.5rem;
             border-bottom: 1px solid var(--border);
         }
-        
+
         table {
             width: 100%;
             border-collapse: collapse;
         }
-        
-        th, td {
+
+        th,
+        td {
             padding: 1rem 1.5rem;
             text-align: left;
             border-bottom: 1px solid var(--border);
         }
-        
+
         th {
             color: var(--text-muted);
             font-weight: 500;
             font-size: 0.875rem;
             text-transform: uppercase;
         }
-        
+
         tr:hover {
             background: var(--bg-card-hover);
         }
-        
+
         .category-badge {
             background: var(--primary);
             padding: 0.25rem 0.75rem;
             border-radius: 20px;
             font-size: 0.8rem;
         }
-        
+
         .loading {
             text-align: center;
             padding: 4rem;
             color: var(--text-muted);
         }
-        
+
         .error {
             background: #ff4444;
             color: white;
@@ -192,20 +203,29 @@
             border-radius: 8px;
             margin-bottom: 1rem;
         }
-        
+
         @media (max-width: 768px) {
-            .container { padding: 1rem; }
-            .filters { flex-direction: column; }
-            .stat-card .value { font-size: 2rem; }
+            .container {
+                padding: 1rem;
+            }
+
+            .filters {
+                flex-direction: column;
+            }
+
+            .stat-card .value {
+                font-size: 2rem;
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="header">
         <h1>🌿 Yondly Observatoire</h1>
         <p>Statistiques pour les collectivités</p>
     </div>
-    
+
     <div class="container">
         <div class="filters">
             <div class="filter-group">
@@ -222,9 +242,9 @@
             </div>
             <button class="btn" onclick="fetchStats()">🔍 Actualiser</button>
         </div>
-        
+
         <div id="error" class="error" style="display:none;"></div>
-        
+
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="icon">📊</div>
@@ -257,7 +277,7 @@
                 <div class="label">Catégorie principale</div>
             </div>
         </div>
-        
+
         <div class="territory-table">
             <h3>📍 Statistiques par territoire</h3>
             <table>
@@ -274,50 +294,52 @@
                     </tr>
                 </thead>
                 <tbody id="territoryBody">
-                    <tr><td colspan="8" class="loading">Cliquez sur "Actualiser" pour charger les données</td></tr>
+                    <tr>
+                        <td colspan="8" class="loading">Cliquez sur "Actualiser" pour charger les données</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
     </div>
-    
+
     <script>
         // Set default end date to today
         document.getElementById('endDate').value = new Date().toISOString().split('T')[0];
-        
+
         // API base URL - change this to your backend URL
-        const API_BASE = 'http://localhost:8000';
-        
+        const API_BASE = 'https://yondly-backend-951855414282.europe-west1.run.app';
+
         async function fetchStats() {
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
             const territoryCode = document.getElementById('territoryCode').value;
-            
+
             const errorDiv = document.getElementById('error');
             errorDiv.style.display = 'none';
-            
+
             try {
                 let url = `${API_BASE}/api/stats/territories?start_date=${startDate}T00:00:00&end_date=${endDate}T23:59:59`;
                 if (territoryCode) {
                     url += `&territory_code=${territoryCode}`;
                 }
-                
+
                 const response = await fetch(url);
                 if (!response.ok) throw new Error('Erreur API: ' + response.status);
-                
+
                 const result = await response.json();
-                
+
                 if (!result.success) {
                     throw new Error('Erreur serveur');
                 }
-                
+
                 updateDashboard(result.data);
-                
+
             } catch (error) {
                 errorDiv.textContent = '❌ Erreur: ' + error.message + '. Vérifiez que le backend est lancé.';
                 errorDiv.style.display = 'block';
             }
         }
-        
+
         function updateDashboard(data) {
             // Calculate totals
             const totals = data.reduce((acc, item) => {
@@ -331,10 +353,10 @@
                 }
                 return acc;
             }, { transactions: 0, donations: 0, sales: 0, rentals: 0, value: 0, categories: {} });
-            
+
             // Find top category
             const topCategory = Object.entries(totals.categories).sort((a, b) => b[1] - a[1])[0];
-            
+
             // Update cards
             document.getElementById('totalTransactions').textContent = totals.transactions.toLocaleString();
             document.getElementById('donationsCount').textContent = totals.donations.toLocaleString();
@@ -342,14 +364,14 @@
             document.getElementById('rentalsCount').textContent = totals.rentals.toLocaleString();
             document.getElementById('totalValue').textContent = totals.value.toLocaleString('fr-FR', { minimumFractionDigits: 2 });
             document.getElementById('topCategory').textContent = topCategory ? topCategory[0] : '-';
-            
+
             // Update table
             const tbody = document.getElementById('territoryBody');
             if (data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="8" class="loading">Aucune donnée pour cette période</td></tr>';
                 return;
             }
-            
+
             tbody.innerHTML = data.map(item => `
                 <tr>
                     <td><strong>${item.territory_code}</strong></td>
@@ -365,4 +387,5 @@
         }
     </script>
 </body>
+
 </html>

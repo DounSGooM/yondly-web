@@ -19,6 +19,7 @@ import { useAuthStore } from '../../src/store/authStore';
 import InteractiveMap from '../../src/components/InteractiveMap';
 import ItemGridCard from '../../src/components/ItemGridCard';
 import NotificationBell from '../../src/components/NotificationBell';
+import MarketHeader from '../../src/components/MarketHeader';
 import * as Location from 'expo-location';
 
 import { API_URL } from '../../src/config/api';
@@ -151,53 +152,7 @@ export default function FoodScreen() {
     </TouchableOpacity>
   );
 
-  const renderListItem = ({ item }: { item: Item }) => (
-    <TouchableOpacity
-      style={styles.listCard}
-      onPress={() => router.push(`/item-detail?id=${item.id}` as any)}
-      activeOpacity={0.8}
-    >
-      <View style={styles.listImageContainer}>
-        {item.photos && item.photos.length > 0 ? (
-          <Image
-            source={{ uri: item.photos[0] }}
-            style={styles.productImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.productImage, styles.placeholderImage]}>
-            <Ionicons name="image-outline" size={30} color="#ccc" />
-          </View>
-        )}
-      </View>
 
-      <View style={styles.listCardContent}>
-        <View>
-          <Text style={styles.productTitle} numberOfLines={2}>
-            {item.title}
-          </Text>
-          {item.distance_km !== undefined && (
-            <View style={styles.distanceRow}>
-              <Ionicons name="location" size={14} color="#666" />
-              <Text style={styles.distance}>{item.distance_km.toFixed(1)}km</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View style={styles.freeBadge}>
-            <Text style={styles.freeText}>FREE</Text>
-          </View>
-          {item.owner?.photo_url && (
-            <Image
-              source={{ uri: item.owner.photo_url }}
-              style={styles.avatar}
-            />
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
 
   if (loading) {
     return (
@@ -209,50 +164,16 @@ export default function FoodScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Image
-          source={require('../../assets/images/loop-logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <View style={styles.locationBadge}>
-          <Ionicons name="location" size={16} color="#4C7B4B" />
-          <Text style={styles.locationText}>Poitiers</Text>
-        </View>
+      <MarketHeader
+        location="Poitiers"
+        onViewToggle={toggleViewMode}
+        viewModeIcon={getViewIcon()}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onMessagePress={() => router.push('/messages' as any)}
+      />
 
-        <TouchableOpacity
-          style={styles.viewToggle}
-          onPress={toggleViewMode}
-        >
-          <Ionicons
-            name={getViewIcon() as any}
-            size={22}
-            color="#666"
-          />
-        </TouchableOpacity>
-
-        <NotificationBell />
-
-        <TouchableOpacity
-          style={styles.notificationButton}
-          onPress={() => router.push('/messages' as any)}
-        >
-          <Ionicons name="chatbubbles-outline" size={24} color="#333" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Rechercher des dons..."
-          placeholderTextColor="#999"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
+      {/* Product Grid, List or Map */}
 
       {/* Product Grid, List or Map */}
       {viewMode === 'map' ? (

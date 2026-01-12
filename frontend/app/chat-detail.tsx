@@ -41,13 +41,13 @@ export default function ChatScreen() {
 
   useEffect(() => {
     if (itemId) {
-      console.log('Chat detail - itemId:', itemId);
+
       fetchItem();
       fetchMessages();
       const interval = setInterval(fetchMessages, 5000); // Poll every 5s
       return () => clearInterval(interval);
     } else {
-      console.log('Chat detail - No itemId found in params:', params);
+
     }
   }, [itemId]);
 
@@ -267,6 +267,16 @@ export default function ChatScreen() {
       />
 
       <View style={styles.inputContainer}>
+        {/* Safety Warning */}
+        {inputText.match(/(?:(?:\+|00)33|0)\s*[1-9](?:[\s.-]*\d{2}){4}|[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+|FR\d{12,25}|paypal|lydia|paylib/i) && (
+          <View style={{ position: 'absolute', top: -40, left: 16, right: 16, backgroundColor: '#FFF3E0', padding: 8, borderRadius: 8, borderWidth: 1, borderColor: '#FFB74D', flexDirection: 'row', alignItems: 'center', zIndex: 10 }}>
+            <Ionicons name="warning" size={20} color="#F57C00" style={{ marginRight: 8 }} />
+            <Text style={{ flex: 1, color: '#E65100', fontSize: 12 }}>
+              Pour votre sécurité, ne partagez pas d'infos personnelles avant la confirmation.
+            </Text>
+          </View>
+        )}
+
         <TextInput
           style={styles.input}
           placeholder="Votre message..."
@@ -278,7 +288,6 @@ export default function ChatScreen() {
         <TouchableOpacity
           style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
           onPress={sendMessage}
-          disabled={!inputText.trim() || sending}
         >
           <Ionicons
             name={sending ? 'hourglass' : 'send'}

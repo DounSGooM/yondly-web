@@ -36,6 +36,9 @@ export default function TransactionSuccessScreen() {
         itemTitle: string;
         amount: string;
         co2_kg: string;
+        successTitle?: string;
+        successMessage?: string;
+        nextPath?: string;
     }>();
 
     const [data, setData] = useState<TransactionData | null>(null);
@@ -76,7 +79,13 @@ export default function TransactionSuccessScreen() {
         }).catch(() => { });
     };
 
-    const handleDone = () => router.replace('/(tabs)/food');
+    const handleDone = () => {
+        if (params.nextPath) {
+            router.replace(params.nextPath as any);
+        } else {
+            router.replace('/(tabs)/food');
+        }
+    };
 
     if (!data) {
         return (
@@ -100,8 +109,12 @@ export default function TransactionSuccessScreen() {
 
                 {/* Success Text */}
                 <View style={styles.header}>
-                    <Text style={styles.title}>🎉 Félicitations !</Text>
-                    <Text style={styles.subtitle}>{getTypeEmoji()} {data.itemTitle}</Text>
+                    <Text style={styles.title}>{params.successTitle || '🎉 Félicitations !'}</Text>
+                    {params.successMessage ? (
+                        <Text style={styles.subtitle}>{params.successMessage}</Text>
+                    ) : (
+                        <Text style={styles.subtitle}>{getTypeEmoji()} {data.itemTitle}</Text>
+                    )}
                     {data.amount > 0 && (
                         <Text style={styles.amount}>{(data.amount / 100).toFixed(2)} €</Text>
                     )}
@@ -140,7 +153,9 @@ export default function TransactionSuccessScreen() {
                         <Text style={styles.shareBtnText}>Partager</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.doneBtn} onPress={handleDone}>
-                        <Text style={styles.doneBtnText}>Terminé</Text>
+                        <Text style={[styles.doneBtnText, { textAlign: 'center' }]}>
+                            {params.nextPath ? 'Continuer' : 'Terminé'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </Animated.View>

@@ -16,7 +16,9 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { Item } from '../../src/types';
 import InteractiveMap from '../../src/components/InteractiveMap';
+import ItemGridCard from '../../src/components/ItemGridCard';
 import NotificationBell from '../../src/components/NotificationBell';
+import MarketHeader from '../../src/components/MarketHeader';
 import * as Location from 'expo-location';
 
 import { API_URL } from '../../src/config/api';
@@ -91,12 +93,7 @@ export default function RentalScreen() {
     fetchItems();
   };
 
-  const formatPrice = (item: Item) => {
-    if (item.price_per_day_cents) {
-      return `${(item.price_per_day_cents / 100).toFixed(0)}€ /j`;
-    }
-    return 'Prix sur demande';
-  };
+
 
   const toggleViewMode = () => {
     // Circle: Grid -> List -> Map -> Grid
@@ -112,103 +109,9 @@ export default function RentalScreen() {
     return 'grid-outline';
   };
 
-  const renderItem = ({ item }: { item: Item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => router.push(`/item-detail?id=${item.id}` as any)}
-      activeOpacity={0.8}
-    >
-      <View style={styles.imageContainer}>
-        {item.photos && item.photos.length > 0 ? (
-          <Image
-            source={{ uri: item.photos[0] }}
-            style={styles.productImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.productImage, styles.placeholderImage]}>
-            <Ionicons name="image-outline" size={40} color="#ccc" />
-          </View>
-        )}
-        <View style={styles.rentBadge}>
-          <Text style={styles.rentBadgeText}>LOCATION</Text>
-        </View>
-      </View>
 
-      <View style={styles.cardContent}>
-        <Text style={styles.productTitle} numberOfLines={1}>
-          {item.title}
-        </Text>
 
-        <Text style={styles.price}>{formatPrice(item)}</Text>
 
-        <View style={styles.bottomRow}>
-          {item.distance_km !== undefined && (
-            <View style={styles.distanceRow}>
-              <Ionicons name="location" size={14} color="#666" />
-              <Text style={styles.distance}>{item.distance_km.toFixed(1)}km</Text>
-            </View>
-          )}
-
-          {item.owner?.photo_url && (
-            <Image
-              source={{ uri: item.owner.photo_url }}
-              style={styles.avatar}
-            />
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderListItem = ({ item }: { item: Item }) => (
-    <TouchableOpacity
-      style={styles.listCard}
-      onPress={() => router.push(`/item-detail?id=${item.id}` as any)}
-      activeOpacity={0.8}
-    >
-      <View style={styles.listImageContainer}>
-        {item.photos && item.photos.length > 0 ? (
-          <Image
-            source={{ uri: item.photos[0] }}
-            style={styles.productImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.productImage, styles.placeholderImage]}>
-            <Ionicons name="image-outline" size={30} color="#ccc" />
-          </View>
-        )}
-        <View style={styles.rentBadge}>
-          <Text style={styles.rentBadgeText}>LOCATION</Text>
-        </View>
-      </View>
-
-      <View style={styles.listCardContent}>
-        <View>
-          <Text style={styles.productTitle} numberOfLines={2}>
-            {item.title}
-          </Text>
-          {item.distance_km !== undefined && (
-            <View style={styles.distanceRow}>
-              <Ionicons name="location" size={14} color="#666" />
-              <Text style={styles.distance}>{item.distance_km.toFixed(1)}km</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={styles.price}>{formatPrice(item)}</Text>
-          {item.owner?.photo_url && (
-            <Image
-              source={{ uri: item.owner.photo_url }}
-              style={styles.avatar}
-            />
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
 
   if (loading) {
     return (
@@ -220,50 +123,14 @@ export default function RentalScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Image
-          source={require('../../assets/images/loop-logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <View style={styles.locationBadge}>
-          <Ionicons name="location" size={16} color="#4C7B4B" />
-          <Text style={styles.locationText}>Poitiers</Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.viewToggle}
-          onPress={toggleViewMode}
-        >
-          <Ionicons
-            name={getViewIcon() as any}
-            size={22}
-            color="#333"
-          />
-        </TouchableOpacity>
-
-        <NotificationBell />
-
-        <TouchableOpacity
-          style={styles.notificationButton}
-          onPress={() => router.push('/messages' as any)}
-        >
-          <Ionicons name="chatbubbles-outline" size={24} color="#333" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Je cherche une perceuse, une tente..."
-          placeholderTextColor="#999"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
+      <MarketHeader
+        location="Poitiers"
+        onViewToggle={toggleViewMode}
+        viewModeIcon={getViewIcon()}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onMessagePress={() => router.push('/messages' as any)}
+      />
 
       {/* Category Dropdown */}
       <View style={styles.categorySelector}>
@@ -331,20 +198,24 @@ export default function RentalScreen() {
       ) : (
         <FlatList
           data={items}
-          renderItem={viewMode === 'list' ? renderListItem : renderItem}
+          renderItem={({ item }) => (
+            <View style={{ flex: viewMode === 'grid' ? 0.5 : 1 }}>
+              <ItemGridCard item={item} layout={viewMode === 'list' ? 'list' : 'grid'} />
+            </View>
+          )}
           keyExtractor={(item) => item.id}
-          key={viewMode} // Force re-render when switching columns
-          numColumns={viewMode === 'list' ? 1 : 2}
-          contentContainerStyle={styles.listContent}
+          key={viewMode}
+          numColumns={viewMode === 'grid' ? 2 : 1}
+          columnWrapperStyle={viewMode === 'grid' ? { justifyContent: 'space-between', gap: 12 } : undefined}
+          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4C7B4B']} />
           }
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
+            <View style={styles.centerContainer}>
               <Ionicons name="construct-outline" size={64} color="#ccc" />
-              <Text style={styles.emptyText}>Aucun objet à louer trouvé</Text>
-              <Text style={styles.emptySubtext}>Soyez le premier à proposer quelque chose !</Text>
+              <Text style={{ marginTop: 16, color: '#666' }}>Aucun objet à louer trouvé</Text>
             </View>
           }
         />

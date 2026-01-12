@@ -1,22 +1,8 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, StyleSheet, Alert } from 'react-native';
-import { useMessageNotifications } from '../../src/hooks/useMessageNotifications';
-
-function TabBarBadge({ count }: { count: number }) {
-  if (count === 0) return null;
-
-  return (
-    <View style={styles.badge}>
-      <Text style={styles.badgeText}>{count > 99 ? '99+' : count}</Text>
-    </View>
-  );
-}
 
 export default function TabLayout() {
-  const { unreadCount } = useMessageNotifications();
-
   return (
     <Tabs
       screenOptions={{
@@ -38,9 +24,6 @@ export default function TabLayout() {
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',
-        },
-        tabBarIconStyle: {
-          marginTop: 0,
         },
       }}
     >
@@ -76,16 +59,6 @@ export default function TabLayout() {
 
       <Tabs.Screen
         name="antigaspi"
-        listeners={{
-          tabPress: (e) => {
-            e.preventDefault();
-            Alert.alert(
-              "Bientôt disponible !",
-              "Nous préparons cette fonctionnalité pour vous permettre de sauver encore plus de produits.",
-              [{ text: "J'ai hâte !" }]
-            );
-          },
-        }}
         options={{
           title: 'Anti-gaspi',
           tabBarIcon: ({ color, focused }) => (
@@ -104,33 +77,12 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Keep messages screen but hide from tabs */}
       <Tabs.Screen
         name="messages"
         options={{
-          href: null, // Hide from tab bar
+          href: null,
         }}
       />
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  badge: {
-    position: 'absolute',
-    top: -4,
-    right: -8,
-    backgroundColor: '#ff4444',
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-});

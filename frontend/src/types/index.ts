@@ -18,6 +18,14 @@ export interface User {
   level: 'Graine' | 'Pousse' | 'Arbre' | 'Forêt';
   profile_theme_color?: string;
   co2_saved?: number;
+
+  // Trust & Safety
+  trust_level?: 'NEW' | 'BASIC_VERIFIED' | 'TRUSTED' | 'RESTRICTED' | 'BANNED';
+  risk_score?: number;
+  verified_email?: boolean;
+  verified_phone?: boolean;
+  two_factor_enabled?: boolean;
+
   created_at: string;
 }
 
@@ -150,6 +158,10 @@ export interface Item {
   owner?: User;
   store?: Store;
   distance_km?: number;
+  co2_estimate?: {
+    co2_saved_kg: number;
+    [key: string]: any;
+  };
 }
 
 export interface Message {

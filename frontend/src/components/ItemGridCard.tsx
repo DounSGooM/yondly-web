@@ -50,8 +50,11 @@ export default function ItemGridCard({ item, layout = 'grid' }: ItemGridCardProp
     return `${(cents / 100).toFixed(0)}€`;
   };
 
-  // Get CO2 estimate from category
+  // Get CO2 estimate from category or AI
   const getCO2Estimate = () => {
+    if (item.co2_estimate && item.co2_estimate.co2_saved_kg) {
+      return item.co2_estimate.co2_saved_kg.toFixed(1);
+    }
     const category = item.category || 'default';
     return QUICK_CO2_ESTIMATES[category] || QUICK_CO2_ESTIMATES['default'];
   };

@@ -53,55 +53,101 @@ async def handle_stripe_webhook(request: Request, db, stripe_config: dict):
 
 async def handle_payment_succeeded(db, payment_intent):
     """Handle successful payment."""
-    order_id = payment_intent.get('metadata', {}).get('order_id')
+    metadata = payment_intent.get('metadata', {})
+    order_id = metadata.get('order_id')
+    rental_id = metadata.get('rental_id')
     
-    if not order_id:
-        logger.warning("Payment succeeded but no order_id in metadata")
-        return
-    
-    order = await db.orders.find_one({"id": order_id})
-    if not order:
-        logger.error(f"Order {order_id} not found for successful payment")
-        return
-    
-    # Update order status to escrowed
-    await db.orders.update_one(
-        {"id": order_id},
-        {
-            "$set": {
-                "payment_status": "escrowed",
-                "paid_at": datetime.utcnow(),
-                "stripe_payment_intent": payment_intent.get('id')
-            }
-        }
-    )
-    
-    # Mark item as reserved
-    await db.items.update_one(
-        {"id": order.get("item_id")},
-        {"$set": {"status": "reserved"}}
-    )
-    
-    # Create notification for seller
-    item = await db.items.find_one({"id": order.get("item_id")})
-    if item:
-        await db.notifications.insert_one({
-            "user_id": order["seller_id"],
-            "type": "order_status",
-            "title": "Nouvelle vente !",
-            "message": f"Votre article '{item['title']}' a été vendu !",
-            "order_id": order_id,
-            "read": False,
-            "created_at": datetime.utcnow()
-        })
+    if order_id:
+        # --- ORDER / SALE LOGIC ---
+        order = await db.orders.find_one({"id": order_id})
+        if not order:
+            logger.error(f"Order {order_id} not found for successful payment")
+            return
         
-        await send_push_notification(
-            order["seller_id"],
-            "Nouvelle vente !",
-            f"Votre article '{item['title']}' a été vendu !"
+        # Update order status to escrowed
+        await db.orders.update_one(
+            {"id": order_id},
+            {
+                "$set": {
+                    "payment_status": "escrowed",
+                    "paid_at": datetime.utcnow(),
+                    "stripe_payment_intent": payment_intent.get('id')
+                }
+            }
         )
-    
-    logger.info(f"Payment succeeded for order {order_id}")
+        
+        # Mark item as reserved (ONLY FOR SALES)
+        await db.items.update_one(
+            {"id": order.get("item_id")},
+            {"$set": {"status": "reserved"}}
+        )
+        
+        # Create notification for seller
+        item = await db.items.find_one({"id": order.get("item_id")})
+        if item:
+            await db.notifications.insert_one({
+                "user_id": order["seller_id"],
+                "type": "order_status",
+                "title": "Nouvelle vente !",
+                "message": f"Votre article '{item['title']}' a été vendu !",
+                "order_id": order_id,
+                "read": False,
+                "created_at": datetime.utcnow()
+            })
+            
+            await send_push_notification(
+                order["seller_id"],
+                "Nouvelle vente !",
+                f"Votre article '{item['title']}' a été vendu !"
+            )
+        
+        logger.info(f"Payment succeeded for order {order_id}")
+
+    elif rental_id:
+        # --- RENTAL LOGIC ---
+        rental = await db.rentals.find_one({"id": rental_id})
+        if not rental:
+            logger.error(f"Rental {rental_id} not found for successful payment")
+            return
+
+        # Update rental status
+        await db.rentals.update_one(
+            {"id": rental_id},
+            {
+                "$set": {
+                    "status": "confirmed",
+                    "payment_status": "fully_paid",
+                    "paid_at": datetime.utcnow(),
+                    "payment_intent_id": payment_intent.get('id')
+                }
+            }
+        )
+        
+        # DO NOT mark item as reserved for rentals, as it stays available for other dates.
+        
+        # Notify owner
+        item = await db.items.find_one({"id": rental.get("item_id")})
+        if item:
+            await db.notifications.insert_one({
+                "user_id": rental["owner_id"],
+                "type": "rental_booked",
+                "title": "Nouvelle réservation confirmée !",
+                "message": f"Location confirmée pour '{item['title']}' (payée via Stripe).",
+                "rental_id": rental_id,
+                "read": False,
+                "created_at": datetime.utcnow()
+            })
+            
+            await send_push_notification(
+                rental["owner_id"],
+                "Location confirmée !",
+                f"Location confirmée pour '{item['title']}'."
+            )
+
+        logger.info(f"Payment succeeded for rental {rental_id}")
+
+    else:
+        logger.warning("Payment succeeded but no order_id or rental_id in metadata")
 
 
 async def handle_payment_failed(db, payment_intent):

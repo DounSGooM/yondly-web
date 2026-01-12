@@ -224,6 +224,8 @@ body {
 .nav-menu {
     flex: 1;
     padding: 16px;
+    overflow-y: auto;
+    /* Allow menu to scroll */
 }
 
 .nav-link {
@@ -260,6 +262,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-shrink: 0;
+    /* Ensure footer stays visible */
 }
 
 .user-info {
@@ -1600,4 +1604,55 @@ body {
     background: var(--accent);
     border-color: var(--accent);
     color: white;
+}
+
+/* Detail Modal specific styles */
+.close-modal {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: var(--transition);
+    line-height: 1;
+}
+
+.close-modal:hover {
+    color: var(--text-primary);
+}
+
+.detail-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.detail-item:last-child {
+    border-bottom: none;
+}
+
+.detail-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+}
+
+.detail-value {
+    font-size: 15px;
+    color: var(--text-primary);
+    word-break: break-word;
+    line-height: 1.5;
 }

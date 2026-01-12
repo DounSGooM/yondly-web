@@ -155,7 +155,7 @@ export default function PostFoodScreen() {
   };
 
   const handleProductScanned = (product: any) => {
-    console.log('Product scanned:', product);
+
 
     try {
       // Pré-remplir le titre
@@ -185,7 +185,7 @@ export default function PostFoodScreen() {
         setDescription(desc);
       }
 
-      console.log('Product data set successfully');
+
 
       Alert.alert(
         'Produit scanné!',

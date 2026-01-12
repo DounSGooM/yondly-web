@@ -180,24 +180,24 @@ export default function PostMarketScreen() {
   };
 
   const handlePublish = async () => {
-    console.log('=== PUBLISH START ===');
+
 
     try {
-      console.log('Step 1: Calculating prices');
+
       const priceCents = Math.round(parseFloat(priceEuros) * 100);
       const depositCents = type === 'rent' && depositEuros ? Math.round(parseFloat(depositEuros) * 100) : undefined;
-      console.log('Step 1 done:', { priceCents, depositCents });
 
-      console.log('Step 2: Setting loading state');
+
+
       setLoading(true);
-      console.log('Step 2 done');
 
-      console.log('Step 3: Preparing payload');
+
+
       // Limit photos to first 2 and check their sizes
       const limitedPhotos = photos.slice(0, 2);
-      console.log('Photos count:', limitedPhotos.length);
+
       limitedPhotos.forEach((p, i) => {
-        console.log(`Photo ${i} length:`, p?.length || 0);
+
       });
 
       const payload = {
@@ -213,9 +213,9 @@ export default function PostMarketScreen() {
         deposit_cents: depositCents,
         allow_offers: allowOffers,
       };
-      console.log('Step 3 done: payload ready (without photos for log):', { ...payload, photos: `[${limitedPhotos.length} photos]` });
 
-      console.log('Step 4: Making API call');
+
+
       const response = await axios.post(
         `${API_URL}/items`,
         payload,
@@ -224,16 +224,16 @@ export default function PostMarketScreen() {
           timeout: 30000, // 30 second timeout
         }
       );
-      console.log('Step 4 done: API response received');
+
 
       Alert.alert('Succès', 'Votre article a été publié!');
       router.back();
     } catch (error: any) {
-      console.log('=== PUBLISH ERROR ===', error?.message || error);
-      console.log('=== FULL ERROR RESPONSE ===', JSON.stringify(error?.response?.data, null, 2));
+
+
       Alert.alert('Erreur', JSON.stringify(error?.response?.data) || error?.message || 'Erreur lors de la publication');
     } finally {
-      console.log('=== PUBLISH END ===');
+
       setLoading(false);
     }
   };

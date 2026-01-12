@@ -1,6 +1,8 @@
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Literal, Dict, Any
 from datetime import datetime
+import uuid
+from enum import Enum
 
 class Location(BaseModel):
     lat: float
@@ -48,6 +50,11 @@ class User(BaseModel):
     context: Optional[str] = None
     location: Optional[Location] = None
     co2_saved: float = 0.0
+    trust_level: Literal['NEW', 'BASIC_VERIFIED', 'TRUSTED', 'RESTRICTED', 'BANNED'] = 'NEW'
+    risk_score: float = 0.0
+    verified_email: bool = False
+    verified_phone: bool = False
+    two_factor_enabled: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class UserUpdate(BaseModel):
@@ -102,6 +109,7 @@ class Item(BaseModel):
     expires_at: Optional[datetime] = None
     locked_offer_id: Optional[str] = None
     locked_until: Optional[datetime] = None
+    co2_estimate: Optional[Dict[str, Any]] = None
 
 class HandoffData(BaseModel):
     mode: Literal['local', 'relay', 'home'] = 'local'
@@ -125,6 +133,10 @@ class Order(BaseModel):
     dispute_status: Optional[Literal['open', 'resolved', 'rejected']] = None
     sponsor_id: Optional[str] = None  # Sponsor qui finance ce don
     sponsor_shown: bool = False  # Flag pour savoir si le sponsor a été affiché
+    handover_code_hash: Optional[str] = None
+    handover_status: Literal['pending', 'confirmed', 'disputed'] = 'pending'
+    meeting_location: Optional[str] = None
+    meeting_time: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 # ============ RATING MODELS ============
@@ -160,6 +172,7 @@ class MessageCreate(BaseModel):
 class OfferCreate(BaseModel):
     item_id: str
     amount_cents: int
+    days: Optional[int] = 1 # duration for rental offers
     message: Optional[str] = None
 
 class Offer(BaseModel):
@@ -168,6 +181,7 @@ class Offer(BaseModel):
     buyer_id: str
     buyer: Optional[User] = None
     amount_cents: int
+    days: Optional[int] = 1 # duration for rental offers
     message: Optional[str] = None
     status: Literal['pending', 'accepted', 'declined', 'expired'] = 'pending'
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -555,6 +569,30 @@ class CommuneToggle(BaseModel):
     isActive: bool
 
 
+
+# ============ INSPECTION & SAFETY MODELS ============
+
+class InspectionReport(BaseModel):
+    """Rental inspection report (Etat des lieux)"""
+    id: str
+    rental_id: str
+    type: Literal['in', 'out']  # 'in' = start, 'out' = end
+    photos: List[str] = []
+    checklist: Dict[str, bool] = {}
+    notes: Optional[str] = None
+    created_by: str  # User ID
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class SafetyEvent(BaseModel):
+    """Security audit log"""
+    id: str
+    user_id: str
+    event_type: Literal['CONTACT_BLOCKED', 'RAPID_LISTINGS', 'NO_SHOW', 'LOGIN_FAILED', 'SUSPICIOUS_IP', 'OTHER']
+    severity: Literal['low', 'medium', 'high'] = 'low'
+    metadata: Dict[str, Any] = {}
+    ip_address: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
 # ============ RENTAL BOOKING MODELS ============
 
 class RentalBookingCreate(BaseModel):
@@ -586,6 +624,8 @@ class RentalBooking(BaseModel):
     pickup_confirmed_at: Optional[datetime] = None
     return_confirmed_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    inspection_in: Optional[InspectionReport] = None
+    inspection_out: Optional[InspectionReport] = None
 
 class RentalReturn(BaseModel):
     """Rental return confirmation"""
@@ -646,3 +686,364 @@ class NewsletterSubscriber(BaseModel):
     email: EmailStr
     source: str = "landing_page"
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ============ EMAIL COLLECTION MODELS ============
+
+class WaitlistEntry(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    email: EmailStr
+    city: Optional[str] = None
+    status: Literal['particulier', 'pro', 'association'] = 'particulier'
+    comment: Optional[str] = None
+    rgpd_consent: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class ContactMessage(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    email: EmailStr
+    subject: Optional[str] = None
+    message: str
+    rgpd_consent: bool = False
+    read: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class PartnerApplication(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    business: str
+    city: Optional[str] = None
+    email: EmailStr
+    phone: Optional[str] = None
+    message: Optional[str] = None
+    rgpd_consent: bool = False
+    status: Literal['pending', 'contacted', 'approved', 'rejected'] = 'pending'
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+# ============ PRO MODULES: ANTI-GASPI & LOCATION ============
+
+class PickupSlot(BaseModel):
+    """Time slot for pickup"""
+    start_at: datetime
+    end_at: datetime
+
+class ProProfile(BaseModel):
+    """Enhanced PRO profile with mediation info (required for publishing)"""
+    id: str
+    pro_id: str  # FK User.id
+    legal_name: str
+    trade_name: str
+    siret: str
+    vat: Optional[str] = None
+    address_line1: str
+    address_line2: Optional[str] = None
+    postal_code: str
+    city: str
+    country: str = "FR"
+    contact_email: str
+    contact_phone: str
+    website: Optional[str] = None
+    # Mediation (mandatory for publishing)
+    mediator_name: str
+    mediator_url: str
+    mediator_contact: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class ProProfileCreate(BaseModel):
+    """Create/update PRO profile"""
+    legal_name: str
+    trade_name: str
+    siret: str
+    vat: Optional[str] = None
+    address_line1: str
+    address_line2: Optional[str] = None
+    postal_code: str
+    city: str
+    country: str = "FR"
+    contact_email: str
+    contact_phone: str
+    website: Optional[str] = None
+    mediator_name: str
+    mediator_url: str
+    mediator_contact: str
+
+class TraderVerification(BaseModel):
+    """PRO verification status (DSA compliance)"""
+    id: str
+    pro_id: str
+    status: Literal['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'] = 'DRAFT'
+    docs_urls: List[str] = []  # Kbis, ID, address proof
+    verified_at: Optional[datetime] = None
+    notes_admin: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class ProPayoutAccount(BaseModel):
+    """Stripe Connect payout account"""
+    id: str
+    pro_id: str
+    stripe_connected_account_id: str
+    onboarding_status: Literal['NOT_STARTED', 'IN_PROGRESS', 'COMPLETE'] = 'NOT_STARTED'
+    payouts_enabled: bool = False
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class OfferPro(BaseModel):
+    """PRO offer (Anti-gaspi or Rental)"""
+    id: str
+    pro_id: str
+    kind: Literal['ANTIGASPI_SALE', 'RENTAL']
+    title: str
+    description: Optional[str] = None
+    category: str
+    photos: List[str] = []
+    price_cents: int
+    currency: str = "EUR"
+    quantity: int = 1
+    location_label: str
+    address_line1: Optional[str] = None
+    postal_code: str
+    city: str
+    status: Literal['DRAFT', 'PUBLISHED', 'PAUSED', 'REMOVED'] = 'DRAFT'
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class OfferProCreate(BaseModel):
+    """Create a PRO offer"""
+    kind: Literal['ANTIGASPI_SALE', 'RENTAL']
+    title: str
+    description: Optional[str] = None
+    category: str
+    photos: List[str] = []
+    price_cents: int
+    currency: str = "EUR"
+    quantity: int = 1
+    location_label: str
+    address_line1: Optional[str] = None
+    postal_code: str
+    city: str
+
+class OfferAntiGaspi(BaseModel):
+    """Anti-gaspi specific data"""
+    id: str
+    offer_id: str
+    is_food: bool = True
+    allergens_text: Optional[str] = None
+    date_type: Literal['DLC', 'DDM', 'NONE'] = 'NONE'
+    date_value: Optional[datetime] = None
+    pickup_slots: List[PickupSlot] = []
+    pickup_instructions: str
+
+class OfferAntiGaspiCreate(BaseModel):
+    """Create anti-gaspi specific data"""
+    is_food: bool = True
+    allergens_text: Optional[str] = None
+    date_type: Literal['DLC', 'DDM', 'NONE'] = 'NONE'
+    date_value: Optional[datetime] = None
+    pickup_slots: List[PickupSlot] = []
+    pickup_instructions: str
+
+class OfferRental(BaseModel):
+    """Rental specific data"""
+    id: str
+    offer_id: str
+    deposit_amount_cents: int
+    min_duration_hours: int = 24
+    max_duration_hours: int = 168  # 7 days
+    late_fee_per_day_cents: int = 0
+    usage_rules: str
+    safety_checklist_required: bool = True
+    requires_insurance_proof: bool = False
+
+class OfferRentalCreate(BaseModel):
+    """Create rental specific data"""
+    deposit_amount_cents: int
+    min_duration_hours: int = 24
+    max_duration_hours: int = 168
+    late_fee_per_day_cents: int = 0
+    usage_rules: str
+    safety_checklist_required: bool = True
+    requires_insurance_proof: bool = False
+
+class OrderPro(BaseModel):
+    """PRO order (Anti-gaspi sale)"""
+    id: str
+    offer_id: str
+    buyer_id: str
+    pro_id: str
+    quantity: int = 1
+    pickup_slot_start_at: datetime
+    pickup_slot_end_at: datetime
+    status: Literal['PAID', 'READY', 'PICKED_UP', 'NO_SHOW', 'CANCELLED', 'REFUNDED'] = 'PAID'
+    qr_code_token: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class RentalPro(BaseModel):
+    """PRO rental"""
+    id: str
+    offer_id: str
+    renter_id: str
+    pro_id: str
+    start_at: datetime
+    end_at: datetime
+    status: Literal['PAID', 'ACTIVE', 'RETURN_PENDING', 'COMPLETED', 'DISPUTED', 'CANCELLED'] = 'PAID'
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class RentalContract(BaseModel):
+    """Generated rental contract PDF"""
+    id: str
+    rental_id: str
+    pdf_url: str
+    pdf_hash: str
+    accepted_at: datetime
+    acceptance_log_id: str  # FK LegalAcceptanceLog
+
+class DepositHold(BaseModel):
+    """Stripe pre-authorization for rental deposit"""
+    id: str
+    rental_id: str
+    stripe_intent_id: str
+    amount_cents: int
+    status: Literal['AUTHORIZED', 'CAPTURED', 'RELEASED', 'FAILED'] = 'AUTHORIZED'
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class LegalAcceptanceLog(BaseModel):
+    """Versioned consent log for legal compliance"""
+    id: str
+    user_id: str
+    context: Literal['CHECKOUT_ORDER', 'CHECKOUT_RENTAL', 'PRO_TOS', 'CONSUMER_TOS', 'RENTAL_CONTRACT']
+    version: str  # e.g., "2026-01-01.v1"
+    ip: str
+    user_agent: str
+    accepted_at: datetime = Field(default_factory=datetime.utcnow)
+    payload_json: Dict[str, Any] = {}
+
+class LegalAcceptanceLogCreate(BaseModel):
+    """Create a consent log"""
+    context: Literal['CHECKOUT_ORDER', 'CHECKOUT_RENTAL', 'PRO_TOS', 'CONSUMER_TOS', 'RENTAL_CONTRACT']
+    version: str
+    ip: str
+    user_agent: str
+    payload_json: Dict[str, Any] = {}
+
+class PlatformTransparency(BaseModel):
+    """Platform transparency info (DSA compliance)"""
+    id: str
+    ranking_text: str
+    dereferencing_rules_text: str
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class DAC7ExportJob(BaseModel):
+    """Annual export job for DAC7 compliance"""
+    id: str
+    year: int
+    status: Literal['CREATED', 'GENERATING', 'READY', 'FAILED'] = 'CREATED'
+    file_url: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+# ============ DISPUTE & SETTLEMENT MODELS ============
+
+class SettlementOfferType(str, Enum):
+    """Types of settlement offers"""
+    REFUND_FULL = "REFUND_FULL"
+    REFUND_PARTIAL = "REFUND_PARTIAL"
+    CREDIT = "CREDIT"
+    VOUCHER = "VOUCHER"
+    DEPOSIT_CAPTURE = "DEPOSIT_CAPTURE"
+    DEPOSIT_RELEASE = "DEPOSIT_RELEASE"
+    EXTEND_RENTAL = "EXTEND_RENTAL"
+    NO_LATE_FEE = "NO_LATE_FEE"
+    OTHER = "OTHER"
+
+class SettlementOfferStatus(str, Enum):
+    """Settlement offer status"""
+    PROPOSED = "PROPOSED"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
+
+class DisputeStage(str, Enum):
+    """Enhanced dispute stages"""
+    OPEN = "OPEN"
+    INFO_REQUESTED = "INFO_REQUESTED"
+    NEGOTIATION = "NEGOTIATION"
+    AGREEMENT_PENDING = "AGREEMENT_PENDING"
+    RESOLVED = "RESOLVED"
+    ESCALATED_TO_MEDIATOR = "ESCALATED_TO_MEDIATOR"
+    CLOSED_NO_AGREEMENT = "CLOSED_NO_AGREEMENT"
+
+class SettlementOffer(BaseModel):
+    """Proposition d'accord amiable dans un litige"""
+    id: str
+    dispute_id: str
+    created_by_user_id: str
+    type: SettlementOfferType
+    amount_cents: Optional[int] = None
+    currency: str = "EUR"
+    details_text: str
+    status: SettlementOfferStatus = SettlementOfferStatus.PROPOSED
+    accepted_at: Optional[datetime] = None
+    rejected_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    stripe_action_id: Optional[str] = None  # Refund/Capture ID
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class SettlementOfferCreate(BaseModel):
+    """Create a settlement offer"""
+    type: str  # SettlementOfferType
+    amount_cents: Optional[int] = None
+    currency: str = "EUR"
+    details_text: str
+
+class DisputeEnhanced(BaseModel):
+    """Enhanced dispute model (replacing simple dict storage)"""
+    id: str
+    transaction_type: Literal['ORDER', 'RENTAL']
+    transaction_id: str
+    opened_by: str
+    other_party_id: str
+    pro_id: str
+    reason: str
+    description: str
+    stage: DisputeStage = DisputeStage.OPEN
+    evidence_urls: List[str] = []
+    messages: List[Dict[str, Any]] = []
+    settlement_offers: List[str] = []  # List of offer IDs
+    escalated_at: Optional[datetime] = None
+    mediation_dossier_url: Optional[str] = None
+    resolved_at: Optional[datetime] = None
+    resolution: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class DisputeEvidence(BaseModel):
+    """Evidence uploaded for a dispute"""
+    id: str
+    dispute_id: str
+    uploaded_by: str
+    file_url: str
+    file_type: Literal['IMAGE', 'DOCUMENT', 'VIDEO', 'OTHER']
+    description: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class MediatorPartner(BaseModel):
+    """Yondly partner mediator configuration"""
+    id: str
+    name: str = "Centre de Médiation de la Consommation"
+    url: str = "https://mediateur-consommation.fr"
+    contact: str = "contact@mediateur-consommation.fr"
+    is_default: bool = True
+    active: bool = True
+
+class CO2EstimateRequest(BaseModel):
+    title: str = ""
+    description: str = ""
+    category: str = "Autre"
+    price_cents: Optional[int] = None
+    condition: Optional[str] = None
+    image_urls: List[str] = []

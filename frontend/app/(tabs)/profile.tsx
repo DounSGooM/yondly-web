@@ -181,12 +181,16 @@ export default function ProfileScreen() {
         <Text style={styles.email}>{user.email}</Text>
         {user.phone && <Text style={styles.phone}>{user.phone}</Text>}
 
-        <View style={styles.ratingRow}>
+        <TouchableOpacity
+          style={styles.ratingRow}
+          onPress={() => router.push('/profile/reviews' as any)}
+        >
           <Ionicons name="star" size={16} color="#ffc107" />
           <Text style={styles.rating}>
             {user.ratings_avg?.toFixed(1) || '0.0'} ({user.ratings_count || 0} avis)
           </Text>
-        </View>
+          <Ionicons name="chevron-forward" size={14} color="#999" style={{ marginLeft: 4 }} />
+        </TouchableOpacity>
 
         {/* Graine Reward: Encouragement */}
         {user.level === 'Graine' && (
@@ -243,21 +247,41 @@ export default function ProfileScreen() {
         onLevelLoaded={(level) => setCo2Level(level)}
       />
 
+      {/* NEW: Espace Vendeur */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Mes annonces</Text>
+        <Text style={styles.sectionTitle}>Espace Vendeur</Text>
 
         <TouchableOpacity
           style={styles.menuItem}
           onPress={() => router.push('/my-items' as any)}
         >
-          <Ionicons name="list" size={24} color="#4C7B4B" />
-          <Text style={styles.menuText}>Gérer mes annonces</Text>
+          <Ionicons name="pricetags-outline" size={24} color="#4C7B4B" />
+          <Text style={styles.menuText}>Mes annonces</Text>
+          <Ionicons name="chevron-forward" size={24} color="#ccc" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => router.push('/profile/analytics' as any)}
+        >
+          <Ionicons name="bar-chart-outline" size={24} color="#4C7B4B" />
+          <Text style={styles.menuText}>Tableau de bord Vendeur</Text>
+          <Ionicons name="chevron-forward" size={24} color="#ccc" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => router.push('/profile/wallet' as any)}
+        >
+          <Ionicons name="wallet-outline" size={24} color="#4C7B4B" />
+          <Text style={styles.menuText}>Ma Tirelire</Text>
           <Ionicons name="chevron-forward" size={24} color="#ccc" />
         </TouchableOpacity>
       </View>
 
+      {/* NEW: Espace Acheteur */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Commandes & Paiements</Text>
+        <Text style={styles.sectionTitle}>Espace Acheteur</Text>
 
         <TouchableOpacity
           style={styles.menuItem}
@@ -270,24 +294,6 @@ export default function ProfileScreen() {
 
         <TouchableOpacity
           style={styles.menuItem}
-          onPress={() => router.push('/profile/wallet' as any)}
-        >
-          <Ionicons name="wallet" size={24} color="#4C7B4B" />
-          <Text style={styles.menuText}>Ma Tirelire</Text>
-          <Ionicons name="chevron-forward" size={24} color="#ccc" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/profile/analytics' as any)}
-        >
-          <Ionicons name="stats-chart" size={24} color="#4C7B4B" />
-          <Text style={styles.menuText}>Tableau de bord Vendeur</Text>
-          <Ionicons name="chevron-forward" size={24} color="#ccc" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.menuItem}
           onPress={() => router.push('/profile/saved-searches' as any)}
         >
           <Ionicons name="bookmarks-outline" size={24} color="#4C7B4B" />
@@ -295,17 +301,48 @@ export default function ProfileScreen() {
           {user.level === 'Graine' && <Ionicons name="lock-closed" size={16} color="#999" style={{ marginRight: 8 }} />}
           <Ionicons name="chevron-forward" size={24} color="#ccc" />
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => router.push('/profile/disputes' as any)}
+        >
+          <Ionicons name="shield-checkmark-outline" size={24} color="#4C7B4B" />
+          <Text style={styles.menuText}>Mes litiges</Text>
+          <Ionicons name="chevron-forward" size={24} color="#ccc" />
+        </TouchableOpacity>
+
+        {/* Forêt Feature: Pages Inspirations (Public Lists) */}
+        {['Arbre', 'Forêt'].includes(user.level) && (
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => router.push('/profile/public-lists' as any)}
+          >
+            <Ionicons name="color-palette-outline" size={24} color="#ffb74d" />
+            <Text style={styles.menuText}>Pages Inspirations</Text>
+            <Ionicons name="chevron-forward" size={24} color="#ccc" />
+          </TouchableOpacity>
+        )}
       </View>
 
+      {/* NEW: Paramètres */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Paramètres</Text>
+        <Text style={styles.sectionTitle}>Application</Text>
+
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => router.push('/profile/security' as any)}
+        >
+          <Ionicons name="shield-checkmark-outline" size={24} color="#666" />
+          <Text style={styles.menuText}>Sécurité et Confiance</Text>
+          <Ionicons name="chevron-forward" size={24} color="#ccc" />
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.menuItem}
           onPress={() => router.push('/profile/settings' as any)}
         >
           <Ionicons name="settings-outline" size={24} color="#666" />
-          <Text style={styles.menuText}>Préférences & Sécurité</Text>
+          <Text style={styles.menuText}>Préférences</Text>
           <Ionicons name="chevron-forward" size={24} color="#ccc" />
         </TouchableOpacity>
 
@@ -317,18 +354,6 @@ export default function ProfileScreen() {
           <Text style={styles.menuText}>Aide & Support</Text>
           <Ionicons name="chevron-forward" size={24} color="#ccc" />
         </TouchableOpacity>
-
-        {/* Forêt Feature: Pages Inspirations (Public Lists) */}
-        {['Arbre', 'Forêt'].includes(user.level) && (
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => router.push('/profile/public-lists' as any)}
-          >
-            <Ionicons name="create-outline" size={24} color="#ffb74d" />
-            <Text style={styles.menuText}>Pages Inspirations</Text>
-            <Ionicons name="chevron-forward" size={24} color="#ccc" />
-          </TouchableOpacity>
-        )}
       </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>

@@ -14,6 +14,7 @@ interface MakeOfferModalProps {
   visible: boolean;
   onClose: () => void;
   originalPrice: number; // in cents
+  isRental?: boolean;
   onOfferSubmit: (amountCents: number) => Promise<void>;
 }
 
@@ -21,6 +22,7 @@ export default function MakeOfferModal({
   visible,
   onClose,
   originalPrice,
+  isRental = false,
   onOfferSubmit,
 }: MakeOfferModalProps) {
   const [loading, setLoading] = useState(false);
@@ -36,7 +38,7 @@ export default function MakeOfferModal({
   };
 
   const formatPrice = (cents: number) => {
-    return `${(cents / 100).toFixed(2)}€`;
+    return isRental ? `${(cents / 100).toFixed(2)}€/j` : `${(cents / 100).toFixed(2)}€`;
   };
 
   const handleOfferPress = async (percentage: number) => {
@@ -44,7 +46,7 @@ export default function MakeOfferModal({
 
     Alert.alert(
       'Confirmer l\'offre',
-      `Proposer ${formatPrice(discountedAmount)} au lieu de ${formatPrice(originalPrice)} ?\n\nLe vendeur pourra accepter ou refuser votre offre.`,
+      `Proposer ${formatPrice(discountedAmount)} au lieu de ${formatPrice(originalPrice)} ?\n\nLe propriétaire pourra accepter ou refuser votre offre.`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -75,7 +77,7 @@ export default function MakeOfferModal({
       <View style={styles.overlay}>
         <View style={styles.modalContent}>
           <View style={styles.header}>
-            <Text style={styles.title}>Faire une offre</Text>
+            <Text style={styles.title}>{isRental ? 'Négocier le loyer' : 'Faire une offre'}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#333" />
             </TouchableOpacity>
@@ -118,7 +120,9 @@ export default function MakeOfferModal({
           <View style={styles.disclaimer}>
             <Ionicons name="information-circle-outline" size={16} color="#666" />
             <Text style={styles.disclaimerText}>
-              1 offre par article / 24h • Max 2 offres actives
+              {isRental
+                ? 'L\'offre s\'applique au prix par jour. Si acceptée, elle sera valide pour votre prochaine réservation.'
+                : '1 offre par article / 24h • Max 2 offres actives'}
             </Text>
           </View>
 

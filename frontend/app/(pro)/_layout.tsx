@@ -57,6 +57,7 @@ export default function ProTabLayout() {
                 },
             }}
         >
+            {/* 1. ACCUEIL (Gauche) */}
             <Tabs.Screen
                 name="dashboard"
                 options={{
@@ -71,17 +72,12 @@ export default function ProTabLayout() {
                 }}
             />
 
-            {/* CENTRAL ACTION BUTTON - Dynamic routing via listeners or distinct tabs? 
-                Expo Router Tabs map to filenames. We can't easily map one tab to multiple files.
-                We can have a 'create' file that redirects, OR we show the relevant tab and hide others.
-            */}
-
-            {/* Anti-Waste Creation */}
+            {/* 2. BOUTON + CENTRAL - Anti-Waste Creation */}
             <Tabs.Screen
                 name="nouveau-panier"
                 options={{
                     title: '',
-                    href: (!isRentalOnly && !isSaleOnly) ? undefined : null, // Show for AntiWaste or Mixed (as default loop)
+                    href: (!isRentalOnly && !isSaleOnly) ? undefined : null,
                     tabBarIcon: ({ focused }) => (
                         <View style={styles.addButton}>
                             <Ionicons name="add" size={32} color="#fff" />
@@ -118,6 +114,7 @@ export default function ProTabLayout() {
                 }}
             />
 
+            {/* 3. COMPTE (Droite) */}
             <Tabs.Screen
                 name="profil"
                 options={{
@@ -132,7 +129,7 @@ export default function ProTabLayout() {
                 }}
             />
 
-            {/* HIDDEN TABS (Accessible via Dashboard) */}
+            {/* HIDDEN TABS (Accessible via Dashboard or Profile) */}
             <Tabs.Screen name="mes-articles" options={{ href: null }} />
             <Tabs.Screen name="mes-locations" options={{ href: null }} />
             <Tabs.Screen name="historique" options={{ href: null }} />
@@ -141,6 +138,7 @@ export default function ProTabLayout() {
             <Tabs.Screen name="chiffre-affaires" options={{ href: null }} />
             <Tabs.Screen name="analytics" options={{ href: null }} />
             <Tabs.Screen name="aide-pro" options={{ href: null }} />
+            <Tabs.Screen name="payouts" options={{ href: null }} />
         </Tabs>
     );
 }
@@ -148,12 +146,12 @@ export default function ProTabLayout() {
 const styles = StyleSheet.create({
     addButton: {
         backgroundColor: '#4C7B4B',
-        width: 60,
-        height: 60,
-        borderRadius: 30,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: -30,
+        marginBottom: 20,
         shadowColor: '#4C7B4B',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,

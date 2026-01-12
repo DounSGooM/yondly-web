@@ -1,0 +1,49 @@
+# Ignore local files and dependencies
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+.env
+*.env
+
+# Node modules (frontend - not needed for backend deploy)
+node_modules/
+frontend/node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+*.test.py
+test_*.py
+tests/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+
+# Local uploads (use Cloudinary in prod)
+uploads/
+
+# Expo/React Native (frontend)
+frontend/.expo/
+frontend/dist/
+frontend/android/
+frontend/ios/

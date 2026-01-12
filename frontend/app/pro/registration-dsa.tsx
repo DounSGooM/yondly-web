@@ -34,11 +34,12 @@ const STEPS = [
     { id: 1, title: 'Entreprise', icon: 'business' },
     { id: 2, title: 'Adresse', icon: 'location' },
     { id: 3, title: 'Contact', icon: 'person' },
-    { id: 4, title: 'Documents', icon: 'document' },
-    { id: 5, title: 'Services', icon: 'apps' },
+    { id: 4, title: 'Médiation', icon: 'shield-checkmark' },
+    { id: 5, title: 'Documents', icon: 'document' },
+    { id: 6, title: 'Services', icon: 'apps' },
 ];
 
-type StepId = 1 | 2 | 3 | 4 | 5;
+type StepId = 1 | 2 | 3 | 4 | 5 | 6;
 
 export default function ProRegistrationDSAScreen() {
     const router = useRouter();
@@ -79,7 +80,20 @@ export default function ProRegistrationDSAScreen() {
     const [kbisDocument, setKbisDocument] = useState('');
     const [identityDocument, setIdentityDocument] = useState('');
 
-    // Step 5: Services
+    // Step 4: Mediator (mandatory for publishing)
+    const [mediatorName, setMediatorName] = useState('');
+    const [mediatorUrl, setMediatorUrl] = useState('');
+    const [mediatorContact, setMediatorContact] = useState('');
+    const [mediatorChoice, setMediatorChoice] = useState<'partner' | 'custom' | null>(null);
+
+    // Partner mediator defaults
+    const PARTNER_MEDIATOR = {
+        name: "Centre de Médiation de la Consommation",
+        url: "https://mediateur-consommation.fr",
+        contact: "contact@mediateur-consommation.fr"
+    };
+
+    // Step 6: Services
     const [services, setServices] = useState<string[]>([]);
 
     const formatSiren = (value: string) => {
@@ -190,6 +204,14 @@ export default function ProRegistrationDSAScreen() {
                 return true;
 
             case 4:
+                // Mediation info (mandatory for publishing offers)
+                if (!mediatorName || !mediatorUrl || !mediatorContact) {
+                    Alert.alert('Erreur', 'Veuillez remplir toutes les informations du médiateur');
+                    return false;
+                }
+                return true;
+
+            case 5:
                 if (!kbisDocument) {
                     Alert.alert('Erreur', 'Veuillez fournir un extrait Kbis ou équivalent');
                     return false;
@@ -200,7 +222,7 @@ export default function ProRegistrationDSAScreen() {
                 }
                 return true;
 
-            case 5:
+            case 6:
                 if (services.length === 0) {
                     Alert.alert('Erreur', 'Veuillez sélectionner au moins un service');
                     return false;
@@ -330,6 +352,10 @@ export default function ProRegistrationDSAScreen() {
                     kbis_document_url: finalKbisUrl,
                     identity_document_url: finalIdentityUrl,
                     services,
+                    // Mediation info (mandatory for publishing)
+                    mediator_name: mediatorName,
+                    mediator_url: mediatorUrl,
+                    mediator_contact: mediatorContact,
                 }),
             });
 
@@ -604,6 +630,138 @@ export default function ProRegistrationDSAScreen() {
         </View>
     );
 
+    const renderStep4Mediation = () => {
+        const selectPartnerMediator = () => {
+            setMediatorChoice('partner');
+            setMediatorName(PARTNER_MEDIATOR.name);
+            setMediatorUrl(PARTNER_MEDIATOR.url);
+            setMediatorContact(PARTNER_MEDIATOR.contact);
+        };
+
+        const selectCustomMediator = () => {
+            setMediatorChoice('custom');
+            setMediatorName('');
+            setMediatorUrl('');
+            setMediatorContact('');
+        };
+
+        return (
+            <View style={styles.stepContent}>
+                <Text style={styles.stepTitle}>Résolution amiable des litiges</Text>
+                <Text style={styles.stepSubtitle}>Obligatoire pour publier des offres</Text>
+
+                <View style={[styles.infoBox, { backgroundColor: '#fef3c7', borderColor: '#f59e0b' }]}>
+                    <Ionicons name="information-circle" size={20} color="#f59e0b" />
+                    <Text style={[styles.infoText, { color: '#92400e' }]}>
+                        Yondly facilite la résolution amiable mais n'est pas médiateur.
+                        Conformément à la loi, vous devez désigner un médiateur indépendant.
+                    </Text>
+                </View>
+
+                <Text style={[styles.label, { marginTop: 20, marginBottom: 12 }]}>
+                    Choisissez votre médiateur :
+                </Text>
+
+                {/* Choice Toggle */}
+                <TouchableOpacity
+                    style={[
+                        styles.choiceCard,
+                        mediatorChoice === 'partner' && styles.choiceCardSelected
+                    ]}
+                    onPress={selectPartnerMediator}
+                >
+                    <View style={styles.choiceHeader}>
+                        <Ionicons
+                            name={mediatorChoice === 'partner' ? "checkmark-circle" : "ellipse-outline"}
+                            size={24}
+                            color={mediatorChoice === 'partner' ? "#22c55e" : "#94a3b8"}
+                        />
+                        <Text style={styles.choiceTitle}>Médiateur partenaire Yondly</Text>
+                        <View style={styles.recommendedBadge}>
+                            <Text style={styles.recommendedText}>Recommandé</Text>
+                        </View>
+                    </View>
+                    <Text style={styles.choiceDescription}>
+                        {PARTNER_MEDIATOR.name}
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[
+                        styles.choiceCard,
+                        mediatorChoice === 'custom' && styles.choiceCardSelected
+                    ]}
+                    onPress={selectCustomMediator}
+                >
+                    <View style={styles.choiceHeader}>
+                        <Ionicons
+                            name={mediatorChoice === 'custom' ? "checkmark-circle" : "ellipse-outline"}
+                            size={24}
+                            color={mediatorChoice === 'custom' ? "#22c55e" : "#94a3b8"}
+                        />
+                        <Text style={styles.choiceTitle}>Je renseigne mon médiateur</Text>
+                    </View>
+                    <Text style={styles.choiceDescription}>
+                        Entrez les coordonnées de votre propre médiateur de la consommation
+                    </Text>
+                </TouchableOpacity>
+
+                {/* Custom mediator fields (only if custom selected) */}
+                {mediatorChoice === 'custom' && (
+                    <View style={{ marginTop: 20 }}>
+                        <Text style={styles.label}>Nom du médiateur *</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Ex: MEDICYS, Médiateur du E-commerce..."
+                            value={mediatorName}
+                            onChangeText={setMediatorName}
+                        />
+
+                        <Text style={styles.label}>Site web du médiateur *</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="https://www.mediateur.fr"
+                            value={mediatorUrl}
+                            onChangeText={setMediatorUrl}
+                            keyboardType="url"
+                            autoCapitalize="none"
+                        />
+
+                        <Text style={styles.label}>Contact du médiateur *</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Email ou adresse postale"
+                            value={mediatorContact}
+                            onChangeText={setMediatorContact}
+                        />
+                    </View>
+                )}
+
+                {/* Partner mediator preview (if partner selected) */}
+                {mediatorChoice === 'partner' && (
+                    <View style={[styles.infoBox, { marginTop: 20, backgroundColor: '#f0fdf4', borderColor: '#22c55e' }]}>
+                        <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+                        <View style={{ marginLeft: 10, flex: 1 }}>
+                            <Text style={{ fontWeight: '600', color: '#166534' }}>{PARTNER_MEDIATOR.name}</Text>
+                            <Text style={{ color: '#166534', fontSize: 12 }}>{PARTNER_MEDIATOR.url}</Text>
+                            <Text style={{ color: '#166534', fontSize: 12 }}>{PARTNER_MEDIATOR.contact}</Text>
+                        </View>
+                    </View>
+                )}
+
+                {!mediatorChoice && (
+                    <View style={styles.warningBox}>
+                        <Ionicons name="warning" size={20} color="#f59e0b" />
+                        <Text style={styles.warningText}>
+                            Sans médiateur renseigné, vous ne pourrez pas publier d'offres sur la plateforme.
+                        </Text>
+                    </View>
+                )}
+            </View>
+        );
+    };
+
+
 
     const pickDocument = async (type: 'kbis' | 'identity') => {
         Alert.alert(
@@ -823,12 +981,13 @@ export default function ProRegistrationDSAScreen() {
                 {currentStep === 1 && renderStep1()}
                 {currentStep === 2 && renderStep2()}
                 {currentStep === 3 && renderStep3()}
-                {currentStep === 4 && renderStep4Documents()}
-                {currentStep === 5 && renderStep5()}
+                {currentStep === 4 && renderStep4Mediation()}
+                {currentStep === 5 && renderStep4Documents()}
+                {currentStep === 6 && renderStep5()}
             </ScrollView>
 
             <View style={styles.footer}>
-                {currentStep < 5 ? (
+                {currentStep < 6 ? (
                     <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
                         <Text style={styles.nextButtonText}>Continuer</Text>
                         <Ionicons name="arrow-forward" size={20} color="#fff" />
@@ -1226,5 +1385,46 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         color: '#374151',
+    },
+    // Choice card styles for mediator selection
+    choiceCard: {
+        backgroundColor: '#f9fafb',
+        borderWidth: 2,
+        borderColor: '#e5e7eb',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 12,
+    },
+    choiceCardSelected: {
+        borderColor: '#22c55e',
+        backgroundColor: '#f0fdf4',
+    },
+    choiceHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 8,
+    },
+    choiceTitle: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#1f2937',
+        flex: 1,
+    },
+    choiceDescription: {
+        fontSize: 13,
+        color: '#6b7280',
+        marginLeft: 34,
+    },
+    recommendedBadge: {
+        backgroundColor: '#22c55e',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 8,
+    },
+    recommendedText: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: '#fff',
     },
 });

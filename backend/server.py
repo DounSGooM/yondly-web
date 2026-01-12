@@ -10,24 +10,32 @@ from pathlib import Path
 import uuid
 from datetime import datetime, timedelta
 import jwt
+import shutil
 from passlib.context import CryptContext
 import stripe
 
 # Import models and utils
 from models import *
-from stripe_utils import calculate_platform_fee, generate_handoff_code, get_stripe_config
+from stripe_utils import calculate_platform_fee, generate_handoff_code, get_stripe_config, hash_handoff_code
 from analytics_models import hash_user_id
 from push_service import send_push_notification
 from co2_estimator import estimate_co2_with_ai, get_base_co2_estimate, calculate_environmental_equivalents
+from chat_security import check_message_content
+from risk_engine import update_user_trust_level
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
-# MongoDB connection
 # Set short timeout for local dev resilience
+import os
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000)
+client = AsyncIOMotorClient(
+    mongo_url, 
+    serverSelectionTimeoutMS=5000,
+    tls=True,
+    tlsAllowInvalidCertificates=True  # Debugging SSL handshake issues
+)
 db = client[os.environ['DB_NAME']]
 
 # JWT Configuration
@@ -46,6 +54,28 @@ security = HTTPBearer()
 # Create the main app without a prefix
 app = FastAPI()
 
+# Mount admin interface
+admin_path = ROOT_DIR / "admin"
+if admin_path.exists():
+    app.mount("/admin", StaticFiles(directory=admin_path, html=True), name="admin")
+
+# CORS Middleware
+origins = [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "https://yondly.app",
+    "https://www.yondly.app",
+    "https://loop-frontend-951855414282.europe-west1.run.app"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.on_event("startup")
 async def startup_event():
     # Initialize analytics which requires an event loop
@@ -59,6 +89,36 @@ async def startup_event():
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
+
+# ============ LEGAL PAGES ============
+from fastapi.responses import HTMLResponse
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy_policy():
+    """Serve privacy policy page"""
+    privacy_file = ROOT_DIR / "privacy-policy.html"
+    if privacy_file.exists():
+        return HTMLResponse(content=privacy_file.read_text(encoding='utf-8'))
+    return HTMLResponse(content="<h1>Privacy Policy</h1><p>Coming soon.</p>")
+
+@app.get("/terms", response_class=HTMLResponse)
+async def terms_of_service():
+    """Serve terms of service page"""
+    return HTMLResponse(content="""
+    <html><head><title>CGU - Yondly</title></head>
+    <body style="font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px;">
+    <h1>Conditions Générales d'Utilisation - Yondly</h1>
+    <p>En utilisant Yondly, vous acceptez ces conditions.</p>
+    <h2>1. Objet</h2>
+    <p>Yondly est une plateforme de mise en relation pour l'achat, la vente, la location et le don d'objets entre particuliers.</p>
+    <h2>2. Responsabilités</h2>
+    <p>Les transactions sont effectuées directement entre utilisateurs. Yondly n'est pas partie aux transactions.</p>
+    <h2>3. Contenu</h2>
+    <p>Les utilisateurs sont responsables du contenu qu'ils publient.</p>
+    <h2>4. Contact</h2>
+    <p>contact@yondly.app</p>
+    </body></html>
+    """)
 
 # ============ AUTH HELPERS ============
 
@@ -191,7 +251,127 @@ async def get_newsletter_subscribers(current_user: dict = Depends(get_current_us
         sub.pop("_id", None)
     return subscribers
 
+# ============ EMAIL COLLECTION ROUTES ============
+
+@api_router.post("/waitlist")
+async def join_waitlist(entry: WaitlistEntry):
+    # Check if exists
+    existing = await db.waitlist.find_one({"email": entry.email})
+    if existing:
+        return {"message": "Already on the list"}
+    
+    # Store
+    entry_dict = entry.dict()
+    entry_dict["id"] = str(uuid.uuid4())
+    await db.waitlist.insert_one(entry_dict)
+    
+    return {"message": "Joined successfully"}
+
+from fastapi import BackgroundTasks
+from email_service import send_contact_notification, send_auto_reply
+
+@api_router.post("/contact")
+async def contact_us(msg: ContactMessage, background_tasks: BackgroundTasks):
+    # Store in DB
+    msg_dict = msg.dict()
+    msg_dict["id"] = str(uuid.uuid4())
+    await db.contacts.insert_one(msg_dict)
+    
+    # Send Emails in background
+    background_tasks.add_task(send_contact_notification, msg_dict)
+    background_tasks.add_task(send_auto_reply, msg_dict)
+    
+    return {"message": "Message sent"}
+
+@api_router.post("/partners")
+async def partner_request(app: PartnerApplication):
+    # Store
+    app_dict = app.dict()
+    app_dict["id"] = str(uuid.uuid4())
+    await db.partners.insert_one(app_dict)
+    return {"message": "Application received"}
+
+# ============ ADMIN ROUTES (SIMPLE) ============
+
+@api_router.get("/admin/waitlist")
+async def get_waitlist(current_user: dict = Depends(get_current_user)):
+    # Basic admin check (anyone who can login for now, or restrict to specific ID)
+    entries = await db.waitlist.find().sort("created_at", -1).to_list(1000)
+    for e in entries: e.pop("_id", None)
+    return entries
+
+@api_router.get("/admin/contacts")
+async def get_contacts(current_user: dict = Depends(get_current_user)):
+    msgs = await db.contacts.find().sort("created_at", -1).to_list(1000)
+    for m in msgs: m.pop("_id", None)
+    return msgs
+
+@api_router.get("/admin/partners")
+async def get_partners(current_user: dict = Depends(get_current_user)):
+    apps = await db.partners.find().sort("created_at", -1).to_list(1000)
+    for a in apps: a.pop("_id", None)
+    return apps
+
 # ============ AUTH ROUTES ============
+
+async def check_zone_coverage(postcode=None, citycode=None, location=None):
+    """
+    Check if a location is within an active zone.
+    Priority: CityCode (INSEE) > Lat/Lng (Reverse Geo) > Postcode.
+    """
+    try:
+        # 1. Fetch active zones
+        zones = await db.zones.find({"isActive": True}).to_list(100)
+        
+        allowed_insee = set()
+        allowed_postcodes = set()
+        
+        for z in zones:
+            for c in z.get("communes", []):
+                # Check commune status (default to True if not specified, assuming zone is active)
+                if c.get("isActive", True):
+                    if c.get("code"): allowed_insee.add(c["code"])
+                    for cp in c.get("postalCodes", []):
+                        allowed_postcodes.add(cp)
+        
+        # If no active zones defined, maybe allow all? 
+        # Ideally: If no zones, block everything or allow everything. 
+        # Decision: If no zones active, BLOCK (Strict Mode).
+        if not zones:
+            return False
+
+        # 2. Logic A: INSE Code (Most robust)
+        if citycode and citycode in allowed_insee:
+            return True
+            
+        # 3. Logic B: Lat/Lng -> INSEE
+        if location:
+            lat = location.get("lat") if isinstance(location, dict) else location.lat
+            lng = location.get("lng") if isinstance(location, dict) else location.lng
+            
+            if lat and lng:
+                try:
+                    async with httpx.AsyncClient(timeout=3.0) as client:
+                        res = await client.get(
+                            "https://geo.api.gouv.fr/communes",
+                            params={"lat": lat, "lon": lng, "fields": "code"}
+                        )
+                        if res.status_code == 200:
+                            data = res.json()
+                            if data and data[0].get("code") in allowed_insee:
+                                return True
+                except Exception as e:
+                    logging.error(f"Geo validation API error: {e}")
+                    # Continue to postcode fallback
+        
+        # 4. Logic C: Postcode fallback
+        if postcode and postcode in allowed_postcodes:
+            return True
+            
+        return False
+    except Exception as e:
+        logging.error(f"Zone check error: {e}")
+        return False  # Fail safe
 
 @api_router.post("/auth/register")
 async def register(user_data: UserRegister):
@@ -199,6 +379,20 @@ async def register(user_data: UserRegister):
     existing_user = await db.users.find_one({"email": user_data.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # GEO-RESTRICTION ENFORCEMENT
+    is_allowed = await check_zone_coverage(
+        postcode=user_data.postcode, 
+        citycode=user_data.citycode,
+        location=user_data.location
+    )
+    if not is_allowed:
+        # Check if we are in "Soft Launch" (allow but warn) or Hard Block?
+        # User requested strict enforcement.
+        raise HTTPException(
+            status_code=403, 
+            detail="Votre zone n'est pas encore ouverte. Rejoignez la liste d'attente !"
+        )
     
     user_id = str(uuid.uuid4())
     print(f"DEBUG: Constructing user dict for {user_id}")
@@ -281,10 +475,13 @@ async def get_user_impact(current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
     
     # Count transactions by type
-    # For now, we count completed orders where user was seller/donor
+    # Count completed orders where user was seller OR buyer
     pipeline = [
         {"$match": {
-            "seller_id": user_id, 
+            "$or": [
+                {"seller_id": user_id},
+                {"buyer_id": user_id}
+            ],
             "payment_status": "released"
         }},
         {"$lookup": {
@@ -326,7 +523,10 @@ async def get_user_impact(current_user: dict = Depends(get_current_user)):
     
     # Separate count for deals (baskets)
     deals_count = await db.orders.count_documents({
-        "seller_id": user_id,
+        "$or": [
+            {"seller_id": user_id},
+            {"buyer_id": user_id}
+        ],
         "payment_status": "released",
         "type": "deal" # Assuming 'deal' type implies basket
     })
@@ -384,6 +584,16 @@ async def create_item(
                 "city": "Poitiers",
                 "address": "Centre-ville"
             }
+
+    # GEO-RESTRICTION ENFORCEMENT (For Items)
+    is_item_allowed = await check_zone_coverage(
+        location=item_data.location
+    )
+    if not is_item_allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="La zone de cette annonce n'est pas couverte par Yondly."
+        )
 
     # DSA/KYBC: Block pending Pro sellers from creating items
     if current_user.get("is_partner"):
@@ -443,6 +653,27 @@ async def create_item(
     
     item_id = str(uuid.uuid4())
     
+    # Upload photos to Cloudinary if provided
+    if item_data.photos:
+        from cloudinary_service import upload_item_image
+        cloudinary_urls = []
+        for idx, photo in enumerate(item_data.photos):
+            # Skip if already a Cloudinary URL
+            if photo and "cloudinary.com" in photo:
+                cloudinary_urls.append(photo)
+            elif photo and (photo.startswith("data:") or photo.startswith("/9j") or len(photo) > 500):
+                # Base64 image - upload to Cloudinary
+                result = upload_item_image(photo, f"{item_id}_{idx}")
+                if result.get("success") and result.get("url"):
+                    cloudinary_urls.append(result["url"])
+                else:
+                    # Keep original if upload fails
+                    cloudinary_urls.append(photo)
+            else:
+                # Keep URL as is (external URL or local path)
+                cloudinary_urls.append(photo)
+        item_data.photos = cloudinary_urls
+    
     # Calculate expiry for food donations
     expires_at = None
     if item_data.type == 'donation' and item_data.urgency_hours:
@@ -456,6 +687,21 @@ async def create_item(
         "created_at": datetime.utcnow(),
         "expires_at": expires_at
     })
+    
+    # Calculate CO2 estimate immediately
+    try:
+        co2_estimate = await estimate_co2_with_ai(
+            title=item_data.title,
+            description=item_data.description or "",
+            category=item_data.category,
+            price_cents=item_data.price_cents if item_data.type == 'sale' else (item_data.price_per_day_cents if item_data.type == 'rent' else None),
+            condition=item_data.condition,
+            image_urls=item_data.photos
+        )
+        item_dict["co2_estimate"] = co2_estimate
+    except Exception as e:
+        print(f"Initial CO2 estimation failed: {e}")
+        # Proceed without estimate (client will fetch it later or use fallback)
     
     await db.items.insert_one(item_dict)
     
@@ -801,7 +1047,8 @@ async def get_item_co2_estimate(item_id: str):
         description=item.get("description", ""),
         category=item.get("category", "Autre"),
         price_cents=item.get("price_cents"),
-        condition=item.get("condition")
+        condition=item.get("condition"),
+        image_urls=item.get("photos", [])
     )
     
     # Cache the estimate
@@ -816,19 +1063,16 @@ async def get_item_co2_estimate(item_id: str):
 
 @api_router.post("/co2/estimate")
 async def estimate_co2_preview(
-    title: str = "",
-    description: str = "",
-    category: str = "Autre",
-    price_cents: int = None,
-    condition: str = None
+    request: CO2EstimateRequest
 ):
-    """Estimate CO2 savings for preview (without saving)."""
+    """Estimate CO2 savings for preview (without saving) with optional image analysis."""
     estimate = await estimate_co2_with_ai(
-        title=title,
-        description=description,
-        category=category,
-        price_cents=price_cents,
-        condition=condition
+        title=request.title,
+        description=request.description,
+        category=request.category,
+        price_cents=request.price_cents,
+        condition=request.condition,
+        image_urls=request.image_urls
     )
     equivalents = calculate_environmental_equivalents(estimate["co2_saved_kg"])
     return {**estimate, **equivalents}
@@ -1216,12 +1460,41 @@ async def confirm_payment(order_id: str, current_user: dict = Depends(get_curren
     
     return {"message": "Payment confirmed", "status": "escrowed"}
 
-@api_router.post("/orders/{order_id}/handoff")
-async def complete_handoff(
+@api_router.post("/orders/{order_id}/generate-handoff")
+async def generate_handoff(order_id: str, current_user: dict = Depends(get_current_user)):
+    """Buyer generates a handoff code."""
+    order = await db.orders.find_one({"id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+        
+    if order["buyer_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Only buyer can generate code")
+    
+    # Check if handoff already generated? (Maybe allow regeneration if pending)
+    
+    # Generate and Hash
+    code = generate_handoff_code()
+    code_hash = hash_handoff_code(code)
+    
+    await db.orders.update_one(
+        {"id": order_id},
+        {"$set": {
+            "handover_status": "pending",
+            "handover_code_hash": code_hash,
+            "handover_generated_at": datetime.utcnow()
+        }}
+    )
+    
+    # Return UNHASHED code to buyer only once
+    return {"code": code}
+
+@api_router.post("/orders/{order_id}/confirm-handoff")
+async def confirm_handoff(
     order_id: str,
     code: str,
     current_user: dict = Depends(get_current_user)
 ):
+    """Seller enters the code to confirm handoff and release funds."""
     order = await db.orders.find_one({"id": order_id})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -1231,7 +1504,19 @@ async def complete_handoff(
         raise HTTPException(status_code=403, detail="Only seller can complete handoff")
     
     # Verify code
-    if order["handoff"]["code"] != code.upper():
+    stored_hash = order.get("handover_code_hash")
+    verified = False
+    
+    if stored_hash:
+        # Secure Flow
+        if hash_handoff_code(code.upper()) == stored_hash:
+            verified = True
+    elif order.get("handoff", {}).get("code"):
+        # Legacy Flow
+        if order["handoff"]["code"] == code.upper():
+            verified = True
+            
+    if not verified:
         raise HTTPException(status_code=400, detail="Invalid handoff code")
     
     # Credit seller wallet
@@ -1256,16 +1541,21 @@ async def complete_handoff(
             # Update order status
             await db.orders.update_one(
                 {"id": order_id},
-                {"$set": {"payment_status": "released"}},
+                {"$set": {
+                    "payment_status": "released",
+                    "handover_status": "confirmed",
+                    "status": "completed"
+                }},
                 session=session
             )
             
             # Update item status
-            await db.items.update_one(
-                {"id": order["item_id"]},
-                {"$set": {"status": "completed"}},
-                session=session
-            )
+            if "item_id" in order:
+                await db.items.update_one(
+                    {"id": order["item_id"]},
+                    {"$set": {"status": "completed"}},
+                    session=session
+                )
             
             # Credit seller wallet
             await db.users.update_one(
@@ -1290,36 +1580,42 @@ async def complete_handoff(
     await create_notification(
         user_id=seller_id,
         notif_type="funds_released",
-        title="💰 Fonds débloqués",
-        message=f"La vente est finalisée. {payout_amount/100:.2f}€ ont été ajoutés à votre porte-monnaie loop.",
+        title="💰 Paiement débloqué",
+        message=f"La remise est confirmée. {payout_amount/100:.2f}€ ajoutés à votre porte-monnaie.",
         data={"order_id": order_id}
     )
-            
+    
     # Track transaction completion
     try:
         from analytics_routes import track_event_internal
         item = await db.items.find_one({"id": order["item_id"]})
         mode_map = {"donation": "don", "sale": "vente", "rent": "location"}
-        await track_event_internal(
-            user_id=seller_id,
-            event_name="transaction_completed",
-            territory_type="code_postal",
-            territory_code="00000",
-            mode=mode_map.get(item.get("type", "sale")) if item else "vente",
-            category=item.get("category") if item else None,
-            estimated_value=payout_amount / 100
-        )
+        if item:
+            await track_event_internal(
+                user_id=seller_id,
+                event_name="transaction_completed",
+                territory_type="code_postal",
+                territory_code="00000",
+                mode=mode_map.get(item.get("type", "sale")),
+                category=item.get("category"),
+                estimated_value=payout_amount / 100
+            )
     except:
         pass  # Don't block handoff if tracking fails
     
     # Update CO2 impact for both buyer and seller
+    co2_kg = 0
+    item_title = "Article"
+    item_type = "sale"
+    
     try:
         item = await db.items.find_one({"id": order["item_id"]})
         buyer_id = order.get("buyer_id")
         
-        # Get CO2 estimate from item cache or calculate
-        co2_kg = 0
         if item:
+            item_title = item.get("title", "Article")
+            item_type = item.get("type", "sale")
+            
             co2_kg = item.get("co2_estimate", {}).get("co2_saved_kg", 0)
             if not co2_kg:
                 # Fallback: quick estimate from category
@@ -1341,16 +1637,10 @@ async def complete_handoff(
     except Exception as e:
         logging.debug(f"CO2 update failed: {e}")  # Don't block on CO2 update
     
-    # Get item info for response
-    item_title = "Article"
-    item_type = "sale"
-    if item:
-        item_title = item.get("title", "Article")
-        item_type = item.get("type", "sale")
-    
     return {
         "message": "Handoff completed successfully", 
         "payout_cents": payout_amount,
+        "status": "released",
         "co2_kg": co2_kg,
         "item_title": item_title,
         "item_type": item_type
@@ -1608,6 +1898,7 @@ async def create_offer(offer_data: OfferCreate, current_user: dict = Depends(get
         "item_id": item["id"],
         "buyer_id": current_user["id"],
         "amount_cents": offer_data.amount_cents,
+        "days": offer_data.days if item.get("type") == "rent" else None,
         "status": "pending",
         "created_at": datetime.utcnow()
     }
@@ -1865,17 +2156,39 @@ async def counter_offer(offer_id: str, counter_amount_cents: int, current_user: 
 
 @api_router.post("/messages")
 async def create_message(msg_data: MessageCreate, current_user: dict = Depends(get_current_user)):
+    # 1. Trust & Safety Check
+    is_suspicious, cleaned_text, reason = check_message_content(msg_data.text)
+    
+    if is_suspicious:
+        # Log Safety Event
+        event_id = str(uuid.uuid4())
+        event = {
+            "id": event_id,
+            "user_id": current_user["id"],
+            "event_type": "CONTACT_BLOCKED",
+            "severity": "medium",
+            "metadata": {"original_text": msg_data.text, "reason": reason},
+            "created_at": datetime.utcnow()
+        }
+        await db.safety_events.insert_one(event)
+        
+        # Update User Risk (Async/Background ideally, but here direct)
+        await update_user_trust_level(current_user["id"], db)
+    
     msg_id = str(uuid.uuid4())
     msg_dict = {
         "id": msg_id,
         "item_id": msg_data.item_id,
         "from_id": current_user["id"],
         "to_id": msg_data.to_id,
-        "text": msg_data.text,
+        "text": cleaned_text,  # Use cleaned text
         "created_at": datetime.utcnow()
     }
     
     await db.messages.insert_one(msg_dict)
+    
+    # Notify recipient (logic remains same, just ensuring promptness)
+    # ... (push notification logic if any exists, usually separate or event based)
     
     msg_dict.pop("_id", None)
     return msg_dict
@@ -2789,23 +3102,69 @@ async def remove_item_from_public_list(
     if not public_list:
         raise HTTPException(status_code=404, detail="List not found")
     
-    if public_list["owner_id"] != current_user["id"]:
+    if public_list["user_id"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="You do not have permission to modify this list")
         
     # Remove item from list
     result = await db.public_lists.update_one(
         {"id": list_id},
         {
-            "$pull": {"items": {"item_id": item_id}},
-            "$set": {"updated_at": datetime.utcnow()}
+            "$pull": {"item_ids": item_id},
+            "$set": {"updated_at": datetime.utcnow()} 
         }
     )
     
-    if result.modified_count == 0:
-        # Item might not have been in the list, but effectively it's gone now
-        pass
-        
-    return None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@api_router.get("/users/{user_id}/ratings")
+async def get_user_ratings(user_id: str):
+    """Get all ratings received by a specific user."""
+    # Pipeline to link reviewer info + item info
+    pipeline = [
+        {"$match": {"reviewed_id": user_id}},
+        {"$sort": {"created_at": -1}},
+        # Lookup reviewer
+        {"$lookup": {
+            "from": "users",
+            "localField": "reviewer_id",
+            "foreignField": "id",
+            "as": "reviewer"
+        }},
+        {"$unwind": {"path": "$reviewer", "preserveNullAndEmptyArrays": True}},
+        # Lookup order (to find item)
+        {"$lookup": {
+            "from": "orders",
+            "localField": "order_id",
+            "foreignField": "id",
+            "as": "order"
+        }},
+        {"$unwind": {"path": "$order", "preserveNullAndEmptyArrays": True}},
+        # Lookup item from order (if order exists)
+        {"$lookup": {
+            "from": "items",
+            "localField": "order.item_id",
+            "foreignField": "id",
+            "as": "order_item"
+        }},
+        {"$unwind": {"path": "$order_item", "preserveNullAndEmptyArrays": True}},
+        # Project only needed fields
+        {"$project": {
+            "id": 1,
+            "rating": 1,
+            "comment": 1,
+            "created_at": 1,
+            "reviewer": {
+                "id": 1,
+                "display_name": 1,
+                "photo_url": 1
+            },
+            "item_title": "$order_item.title",
+            "item_image": {"$arrayElemAt": ["$order_item.photos", 0]}
+        }}
+    ]
+    
+    ratings = await db.ratings.aggregate(pipeline).to_list(100)
+    return ratings
 
 # ============ PUBLIC STATS ROUTES ============
 
@@ -3915,6 +4274,145 @@ async def add_commune(zone_id: str, commune: Commune):
         logging.error(f"Add commune error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# ============ GEO API INTEGRATION ============
+
+import httpx
+
+@api_router.get("/admin/search-epci")
+async def search_epci(q: str):
+    """Search EPCI and communes by name using geo.api.gouv.fr"""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            results = []
+            
+            # Search EPCIs (intercommunalités)
+            epci_response = await client.get(
+                f"https://geo.api.gouv.fr/epcis",
+                params={"nom": q, "fields": "nom,code,population", "limit": 5}
+            )
+            if epci_response.status_code == 200:
+                for e in epci_response.json():
+                    results.append({
+                        "type": "epci",
+                        "code": e["code"],
+                        "name": e["nom"],
+                        "population": e.get("population", 0),
+                        "label": f"🏛️ {e['nom']}",
+                        "sublabel": f"EPCI • {(e.get('population', 0) or 0):,} hab.".replace(",", " ")
+                    })
+            
+            # Search Communes (cities)
+            commune_response = await client.get(
+                f"https://geo.api.gouv.fr/communes",
+                params={"nom": q, "fields": "nom,code,population,codeEpci,departement", "limit": 5}
+            )
+            if commune_response.status_code == 200:
+                for c in commune_response.json():
+                    epci_code = c.get("codeEpci")
+                    dept = c.get("departement", {})
+                    results.append({
+                        "type": "commune",
+                        "code": c["code"],
+                        "epci_code": epci_code,
+                        "name": c["nom"],
+                        "population": c.get("population", 0),
+                        "label": f"📍 {c['nom']}",
+                        "sublabel": f"Commune • {dept.get('nom', '')} ({dept.get('code', '')})"
+                    })
+            
+            return results
+    except Exception as e:
+        logging.error(f"Search EPCI error: {e}")
+        return []
+
+@api_router.get("/admin/epci/{epci_code}/communes")
+async def get_epci_communes(epci_code: str):
+    """Get all communes of an EPCI from geo.api.gouv.fr"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"https://geo.api.gouv.fr/epcis/{epci_code}/communes",
+                params={"fields": "nom,code,population,codesPostaux"}
+            )
+            if response.status_code == 200:
+                communes = response.json()
+                return [
+                    {
+                        "name": c["nom"],
+                        "code": c["code"],
+                        "population": c.get("population", 0),
+                        "postalCodes": c.get("codesPostaux", []),
+                        "isActive": True
+                    } 
+                    for c in communes
+                ]
+            return []
+    except Exception as e:
+        logging.error(f"Get EPCI communes error: {e}")
+        return []
+
+@api_router.post("/admin/zones/create-from-epci")
+async def create_zone_from_epci(data: dict):
+    """Create a zone from an EPCI code, auto-fetching communes"""
+    try:
+        epci_code = data.get("epci_code")
+        zone_type = data.get("type", "agglomeration")
+        
+        # Fetch EPCI info
+        async with httpx.AsyncClient() as client:
+            epci_response = await client.get(
+                f"https://geo.api.gouv.fr/epcis/{epci_code}",
+                params={"fields": "nom,code,population"}
+            )
+            if epci_response.status_code != 200:
+                raise HTTPException(status_code=404, detail="EPCI not found")
+            
+            epci = epci_response.json()
+            
+            # Fetch communes
+            communes_response = await client.get(
+                f"https://geo.api.gouv.fr/epcis/{epci_code}/communes",
+                params={"fields": "nom,code,population,codesPostaux"}
+            )
+            communes = communes_response.json() if communes_response.status_code == 200 else []
+        
+        # Create zone document
+        zone_doc = {
+            "name": epci["nom"].lower().replace(" ", "_").replace("'", ""),
+            "displayName": epci["nom"],
+            "type": zone_type,
+            "epci_code": epci_code,
+            "isActive": True,
+            "communes": [
+                {
+                    "name": c["nom"],
+                    "code": c["code"],
+                    "population": c.get("population", 0),
+                    "postalCodes": c.get("codesPostaux", []),
+                    "isActive": True
+                }
+                for c in communes
+            ],
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        result = await db.zones.insert_one(zone_doc)
+        zone_doc["id"] = str(result.inserted_id)
+        zone_doc.pop("_id", None)
+        
+        return {
+            "success": True,
+            "zone": zone_doc,
+            "communes_count": len(communes)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Create zone from EPCI error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ============ LOCATION ANALYTICS API ============
 
 from location_analytics import (
@@ -4168,11 +4666,12 @@ async def confirm_rental_payment(rental_id: str, current_user: dict = Depends(ge
         }}
     )
     
-    # Mark item as reserved during rental period
-    await db.items.update_one(
-        {"id": rental["item_id"]},
-        {"$set": {"status": "reserved"}}
-    )
+    # Note: For rentals, we DO NOT mark the item as 'reserved' globally,
+    # because it can be rented for other dates. Availability is checked via calendar.
+    # await db.items.update_one(
+    #     {"id": rental["item_id"]},
+    #     {"$set": {"status": "reserved"}}
+    # )
     
     # Notify owner
     await db.notifications.insert_one({
@@ -5201,45 +5700,247 @@ try:
 except ImportError as e:
     print(f"Warning: Could not load admin_routes: {e}")
 
-# Mount admin dashboard
+# Import and include PRO routes
+try:
+    from pro_routes import create_pro_routes
+    pro_router = create_pro_routes(db, get_current_user)
+    app.include_router(pro_router)
+except ImportError as e:
+    print(f"Warning: Could not load pro_routes: {e}")
+
 # Mount uploads directory for static access
-    uploads_path = ROOT_DIR / "uploads"
-    uploads_path.mkdir(exist_ok=True)
-    app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+uploads_path = ROOT_DIR / "uploads"
+uploads_path.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
 
-    app.mount("/admin", StaticFiles(directory=str(ROOT_DIR / "admin"), html=True), name="admin")
+# Mount admin dashboard
+admin_dir = ROOT_DIR / "admin"
+logging.info(f"Admin directory path: {admin_dir}")
+logging.info(f"Admin directory exists: {admin_dir.exists()}")
+if admin_dir.exists():
+    logging.info(f"Admin directory contents: {list(admin_dir.iterdir())}")
+    app.mount("/admin", StaticFiles(directory=str(admin_dir), html=True), name="admin")
+else:
+    logging.error(f"Admin directory not found at {admin_dir}!")
 
 
-# ============ UPLOAD ROUTE ============
-@api_router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    try:
-        file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
-        filename = f"{uuid.uuid4()}.{file_ext}"
-        file_path = ROOT_DIR / "uploads" / filename
+# ============ RENTAL ROUTES ============
+
+@api_router.get("/rentals/{booking_id}")
+async def get_rental_booking(booking_id: str, current_user: dict = Depends(get_current_user)):
+    """Get a rental booking details"""
+    booking = await db.rentals.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
         
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+    if booking["renter_id"] != current_user["id"] and booking["owner_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    return booking
+
+@api_router.post("/rentals/{booking_id}/inspection/in")
+async def create_inspection_in(
+    booking_id: str, 
+    report: InspectionReport, 
+    current_user: dict = Depends(get_current_user)
+):
+    """Submit entry inspection (Etat des lieux d'entrée)"""
+    booking = await db.rentals.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+        
+    # Only renter or owner can submit? Usually owner initiates or both agree.
+    # For now, allow either to submit 'their' version or the shared version.
+    # Let's assume the person physically present (usually both) creates it.
+    if current_user["id"] not in [booking["renter_id"], booking["owner_id"]]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Ensure type is correct
+    if report.type != 'in':
+        raise HTTPException(status_code=400, detail="Invalid report type for entry")
+
+    report.created_by = current_user["id"]
+    report_dict = report.dict()
+    
+    await db.rentals.update_one(
+        {"id": booking_id},
+        {"$set": {"inspection_in": report_dict, "status": "active"}} # Status becomes active/ongoing
+    )
+    
+    return {"message": "Entry inspection saved", "report": report_dict}
+
+@api_router.post("/rentals/{booking_id}/inspection/out")
+async def create_inspection_out(
+    booking_id: str,
+    report: InspectionReport,
+    current_user: dict = Depends(get_current_user)
+):
+    """Submit exit inspection (Etat des lieux de sortie)"""
+    booking = await db.rentals.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+        
+    if current_user["id"] not in [booking["renter_id"], booking["owner_id"]]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    # Ensure type is correct
+    if report.type != 'out':
+        raise HTTPException(status_code=400, detail="Invalid report type for exit")
+
+    report.created_by = current_user["id"]
+    report_dict = report.dict()
+    
+    await db.rentals.update_one(
+        {"id": booking_id},
+        {"$set": {"inspection_out": report_dict, "status": "completed"}} # Status completed (pending dispute check?)
+    )
+    
+    return {"message": "Exit inspection saved", "report": report_dict}
+
+# ============ DISPUTE ROUTES ============
+
+@api_router.post("/disputes")
+async def create_dispute(
+    dispute_data: DisputeCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a new dispute"""
+    # Verify entity exists and user is involved
+    respondent_id = None
+    
+    if dispute_data.order_id:
+        order = await db.orders.find_one({"id": dispute_data.order_id})
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
             
-        # Return full URL
-        # Note: In production this should use the configured base URL
-        # For now we return relative path or absolute if client can handle it
-        # Since client needs to send this URL back to us, a relative path /uploads/... is good
-        # but the frontend needs to know where to load it from. 
-        # Let's return the relative URL that can be appended to API_URL's base
+        if current_user["id"] == order["buyer_id"]:
+            respondent_id = order["seller_id"]
+        elif current_user["id"] == order["seller_id"]:
+            respondent_id = order["buyer_id"]
+        else:
+            raise HTTPException(status_code=403, detail="Not authorized")
+            
+        # Update order status
+        await db.orders.update_one(
+            {"id": dispute_data.order_id},
+            {"$set": {"status": "dispute"}}
+        )
         
-        return {
-            "url": f"/uploads/{filename}", 
-            "filename": filename
-        }
+    elif dispute_data.rental_id:
+        rental = await db.rentals.find_one({"id": dispute_data.rental_id})
+        if not rental:
+            raise HTTPException(status_code=404, detail="Rental not found")
+            
+        if current_user["id"] == rental["renter_id"]:
+            respondent_id = rental["owner_id"]
+        elif current_user["id"] == rental["owner_id"]:
+            respondent_id = rental["renter_id"]
+        else:
+            raise HTTPException(status_code=403, detail="Not authorized")
+            
+        # Update rental status
+        await db.rentals.update_one(
+            {"id": dispute_data.rental_id},
+            {"$set": {"status": "dispute"}}
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Must provide order_id or rental_id")
+
+    dispute_id = f"disp_{uuid.uuid4().hex[:12]}"
+    
+    dispute = Dispute(
+        id=dispute_id,
+        **dispute_data.dict(),
+        complainant_id=current_user["id"],
+        respondent_id=respondent_id
+    )
+    
+    await db.disputes.insert_one(dispute.dict())
+    
+    # Notify respondent and admin
+    # In real app: send_push_notification(respondent_id, ...)
+    
+    return dispute
+
+@api_router.get("/disputes")
+async def get_my_disputes(current_user: dict = Depends(get_current_user)):
+    """Get disputes where user is complainant or respondent"""
+    cursor = db.disputes.find({
+        "$or": [
+            {"complainant_id": current_user["id"]},
+            {"respondent_id": current_user["id"]}
+        ]
+    }).sort("created_at", -1)
+    
+    disputes = await cursor.to_list(100)
+    return disputes
+
+@api_router.get("/disputes/{dispute_id}")
+async def get_dispute(dispute_id: str, current_user: dict = Depends(get_current_user)):
+    dispute = await db.disputes.find_one({"id": dispute_id})
+    if not dispute:
+        raise HTTPException(status_code=404, detail="Dispute not found")
+        
+    if current_user["id"] not in [dispute["complainant_id"], dispute["respondent_id"]] and not current_user.get("is_admin"):
+         raise HTTPException(status_code=403, detail="Not authorized")
+         
+    return dispute
+
+# ============ UPLOAD ROUTE (CLOUDINARY) ============
+@api_router.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    folder: str = "items"  # items, profiles, baskets, documents, chat
+):
+    """Upload file to Cloudinary"""
+    try:
+        from cloudinary_service import upload_image
+        import base64
+        
+        # Read file content
+        content = await file.read()
+        base64_data = base64.b64encode(content).decode("utf-8")
+        
+        # Determine content type
+        content_type = file.content_type or "image/jpeg"
+        data_uri = f"data:{content_type};base64,{base64_data}"
+        
+        # Upload to Cloudinary
+        result = upload_image(
+            image_data=data_uri,
+            folder=f"yondly/{folder}"
+        )
+        
+        if result.get("success"):
+            return {
+                "url": result["url"],
+                "public_id": result.get("public_id"),
+                "width": result.get("width"),
+                "height": result.get("height")
+            }
+        else:
+            # Fallback to local storage if Cloudinary fails
+            file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+            filename = f"{uuid.uuid4()}.{file_ext}"
+            file_path = ROOT_DIR / "uploads" / filename
+            
+            with open(file_path, "wb") as buffer:
+                buffer.write(content)
+            
+            return {
+                "url": f"/uploads/{filename}",
+                "fallback": True
+            }
+            
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Upload error: {str(e)}")
 
 # Include router at the end after all routes are defined
 app.include_router(api_router)
 
 if __name__ == "__main__":
     import uvicorn
-    # Listen on 0.0.0.0 to be accessible from local network
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Use PORT env variable (Cloud Run sets this to 8080)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
 

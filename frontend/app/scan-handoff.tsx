@@ -101,7 +101,7 @@ export default function ScanHandoffScreen() {
             } else {
                 // Standard order handoff (sale/donation)
                 response = await axios.post(
-                    `${API_URL}/orders/${orderId}/handoff`,
+                    `${API_URL}/orders/${orderId}/confirm-handoff`,
                     null,
                     {
                         params: { code },

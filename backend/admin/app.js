@@ -1,6 +1,6 @@
 // Yondly Admin Dashboard - API Connected
 
-const API_URL = 'http://localhost:8000/api';
+const API_URL = '/api';
 
 // State
 let currentPage = 'overview';
@@ -128,7 +128,13 @@ function navigateTo(page) {
         pros: 'Commerces Pro',
         disputes: 'Gestion des Litiges',
         items: 'Annonces',
-        impact: 'Impact Environnemental'
+        impact: 'Impact Environnemental',
+        'safety-logs': 'Registre de Sécurité',
+        'audit-logs': 'Audit Logs',
+        'pro-verifications': 'Vérifications PRO',
+        'pro-offers': 'Offres PRO',
+        'pro-transparency': 'Transparence DSA',
+        'dac7-exports': 'Exports DAC7'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
 
@@ -151,6 +157,7 @@ async function loadDashboardData() {
     await loadStats();
     await loadZones();
     renderActiveZones();
+    renderDashboardCharts();
     loadPageData(currentPage);
 }
 
@@ -189,36 +196,136 @@ function loadPageData(page) {
         case 'disputes': loadDisputes(); break;
         case 'items': loadItems(); break;
         case 'impact': loadImpact(); break;
-        case 'newsletter': loadNewsletter(); break;
+        case 'safety-logs': loadSafetyLogs(); break;
+        case 'pro-verifications': loadProVerifications(); break;
+        case 'pro-offers': loadProOffers(); break;
+        case 'pro-transparency': loadTransparency(); break;
+        case 'dac7-exports': loadDac7Jobs(); break;
+        // New Email Collection Pages
+        case 'waitlist': loadWaitlist(); break;
+        case 'contact-messages': loadContacts(); break;
+        case 'partners': loadPartners(); break;
     }
 }
 
-// Newsletter
-async function loadNewsletter() {
-    const tbody = document.getElementById('newsletter-table-body');
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center;">Chargement...</td></tr>';
+// ============ EMAIL COLLECTION LOADERS ============
+
+function showDetailModal(title, data) {
+    const modal = document.getElementById('detail-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalBody = document.getElementById('modal-body');
+
+    modalTitle.textContent = title;
+
+    // Format JSON data nicely
+    let content = '<div class="detail-grid">';
+    for (const [key, value] of Object.entries(data)) {
+        if (key === 'id' || key === 'rgpd_consent') continue;
+        content += `<div class="detail-item">
+            <span class="detail-label">${key}</span>
+            <span class="detail-value">${value || '-'}</span>
+        </div>`;
+    }
+    content += '</div>';
+
+    modalBody.innerHTML = content;
+    modal.classList.remove('hidden');
+}
+
+async function loadWaitlist() {
+    const tbody = document.getElementById('waitlist-table-body');
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Chargement...</td></tr>';
 
     try {
-        const res = await fetch(`${API_URL}/admin/newsletter`, {
+        const res = await fetch(`${API_URL}/admin/waitlist`, {
             headers: { Authorization: `Bearer ${authToken}` }
         });
         if (res.ok) {
-            const subscribers = await res.json();
-            if (subscribers.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" style="text-align: center;">Aucun abonné</td></tr>';
+            const data = await res.json();
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Aucune inscription</td></tr>';
                 return;
             }
-            tbody.innerHTML = subscribers.map(s => `
-                <tr>
-                    <td><strong>${s.email}</strong></td>
-                    <td>${s.source || 'landing_page'}</td>
-                    <td>${new Date(s.created_at).toLocaleString('fr-FR')}</td>
+            tbody.innerHTML = data.map(i => {
+                const rowData = JSON.stringify(i).replace(/"/g, '&quot;');
+                return `
+                <tr onclick="showDetailModal('Détail Inscription', ${rowData})" style="cursor: pointer;">
+                    <td><strong>${i.email}</strong></td>
+                    <td>${i.city || '-'}</td>
+                    <td><span class="badge-status ${i.status === 'pro' ? 'badge-active' : 'badge-inactive'}">${i.status}</span></td>
+                    <td>${i.comment || '-'}</td>
+                    <td>${new Date(i.created_at).toLocaleString('fr-FR')}</td>
                 </tr>
-            `).join('');
+            `}).join('');
         }
     } catch (e) {
-        console.error(e);
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: red;">Erreur de chargement</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Erreur API</td></tr>';
+    }
+}
+
+async function loadContacts() {
+    const tbody = document.getElementById('contacts-table-body');
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Chargement...</td></tr>';
+
+    try {
+        const res = await fetch(`${API_URL}/admin/contacts`, {
+            headers: { Authorization: `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Aucun message</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(i => {
+                const rowData = JSON.stringify(i).replace(/"/g, '&quot;');
+                return `
+                <tr onclick="showDetailModal('Message Contact', ${rowData})" style="cursor: pointer;">
+                    <td><strong>${i.name}</strong></td>
+                    <td>${i.email}</td>
+                    <td>${i.subject || '-'}</td>
+                    <td><div style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${i.message}</div></td>
+                    <td>${new Date(i.created_at).toLocaleString('fr-FR')}</td>
+                </tr>
+            `}).join('');
+        }
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Erreur API</td></tr>';
+    }
+}
+
+async function loadPartners() {
+    const tbody = document.getElementById('partners-table-body');
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Chargement...</td></tr>';
+
+    try {
+        const res = await fetch(`${API_URL}/admin/partners`, {
+            headers: { Authorization: `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Aucune candidature</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(i => {
+                const rowData = JSON.stringify(i).replace(/"/g, '&quot;');
+                return `
+                <tr onclick="showDetailModal('Candidature Partenaire', ${rowData})" style="cursor: pointer;">
+                    <td><strong>${i.name}</strong></td>
+                    <td>${i.business}</td>
+                    <td>${i.city || '-'}</td>
+                    <td>
+                        <div>${i.email}</div>
+                        <small>${i.phone || ''}</small>
+                    </td>
+                    <td><div style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${i.message || '-'}</div></td>
+                    <td>${new Date(i.created_at).toLocaleString('fr-FR')}</td>
+                </tr>
+            `}).join('');
+        }
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Erreur API</td></tr>';
     }
 }
 
@@ -462,34 +569,318 @@ async function handleAddZone(e) {
     }
 }
 
+// ============ EPCI SEARCH (Auto-fetch communes from geo.api.gouv.fr) ============
+
+let searchTimeout = null;
+let selectedEpci = null;
+
+async function searchEPCI(query) {
+    console.log('searchEPCI called with:', query);
+
+    if (query.length < 2) {
+        document.getElementById('epci-results').innerHTML = '';
+        return;
+    }
+
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(async () => {
+        console.log('Fetching EPCI for:', query);
+        try {
+            const res = await fetch(`${API_URL}/admin/search-epci?q=${encodeURIComponent(query)}`);
+            console.log('Search response:', res.status);
+            if (res.ok) {
+                const results = await res.json();
+                console.log('Search results:', results);
+                renderEPCIResults(results);
+            } else {
+                console.error('Search failed:', res.status, await res.text());
+            }
+        } catch (e) {
+            console.error('EPCI search error:', e);
+        }
+    }, 300);
+}
+
+function renderEPCIResults(results) {
+    const container = document.getElementById('epci-results');
+    if (results.length === 0) {
+        container.innerHTML = '<div style="padding: 10px; color: #888; font-size: 13px;">Aucun résultat</div>';
+        return;
+    }
+
+    // Group by type
+    const epcis = results.filter(r => r.type === 'epci');
+    const communes = results.filter(r => r.type === 'commune');
+
+    container.innerHTML = `
+        <div style="position: absolute; top: 0; left: 0; right: 0; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; max-height: 300px; overflow-y: auto;">
+            ${epcis.length > 0 ? `
+                <div style="padding: 8px 16px; background: #f8fafc; font-size: 11px; font-weight: 600; color: #64748b; border-bottom: 1px solid #e2e8f0;">
+                    🏛️ INTERCOMMUNALITÉS (EPCI)
+                </div>
+                ${epcis.map(r => `
+                    <div onclick="selectEPCI('${r.code}', '${r.name.replace(/'/g, "\\'")}', ${r.population})" 
+                         style="padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #eee; transition: background 0.15s;"
+                         onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='white'">
+                        <div style="font-weight: 600; color: #166534;">${r.label}</div>
+                        <div style="font-size: 12px; color: #888;">${r.sublabel}</div>
+                    </div>
+                `).join('')}
+            ` : ''}
+            
+            ${communes.length > 0 ? `
+                <div style="padding: 8px 16px; background: #f8fafc; font-size: 11px; font-weight: 600; color: #64748b; border-bottom: 1px solid #e2e8f0;">
+                    📍 COMMUNES
+                </div>
+                ${communes.map(r => `
+                    <div onclick="selectCommune('${r.code}', '${r.name.replace(/'/g, "\\'")}', '${r.epci_code || ''}')" 
+                         style="padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #eee; transition: background 0.15s;"
+                         onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='white'">
+                        <div style="font-weight: 600; color: #1d4ed8;">${r.label}</div>
+                        <div style="font-size: 12px; color: #888;">${r.sublabel}</div>
+                    </div>
+                `).join('')}
+            ` : ''}
+        </div>
+    `;
+}
+
+// Select a commune and auto-fetch its EPCI
+async function selectCommune(communeCode, communeName, epciCode) {
+    if (!epciCode) {
+        showToast("Cette commune n'appartient pas à un EPCI", 'error');
+        return;
+    }
+
+    document.getElementById('epci-results').innerHTML = '<div style="padding: 12px; text-align: center;"><i class="fas fa-spinner fa-spin"></i> Recherche de EPCI...</div>';
+
+    try {
+        // Fetch EPCI info
+        const res = await fetch(`https://geo.api.gouv.fr/epcis/${epciCode}?fields=nom,code,population`);
+        if (res.ok) {
+            const epci = await res.json();
+            selectEPCI(epci.code, epci.nom, epci.population);
+        } else {
+            showToast('EPCI non trouvé', 'error');
+            document.getElementById('epci-results').innerHTML = '';
+        }
+    } catch (e) {
+        console.error('Failed to fetch EPCI:', e);
+        showToast("Erreur lors de la récupération de l'EPCI", 'error');
+        document.getElementById('epci-results').innerHTML = '';
+    }
+}
+
+async function selectEPCI(code, name, population) {
+    selectedEpci = { code, name, population };
+
+    document.getElementById('epci-results').innerHTML = '';
+    document.getElementById('epci-search').value = name;
+    document.getElementById('selected-epci-code').value = code;
+    document.getElementById('selected-epci-name').value = name;
+
+    // Fetch communes count
+    try {
+        const res = await fetch(`${API_URL}/admin/epci/${code}/communes`, {
+            headers: { Authorization: `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+            const communes = await res.json();
+            selectedEpci.communesCount = communes.length;
+
+            // Show preview
+            document.getElementById('epci-preview').style.display = 'block';
+            document.getElementById('preview-name').textContent = name;
+            document.getElementById('preview-pop').textContent = `${(population || 0).toLocaleString()} habitants`;
+            document.getElementById('preview-communes').textContent = `${communes.length} communes`;
+
+            // Enable button
+            document.getElementById('create-zone-btn').disabled = false;
+        }
+    } catch (e) {
+        console.error('Failed to fetch communes:', e);
+    }
+}
+
+async function handleAddZoneFromEPCI(e) {
+    e.preventDefault();
+    console.log('handleAddZoneFromEPCI called');
+
+    const epciCode = document.getElementById('selected-epci-code').value;
+
+    console.log('EPCI Code:', epciCode);
+
+    if (!epciCode) {
+        showToast('Veuillez sélectionner un EPCI', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('create-zone-btn');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Création en cours...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch(`${API_URL}/admin/zones/create-from-epci`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+            body: JSON.stringify({
+                epci_code: epciCode
+            })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            await loadZones();
+            closeModal();
+            renderZonesTable();
+            renderActiveZones();
+            showToast(`✅ Zone "${data.zone.displayName}" créée avec ${data.communes_count} communes !`);
+
+            // Reset form
+            document.getElementById('epci-search').value = '';
+            document.getElementById('selected-epci-code').value = '';
+            document.getElementById('epci-preview').style.display = 'none';
+            selectedEpci = null;
+        } else {
+            const error = await res.json();
+            showToast(error.detail || 'Erreur lors de la création', 'error');
+        }
+    } catch (e) {
+        showToast('Erreur réseau', 'error');
+    } finally {
+        btn.innerHTML = '<i class="fas fa-magic"></i> Créer avec communes';
+        btn.disabled = false;
+    }
+}
+
 // Users
 async function loadUsers() {
     let users = [];
     try {
         const res = await fetch(`${API_URL}/admin/users`, { headers: { Authorization: `Bearer ${authToken}` } });
-        if (res.ok) users = await res.json();
-    } catch (e) { }
+        if (res.ok) {
+            users = await res.json();
+        } else {
+            console.error("Failed to load users:", res.status, res.statusText);
+            if (res.status === 401) showToast("Session expirée, veuillez vous reconnecter", "error");
+        }
+    } catch (e) {
+        console.error("Network error loading users:", e);
+        showToast("Erreur réseau (utilisateurs)", "error");
+    }
 
     if (!users.length) {
-        users = [
-            { id: 1, display_name: 'Jean Dupont', email: 'jean@example.com', level: 'Éco-actif', co2_saved: 15.5 },
-            { id: 2, display_name: 'Marie Martin', email: 'marie@example.com', level: 'Éco-champion', co2_saved: 32.8 },
-        ];
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Aucun utilisateur</td></tr>';
+        return;
     }
 
     const tbody = document.getElementById('users-table-body');
-    tbody.innerHTML = users.map(u => `
+    tbody.innerHTML = users.map(u => {
+        const riskColor = u.risk_score > 50 ? '#ef4444' : (u.risk_score > 20 ? '#f59e0b' : '#10b981');
+        return `
         <tr>
-            <td><strong>${u.display_name}</strong></td>
+            <td>
+                <strong>${u.display_name}</strong>
+                ${u.verified ? '<i class="fas fa-check-circle" style="color:#10b981;font-size:12px;" title="Vérifié"></i>' : ''}
+            </td>
             <td style="color: var(--text-secondary)">${u.email}</td>
-            <td><span class="badge-status badge-active">${u.level || 'Éco-curieux'}</span></td>
+            <td>
+                <span class="badge-status badge-active" style="background:${riskColor}20; color:${riskColor};">
+                    ${u.trust_level} (Risk: ${u.risk_score})
+                </span>
+            </td>
             <td>${formatCO2(u.co2_saved || 0)}</td>
             <td>
-                <button type="button" class="btn-sm btn-secondary" onclick="alert('Voir détails: ${u.id}')">Voir</button>
-                <button type="button" class="btn-sm" style="background-color: #ff4444; color: white; margin-left: 5px;" onclick="deleteUser('${u.id}', event)">Supprimer</button>
+                <button type="button" class="btn-sm btn-secondary" onclick="editUserTrust('${u.id}', '${u.trust_level}')">
+                    <i class="fas fa-shield-alt"></i> Trust
+                </button>
+                <button type="button" class="btn-sm" style="background-color: #ff4444; color: white; margin-left: 5px;" onclick="deleteUser('${u.id}', event)">
+                    <i class="fas fa-trash"></i>
+                </button>
             </td>
         </tr>
-    `).join('');
+    `}).join('');
+}
+
+async function editUserTrust(userId, currentLevel) {
+    const newLevel = prompt(`Niveau de confiance actuel: ${currentLevel}\nNouveau niveau (new, verified, restricted, banned):`, currentLevel);
+    if (!newLevel || newLevel === currentLevel) return;
+
+    if (!['new', 'verified', 'restricted', 'banned'].includes(newLevel)) {
+        alert('Niveau invalide. Utilisez: new, verified, restricted, banned');
+        return;
+    }
+
+    const reason = prompt("Raison du changement (pour les logs):", "Révision manuelle admin");
+
+    try {
+        const res = await fetch(`${API_URL}/admin/users/${userId}/trust`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ trust_level: newLevel, manual_adjustment_reason: reason || "Manuelle" })
+        });
+
+        if (res.ok) {
+            showToast('Niveau de confiance mis à jour');
+            loadUsers();
+        } else {
+            alert('Erreur lors de la mise à jour');
+        }
+    } catch (e) {
+        alert('Erreur réseau');
+    }
+}
+
+// ============ SAFETY LOGS ============
+
+async function loadSafetyLogs() {
+    const tbody = document.getElementById('safety-logs-table-body');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i></td></tr>';
+
+    try {
+        const res = await fetch(`${API_URL}/admin/safety-events`, {
+            headers: { Authorization: `Bearer ${authToken}` }
+        });
+
+        if (res.ok) {
+            const events = await res.json();
+            if (events.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Aucun événement de sécurité</td></tr>';
+                return;
+            }
+
+            console.log("Events received:", events);
+            tbody.innerHTML = events.map(e => `
+                <tr>
+                    <td>${new Date(e.created_at).toLocaleString()}</td>
+                    <td><span style="font-weight:600;">${e.event_type}</span></td>
+                    <td>
+                        <span class="badge-status" style="
+                            background: ${e.severity === 'high' ? '#fee2e2' : (e.severity === 'medium' ? '#fef3c7' : '#e0f2f1')};
+                            color: ${e.severity === 'high' ? '#b91c1c' : (e.severity === 'medium' ? '#92400e' : '#047857')};
+                        ">
+                            ${e.severity}
+                        </span>
+                    </td>
+                    <td>${e.metadata?.message || e.metadata?.original_text || e.metadata?.reason || '-'}</td>
+                    <td><code style="font-size:11px;">${e.metadata ? Object.keys(e.metadata).filter(k => k !== 'message' && k !== 'original_text').map(k => k + ':' + e.metadata[k]).join(', ') : ''}</code></td>
+                </tr>
+            `).join('');
+        } else {
+            console.error("Fetch failed:", res.status, res.statusText);
+            const errText = await res.text();
+            console.error("Error response:", errText);
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: red;">Erreur API: ${res.status} (${res.statusText})</td></tr>`;
+        }
+    } catch (e) {
+        console.error("Error loading safety logs:", e);
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: red;">Erreur JS: ${e.message}</td></tr>`;
+    }
 }
 
 // Pros (DSA Compliant)
@@ -1762,3 +2153,362 @@ window.navigateTo = function (page) {
 
     loadPageData(page);
 };
+
+// ============ DASHBOARD CHARTS ============
+
+let trustChart = null;
+let categoriesChart = null;
+
+async function renderDashboardCharts() {
+    // Fetch data for charts
+    let users = [];
+    let items = [];
+
+    try {
+        const usersRes = await fetch(`${API_URL}/admin/users`, { headers: { Authorization: `Bearer ${authToken}` } });
+        if (usersRes.ok) users = await usersRes.json();
+    } catch (e) { console.error('Failed to load users for chart:', e); }
+
+    try {
+        const itemsRes = await fetch(`${API_URL}/items?limit=500`);
+        if (itemsRes.ok) {
+            const data = await itemsRes.json();
+            items = Array.isArray(data) ? data : (data.items || []);
+        }
+    } catch (e) { console.error('Failed to load items for chart:', e); }
+
+    // Count users by trust level
+    const trustCounts = { new: 0, verified: 0, restricted: 0, banned: 0 };
+    users.forEach(u => {
+        const level = u.trust_level || 'new';
+        if (trustCounts.hasOwnProperty(level)) trustCounts[level]++;
+        else trustCounts['new']++;
+    });
+
+    // Count items by category
+    const categoryCounts = {};
+    items.forEach(i => {
+        const cat = i.category || 'Autre';
+        categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+    });
+
+    // Render Trust Levels Pie Chart
+    const trustCtx = document.getElementById('chart-trust-levels');
+    if (trustCtx) {
+        if (trustChart) trustChart.destroy();
+        trustChart = new Chart(trustCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Nouveau', 'Vérifié', 'Restreint', 'Banni'],
+                datasets: [{
+                    data: [trustCounts.new, trustCounts.verified, trustCounts.restricted, trustCounts.banned],
+                    backgroundColor: ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444'],
+                    borderWidth: 0,
+                    hoverOffset: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#8b8b9e', font: { size: 12 }, padding: 15 }
+                    }
+                }
+            }
+        });
+    }
+
+    // Render Item Categories Pie Chart
+    const catCtx = document.getElementById('chart-item-categories');
+    if (catCtx) {
+        if (categoriesChart) categoriesChart.destroy();
+        const catLabels = Object.keys(categoryCounts).slice(0, 6);
+        const catData = catLabels.map(k => categoryCounts[k]);
+        const colors = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'];
+
+        categoriesChart = new Chart(catCtx, {
+            type: 'doughnut',
+            data: {
+                labels: catLabels,
+                datasets: [{
+                    data: catData,
+                    backgroundColor: colors.slice(0, catLabels.length),
+                    borderWidth: 0,
+                    hoverOffset: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#8b8b9e', font: { size: 12 }, padding: 15 }
+                    }
+                }
+            }
+        });
+    }
+}
+
+// ============ PRO MODULE FUNCTIONS ============
+
+// Load PRO Verifications
+async function loadProVerifications() {
+    const tbody = document.getElementById('pro-verifications-table-body');
+    if (!tbody) return;
+
+    const status = document.getElementById('verif-status-filter')?.value || '';
+    const url = status ? `${API_URL}/admin/pro/verifications?status=${status}` : `${API_URL}/admin/pro/verifications`;
+
+    try {
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        const data = await res.json();
+
+        // Update pending badge
+        const pending = data.filter(v => v.status === 'PENDING').length;
+        const badge = document.getElementById('pending-verif-badge');
+        if (badge) {
+            badge.textContent = pending;
+            badge.style.display = pending > 0 ? 'inline' : 'none';
+        }
+
+        tbody.innerHTML = data.map(v => `
+            <tr>
+                <td>${new Date(v.created_at).toLocaleDateString('fr-FR')}</td>
+                <td><strong>${v.pro_profile?.legal_name || 'N/A'}</strong></td>
+                <td><code>${v.pro_profile?.siret || 'N/A'}</code></td>
+                <td><span class="badge ${getStatusClass(v.status)}">${v.status}</span></td>
+                <td>
+                    ${v.status === 'PENDING' ? `
+                        <button class="btn-small success" onclick="approveVerification('${v.id}')">
+                            <i class="fas fa-check"></i> Approuver
+                        </button>
+                        <button class="btn-small danger" onclick="rejectVerification('${v.id}')">
+                            <i class="fas fa-times"></i> Rejeter
+                        </button>
+                    ` : `<span class="text-muted">—</span>`}
+                </td>
+            </tr>
+        `).join('') || '<tr><td colspan="5" class="text-center">Aucune vérification</td></tr>';
+    } catch (err) {
+        console.error('Error loading verifications:', err);
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-error">Erreur de chargement</td></tr>';
+    }
+}
+
+async function approveVerification(id) {
+    if (!confirm('Approuver cette vérification PRO ?')) return;
+
+    try {
+        const res = await fetch(`${API_URL}/admin/pro/verifications/${id}/approve`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+            showToast('Vérification approuvée ✅');
+            loadProVerifications();
+        } else {
+            showToast('Erreur lors de l\'approbation', 'error');
+        }
+    } catch (err) {
+        showToast('Erreur réseau', 'error');
+    }
+}
+
+async function rejectVerification(id) {
+    const reason = prompt('Raison du rejet:');
+    if (!reason) return;
+
+    try {
+        const res = await fetch(`${API_URL}/admin/pro/verifications/${id}/reject?reason=${encodeURIComponent(reason)}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+            showToast('Vérification rejetée');
+            loadProVerifications();
+        } else {
+            showToast('Erreur lors du rejet', 'error');
+        }
+    } catch (err) {
+        showToast('Erreur réseau', 'error');
+    }
+}
+
+// Load PRO Offers
+async function loadProOffers() {
+    const tbody = document.getElementById('pro-offers-table-body');
+    if (!tbody) return;
+
+    const status = document.getElementById('offer-status-filter')?.value || '';
+    let url = `${API_URL}/admin/pro/offers`;
+    if (status) url += `?status=${status}`;
+
+    try {
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        const data = await res.json();
+
+        tbody.innerHTML = data.map(o => `
+            <tr>
+                <td>${new Date(o.created_at).toLocaleDateString('fr-FR')}</td>
+                <td><strong>${o.title || 'Sans titre'}</strong></td>
+                <td><span class="badge ${o.kind === 'ANTIGASPI_SALE' ? 'success' : 'info'}">${o.kind === 'ANTIGASPI_SALE' ? 'Anti-gaspi' : 'Location'}</span></td>
+                <td>${o.pro_info?.legal_name || 'N/A'}</td>
+                <td>${(o.price_cents / 100).toFixed(2)}€</td>
+                <td><span class="badge ${getStatusClass(o.status)}">${o.status}</span></td>
+                <td>
+                    ${o.status === 'PUBLISHED' ? `
+                        <button class="btn-small warning" onclick="suspendOffer('${o.id}')">
+                            <i class="fas fa-pause"></i> Suspendre
+                        </button>
+                    ` : o.status === 'SUSPENDED' ? `
+                        <button class="btn-small success" onclick="unsuspendOffer('${o.id}')">
+                            <i class="fas fa-play"></i> Réactiver
+                        </button>
+                    ` : `<span class="text-muted">—</span>`}
+                </td>
+            </tr>
+        `).join('') || '<tr><td colspan="7" class="text-center">Aucune offre PRO</td></tr>';
+    } catch (err) {
+        console.error('Error loading offers:', err);
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-error">Erreur de chargement</td></tr>';
+    }
+}
+
+async function suspendOffer(id) {
+    const reason = prompt('Raison de la suspension:');
+    if (!reason) return;
+
+    try {
+        const res = await fetch(`${API_URL}/admin/pro/offers/${id}/suspend?reason=${encodeURIComponent(reason)}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+            showToast('Offre suspendue');
+            loadProOffers();
+        } else {
+            showToast('Erreur', 'error');
+        }
+    } catch (err) {
+        showToast('Erreur réseau', 'error');
+    }
+}
+
+async function unsuspendOffer(id) {
+    if (!confirm('Réactiver cette offre ?')) return;
+
+    try {
+        const res = await fetch(`${API_URL}/admin/pro/offers/${id}/unsuspend`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+            showToast('Offre réactivée ✅');
+            loadProOffers();
+        } else {
+            showToast('Erreur', 'error');
+        }
+    } catch (err) {
+        showToast('Erreur réseau', 'error');
+    }
+}
+
+// Transparency DSA
+async function loadTransparency() {
+    try {
+        const res = await fetch(`${API_URL}/admin/transparency`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        const data = await res.json();
+
+        document.getElementById('ranking-text').value = data.ranking_text || '';
+        document.getElementById('dereferencing-text').value = data.dereferencing_rules_text || '';
+    } catch (err) {
+        console.error('Error loading transparency:', err);
+    }
+}
+
+async function saveTransparency() {
+    const ranking = document.getElementById('ranking-text').value;
+    const dereferencing = document.getElementById('dereferencing-text').value;
+
+    try {
+        const res = await fetch(`${API_URL}/admin/transparency?ranking_text=${encodeURIComponent(ranking)}&dereferencing_rules_text=${encodeURIComponent(dereferencing)}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+            showToast('Textes de transparence mis à jour ✅');
+        } else {
+            showToast('Erreur lors de la sauvegarde', 'error');
+        }
+    } catch (err) {
+        showToast('Erreur réseau', 'error');
+    }
+}
+
+// DAC7 Exports
+async function loadDac7Jobs() {
+    const tbody = document.getElementById('dac7-jobs-table-body');
+    if (!tbody) return;
+
+    try {
+        const res = await fetch(`${API_URL}/admin/dac7/jobs`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        const data = await res.json();
+
+        tbody.innerHTML = data.map(j => `
+            <tr>
+                <td>${new Date(j.created_at).toLocaleString('fr-FR')}</td>
+                <td><strong>${j.year}</strong></td>
+                <td>${j.sellers_count} vendeurs</td>
+                <td><span class="badge success">${j.status}</span></td>
+                <td><code title="${j.xml_hash}">${j.xml_hash?.substring(0, 12)}...</code></td>
+            </tr>
+        `).join('') || '<tr><td colspan="5" class="text-center">Aucun export</td></tr>';
+    } catch (err) {
+        console.error('Error loading DAC7 jobs:', err);
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-error">Erreur de chargement</td></tr>';
+    }
+}
+
+async function generateDac7Export() {
+    const year = prompt('Année fiscale à exporter:', new Date().getFullYear() - 1);
+    if (!year) return;
+
+    try {
+        showToast('Génération en cours...', 'info');
+        const res = await fetch(`${API_URL}/admin/dac7/generate?year=${year}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            showToast(`Export généré: ${data.sellers_exported} vendeurs ✅`);
+            loadDac7Jobs();
+        } else {
+            showToast('Erreur lors de la génération', 'error');
+        }
+    } catch (err) {
+        showToast('Erreur réseau', 'error');
+    }
+}
+
+// Helper for status badges
+function getStatusClass(status) {
+    const classes = {
+        'PENDING': 'warning',
+        'APPROVED': 'success',
+        'REJECTED': 'danger',
+        'PUBLISHED': 'success',
+        'DRAFT': 'secondary',
+        'SUSPENDED': 'danger',
+        'COMPLETED': 'success',
+        'OPEN': 'warning',
+        'MEDIATION': 'info'
+    };
+    return classes[status] || 'secondary';
+}
+
