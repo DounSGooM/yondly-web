@@ -16,9 +16,27 @@ import TestimonialsSection from '../components/home/TestimonialsSection';
 import FaqSection from '../components/home/FaqSection';
 import CtaSection from '../components/home/CtaSection';
 
+import SEO from '../components/shared/SEO';
+
 const Home = () => {
   return (
     <div className="min-h-screen">
+      <SEO
+        title="Yondly - L'application d'échange, vente et don entre voisins"
+        description="Rejoignez Yondly pour donner une seconde vie à vos objets. Vente, don, et location entre particuliers et professionnels locaux. Anti-gaspi et économie circulaire."
+        keywords="don, vente, location, voisins, anti-gaspi, local, application, yondly"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          "name": "Yondly",
+          "url": "https://yondly.vercel.app",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://yondly.vercel.app/search?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        }}
+      />
       <Header />
 
       <HeroSection />

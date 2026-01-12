@@ -22,6 +22,7 @@ import { Card, CardContent } from '../components/ui/card';
 import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 import WaitlistForm from '../components/shared/WaitlistForm';
+import SEO from '../components/shared/SEO';
 
 const FoodDonation = () => {
   const howItWorks = [
@@ -106,6 +107,22 @@ const FoodDonation = () => {
 
   return (
     <div className="min-h-screen">
+      <SEO
+        title="Lutte contre le gaspillage alimentaire & Don gratuit | Yondly"
+        description="Donnez vos surplus alimentaires à vos voisins ou associations. Luttez contre le gaspillage simplement et gratuitement avec Yondly."
+        keywords="don alimentaire, anti-gaspi, nourriture, gratuit, associations, yondly"
+        url="/don-alimentaire"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "HowTo",
+          "name": "Comment donner de la nourriture sur Yondly",
+          "step": [
+            { "@type": "HowToStep", "text": "Prenez une photo de vos surplus." },
+            { "@type": "HowToStep", "text": "Publiez votre annonce gratuitement." },
+            { "@type": "HowToStep", "text": "Un voisin vient récupérer le don." }
+          ]
+        }}
+      />
       <Header />
 
       {/* Hero */}

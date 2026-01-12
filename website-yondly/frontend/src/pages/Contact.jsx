@@ -8,6 +8,7 @@ import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
+import SEO from '../components/shared/SEO';
 
 const API = 'http://localhost:8000/api'; // Hardcoded for local debug
 // const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -68,6 +69,21 @@ const Contact = () => {
 
   return (
     <div className="min-h-screen">
+      <SEO
+        title="Contactez Yondly | Support & Partenariats"
+        description="Besoin d'aide ou envie de devenir partenaire ? Contactez l'équipe Yondly. Nous répondons sous 48h."
+        url="/contact"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          "name": "Yondly",
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "email": "contact@yondly.com",
+            "contactType": "customer service"
+          }
+        }}
+      />
       <Header />
 
       {/* Hero */}

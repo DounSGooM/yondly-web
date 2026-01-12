@@ -28,6 +28,7 @@ import {
 import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 import { cities } from '../data/mock';
+import SEO from '../components/shared/SEO';
 
 const API = 'http://localhost:8000/api';
 
@@ -146,8 +147,28 @@ const Pros = () => {
     }
   };
 
+
+
   return (
     <div className="min-h-screen">
+      <SEO
+        title="Boostez votre commerce local & réduisez le gaspillage | Yondly Pro"
+        description="Espace Pro Yondly : Vendez vos invendus, louez votre matériel et touchez une clientèle locale engagée. Inscription gratuite pour commerçants et artisans."
+        keywords="pro, commerçants, artisans, invendus, anti-gaspi, visibilité locale, yondly"
+        url="/pros"
+        image="/assets/pro_hero_flat.png"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "Service",
+          "serviceType": "Plateforme locale pour professionnels",
+          "provider": {
+            "@type": "Organization",
+            "name": "Yondly"
+          },
+          "areaServed": "France",
+          "description": "Solution pour écouler les invendus et gagner en visibilité locale."
+        }}
+      />
       <Header />
 
       {/* Hero with Illustration */}

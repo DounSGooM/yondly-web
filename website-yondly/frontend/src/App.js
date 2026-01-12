@@ -19,40 +19,44 @@ import MentionsLegales from './pages/MentionsLegales';
 import Confidentialite from './pages/Confidentialite';
 import Cookies from './pages/Cookies';
 
+import { HelmetProvider } from 'react-helmet-async';
+
 function App() {
   return (
     <div className="App">
-      <BrowserRouter>
-        <ScrollToTop />
-        <Routes>
-          {/* Main Pages */}
-          <Route path="/" element={<Home />} />
-          <Route path="/comment-ca-marche" element={<HowItWorks />} />
-          <Route path="/fonctionnalites" element={<Features />} />
-          <Route path="/don-alimentaire" element={<FoodDonation />} />
-          <Route path="/securite" element={<Security />} />
+      <HelmetProvider>
+        <BrowserRouter>
+          <ScrollToTop />
+          <Routes>
+            {/* Main Pages */}
+            <Route path="/" element={<Home />} />
+            <Route path="/comment-ca-marche" element={<HowItWorks />} />
+            <Route path="/fonctionnalites" element={<Features />} />
+            <Route path="/don-alimentaire" element={<FoodDonation />} />
+            <Route path="/securite" element={<Security />} />
 
-          {/* Partner Pages */}
-          <Route path="/pros" element={<Pros />} />
-          <Route path="/pros" element={<Pros />} />
+            {/* Partner Pages */}
+            <Route path="/pros" element={<Pros />} />
+            <Route path="/pros" element={<Pros />} />
 
-          {/* Support Pages */}
-          <Route path="/faq" element={<FAQ />} />
-          <Route path="/contact" element={<Contact />} />
+            {/* Support Pages */}
+            <Route path="/faq" element={<FAQ />} />
+            <Route path="/contact" element={<Contact />} />
 
-          {/* Beta / Waitlist */}
-          <Route path="/beta" element={<Beta />} />
-          <Route path="/merci" element={<Merci />} />
+            {/* Beta / Waitlist */}
+            <Route path="/beta" element={<Beta />} />
+            <Route path="/merci" element={<Merci />} />
 
-          {/* Legal Pages */}
-          <Route path="/mentions-legales" element={<MentionsLegales />} />
-          <Route path="/confidentialite" element={<Confidentialite />} />
-          <Route path="/cookies" element={<Cookies />} />
-        </Routes>
+            {/* Legal Pages */}
+            <Route path="/mentions-legales" element={<MentionsLegales />} />
+            <Route path="/confidentialite" element={<Confidentialite />} />
+            <Route path="/cookies" element={<Cookies />} />
+          </Routes>
 
-        {/* Cookie Banner */}
-        <CookieBanner />
-      </BrowserRouter>
+          {/* Cookie Banner */}
+          <CookieBanner />
+        </BrowserRouter>
+      </HelmetProvider>
     </div>
   );
 }
