@@ -13,6 +13,8 @@ import Security from './pages/Security';
 import Pros from './pages/Pros';
 import FAQ from './pages/FAQ';
 import Contact from './pages/Contact';
+import BlogList from './pages/BlogList';
+import BlogPost from './pages/BlogPost';
 import Beta from './pages/Beta';
 import Merci from './pages/Merci';
 import MentionsLegales from './pages/MentionsLegales';
@@ -42,6 +44,10 @@ function App() {
             {/* Support Pages */}
             <Route path="/faq" element={<FAQ />} />
             <Route path="/contact" element={<Contact />} />
+
+            {/* Blog Pages */}
+            <Route path="/blog" element={<BlogList />} />
+            <Route path="/blog/:slug" element={<BlogPost />} />
 
             {/* Beta / Waitlist */}
             <Route path="/beta" element={<Beta />} />
