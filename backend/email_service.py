@@ -31,11 +31,11 @@ def send_email(to_email: str, subject: str, html_content: str):
         # Create secure connection with server and send email
         # Adapting for Infomaniak (usually SSL 465 or STARTTLS 587)
         if smtp_port == 465:
-            with smtplib.SMTP_SSL(smtp_host, smtp_port) as server:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=5) as server:
                 server.login(smtp_user, smtp_password)
                 server.send_message(msg)
         else:
-            with smtplib.SMTP(smtp_host, smtp_port) as server:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=5) as server:
                 server.starttls()
                 server.login(smtp_user, smtp_password)
                 server.send_message(msg)
@@ -75,6 +75,58 @@ def send_contact_notification(contact_data: dict):
     
     send_email(admin_email, subject, html_content)
 
+def send_waitlist_admin_notification(entry_data: dict):
+    """
+    Sends a notification to the admin when a new user joins the waitlist.
+    """
+    admin_email = os.environ.get('SMTP_USER') # Send to self/admin
+    if not admin_email:
+        return
+
+    subject = f"Nouvelle inscription Waitlist : {entry_data.get('email')}"
+    
+    html_content = f"""
+    <html>
+        <body>
+            <h2>Nouvelle inscription à la liste d'attente Yondly ! 🎉</h2>
+            <ul>
+                <li><strong>Email :</strong> {entry_data.get('email')}</li>
+                <li><strong>Statut :</strong> {entry_data.get('status', 'Particulier')}</li>
+                <li><strong>Ville :</strong> {entry_data.get('city', 'Non renseignée')}</li>
+                <li><strong>Date :</strong> {entry_data.get('created_at', '')}</li>
+            </ul>
+        </body>
+    </html>
+    """
+    
+    send_email(admin_email, subject, html_content)
+
+def send_waitlist_confirmation(entry_data: dict):
+    """
+    Sends a confirmation email to the user joining the waitlist.
+    """
+    user_email = entry_data.get('email')
+    city = entry_data.get('city', '')
+    
+    subject = "Bienvenue sur la liste d'attente Yondly ! 🌱"
+    
+    html_content = f"""
+    <html>
+        <body>
+            <h2>Merci de votre inscription !</h2>
+            <p>Vous faites désormais partie de la liste d'attente Yondly.</p>
+            <p>Nous vous tiendrons informé dès que l'application sera disponible{" à " + city if city else ""}.</p>
+            <br>
+            <p>En attendant, n'hésitez pas à nous suivre sur les réseaux sociaux !</p>
+            <br>
+            <p><strong>L'équipe Yondly</strong><br>
+            <a href="https://yondly.app">www.yondly.app</a></p>
+        </body>
+    </html>
+    """
+    
+    send_email(user_email, subject, html_content)
+
 def send_auto_reply(contact_data: dict):
     """
     Sends an auto-reply to the user who contacted us.
@@ -100,3 +152,67 @@ def send_auto_reply(contact_data: dict):
     """
     
     send_email(user_email, subject, html_content)
+
+def send_verification_email(to_email: str, code: str):
+    """
+    Sends a 6-digit verification code to the user's email.
+    """
+    subject = "Votre code de vérification Yondly"
+    
+    html_content = f"""
+    <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5; padding: 20px;">
+            <div style="max-width: 480px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="background: #4C7B4B; padding: 32px; text-align: center;">
+                    <h1 style="color: #fff; margin: 0; font-size: 28px; letter-spacing: 0.5px;">Yondly</h1>
+                    <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Marketplace communautaire</p>
+                </div>
+                <div style="padding: 32px; text-align: center;">
+                    <p style="color: #333; font-size: 16px; margin: 0 0 8px;">Bienvenue ! Voici votre code de vérification :</p>
+                    <div style="background: #f0f7f0; border: 2px solid #4C7B4B; border-radius: 12px; padding: 20px; margin: 24px 0;">
+                        <span style="font-size: 36px; font-weight: bold; color: #4C7B4B; letter-spacing: 8px;">{code}</span>
+                    </div>
+                    <p style="color: #888; font-size: 13px; margin: 0;">Ce code expire dans <strong>10 minutes</strong>.</p>
+                    <p style="color: #888; font-size: 13px; margin: 8px 0 0;">Si vous n'avez pas créé de compte, ignorez cet email.</p>
+                </div>
+                <div style="background: #f9f9f9; padding: 16px; text-align: center; border-top: 1px solid #eee;">
+                    <p style="color: #aaa; font-size: 12px; margin: 0;">&copy; Yondly — yondly.app</p>
+                </div>
+            </div>
+        </body>
+    </html>
+    """
+    
+    return send_email(to_email, subject, html_content)
+
+def send_password_reset_email(to_email: str, code: str):
+    """
+    Sends a 6-digit password reset code to the user's email.
+    """
+    subject = "Réinitialisation de votre mot de passe Yondly"
+    
+    html_content = f"""
+    <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5; padding: 20px;">
+            <div style="max-width: 480px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="background: #4C7B4B; padding: 32px; text-align: center;">
+                    <h1 style="color: #fff; margin: 0; font-size: 28px; letter-spacing: 0.5px;">Yondly</h1>
+                    <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Réinitialisation du mot de passe</p>
+                </div>
+                <div style="padding: 32px; text-align: center;">
+                    <p style="color: #333; font-size: 16px; margin: 0 0 8px;">Vous avez demandé à réinitialiser votre mot de passe. Voici votre code :</p>
+                    <div style="background: #f0f7f0; border: 2px solid #4C7B4B; border-radius: 12px; padding: 20px; margin: 24px 0;">
+                        <span style="font-size: 36px; font-weight: bold; color: #4C7B4B; letter-spacing: 8px;">{code}</span>
+                    </div>
+                    <p style="color: #888; font-size: 13px; margin: 0;">Ce code expire dans <strong>10 minutes</strong>.</p>
+                    <p style="color: #888; font-size: 13px; margin: 8px 0 0;">Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
+                </div>
+                <div style="background: #f9f9f9; padding: 16px; text-align: center; border-top: 1px solid #eee;">
+                    <p style="color: #aaa; font-size: 12px; margin: 0;">&copy; Yondly — yondly.app</p>
+                </div>
+            </div>
+        </body>
+    </html>
+    """
+    
+    return send_email(to_email, subject, html_content)

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Request, File, UploadFile
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Request, File, UploadFile, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
@@ -11,8 +11,9 @@ import uuid
 from datetime import datetime, timedelta
 import jwt
 import shutil
-from passlib.context import CryptContext
+import bcrypt
 import stripe
+import asyncio
 
 # Import models and utils
 from models import *
@@ -27,29 +28,17 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
-# Set short timeout for local dev resilience
-import os
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(
-    mongo_url, 
-    serverSelectionTimeoutMS=5000,
-    tls=True,
-    tlsAllowInvalidCertificates=True  # Debugging SSL handshake issues
-)
-db = client[os.environ['DB_NAME']]
+from database import db, client, mongo_url
 
 # JWT Configuration
-JWT_SECRET = os.environ.get('JWT_SECRET', 'loop_jwt_secret_change_in_production')
-JWT_ALGORITHM = os.environ.get('JWT_ALGORITHM', 'HS256')
-JWT_EXPIRATION_HOURS = int(os.environ.get('JWT_EXPIRATION_HOURS', 720))
+from auth_utils import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
 
 # Stripe Configuration
 stripe_config = get_stripe_config()
 stripe.api_key = stripe_config['secret_key']
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt", "pbkdf2_sha256"], deprecated="auto")
-security = HTTPBearer()
+# Password hashing (moved to auth_utils)
+from auth_utils import security, hash_password, verify_password, create_access_token, get_current_user
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -120,38 +109,7 @@ async def terms_of_service():
     </body></html>
     """)
 
-# ============ AUTH HELPERS ============
-
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-def create_access_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
-    return encoded_jwt
-
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
-    try:
-        token = credentials.credentials
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        user_id = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
-        
-        user = await db.users.find_one({"id": user_id})
-        if user is None:
-            raise HTTPException(status_code=401, detail="User not found")
-        
-        return user
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Could not validate credentials")
+# ============ AUTH HELPERS (Moved to auth_utils.py) ============
 
 # ============ GAMIFICATION HELPERS ============
 
@@ -167,6 +125,14 @@ async def check_and_update_level(user_id: str, db) -> dict:
     user = await db.users.find_one({"id": user_id})
     if not user:
         return None
+        
+    # Respect Manual Admin Override
+    if user.get("is_level_manual", False) is True:
+        return {
+            "old_level": user.get("level", "Graine"),
+            "new_level": user.get("level", "Graine"),
+            "level_up": False
+        }
         
     co2 = user.get("co2_saved", 0)
     
@@ -251,10 +217,73 @@ async def get_newsletter_subscribers(current_user: dict = Depends(get_current_us
         sub.pop("_id", None)
     return subscribers
 
+# ============ BREVO EMAIL HELPER ============
+
+import sib_api_v3_sdk
+from sib_api_v3_sdk.rest import ApiException as BrevoApiException
+
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
+BREVO_SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "no-reply@yondly.com")
+BREVO_SENDER_NAME = os.environ.get("SENDER_NAME", "L'équipe Yondly")
+
+def get_brevo_api():
+    if not BREVO_API_KEY:
+        return None
+    configuration = sib_api_v3_sdk.Configuration()
+    configuration.api_key['api-key'] = BREVO_API_KEY
+    return sib_api_v3_sdk.TransactionalEmailsApi(sib_api_v3_sdk.ApiClient(configuration))
+
+def get_brevo_contacts_api():
+    if not BREVO_API_KEY:
+        return None
+    configuration = sib_api_v3_sdk.Configuration()
+    configuration.api_key['api-key'] = BREVO_API_KEY
+    return sib_api_v3_sdk.ContactsApi(sib_api_v3_sdk.ApiClient(configuration))
+
+async def send_brevo_email(to_email: str, to_name: str, subject: str, html_content: str):
+    api = get_brevo_api()
+    if not api:
+        print(f"⚠️ Brevo not configured, skipping email to {to_email}")
+        return False
+    try:
+        email = sib_api_v3_sdk.SendSmtpEmail(
+            to=[{"email": to_email, "name": to_name}],
+            sender={"name": BREVO_SENDER_NAME, "email": BREVO_SENDER_EMAIL},
+            subject=subject,
+            html_content=html_content
+        )
+        api.send_transac_email(email)
+        print(f"✅ Email sent to {to_email}")
+        return True
+    except BrevoApiException as e:
+        print(f"❌ Brevo email error: {e}")
+        return False
+
+async def add_brevo_contact(email: str, attributes: dict = None):
+    api = get_brevo_contacts_api()
+    if not api:
+        return False
+    try:
+        contact = sib_api_v3_sdk.CreateContact(
+            email=email,
+            attributes=attributes or {},
+            list_ids=[2],  # Default list
+            update_enabled=True
+        )
+        api.create_contact(contact)
+        print(f"✅ Contact added to Brevo: {email}")
+        return True
+    except BrevoApiException as e:
+        print(f"❌ Brevo contact error: {e}")
+        return False
+
 # ============ EMAIL COLLECTION ROUTES ============
 
+from fastapi import BackgroundTasks
+from email_service import send_waitlist_admin_notification, send_waitlist_confirmation
+
 @api_router.post("/waitlist")
-async def join_waitlist(entry: WaitlistEntry):
+async def join_waitlist(entry: WaitlistEntry, background_tasks: BackgroundTasks):
     # Check if exists
     existing = await db.waitlist.find_one({"email": entry.email})
     if existing:
@@ -263,11 +292,81 @@ async def join_waitlist(entry: WaitlistEntry):
     # Store
     entry_dict = entry.dict()
     entry_dict["id"] = str(uuid.uuid4())
+    entry_dict["created_at"] = datetime.utcnow()
     await db.waitlist.insert_one(entry_dict)
+    
+    # Send email notifications via SMTP
+    background_tasks.add_task(send_waitlist_admin_notification, entry_dict)
+    background_tasks.add_task(send_waitlist_confirmation, entry_dict)
+    
+    # Add contact to Brevo
+    city = entry_dict.get("city", "")
+    background_tasks.add_task(
+        add_brevo_contact,
+        entry.email,
+        {"VILLE": city, "TYPE": entry_dict.get("status", "particulier")}
+    )
     
     return {"message": "Joined successfully"}
 
-from fastapi import BackgroundTasks
+# ============ BLOG ROUTES ============
+
+ADMIN_KEY = os.environ.get("ADMIN_KEY", "SECRET_KEY_YONDLY_ADMIN_2025")
+
+@api_router.get("/blog")
+async def get_blog_posts():
+    posts = await db.blog.find().sort("created_at", -1).to_list(1000)
+    for p in posts:
+        p.pop("_id", None)
+    return posts
+
+@api_router.get("/blog/{slug}")
+async def get_blog_post(slug: str):
+    post = await db.blog.find_one({"slug": slug})
+    if not post:
+        raise HTTPException(status_code=404, detail="Article non trouvé")
+    post.pop("_id", None)
+    return post
+
+from fastapi import Header
+
+@api_router.post("/blog")
+async def create_blog_post(data: dict, x_admin_key: str = Header(None)):
+    if x_admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    existing = await db.blog.find_one({"slug": data.get("slug")})
+    if existing:
+        raise HTTPException(status_code=400, detail="Ce slug existe déjà")
+    data["id"] = str(uuid.uuid4())
+    data["created_at"] = datetime.utcnow()
+    await db.blog.insert_one(data)
+    data.pop("_id", None)
+    return data
+
+@api_router.put("/blog/{post_id}")
+async def update_blog_post(post_id: str, data: dict, x_admin_key: str = Header(None)):
+    if x_admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    update_data = {k: v for k, v in data.items() if v is not None}
+    if not update_data:
+        raise HTTPException(status_code=400, detail="Aucune donnée")
+    result = await db.blog.find_one_and_update(
+        {"id": post_id}, {"$set": update_data}, return_document=True
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Article non trouvé")
+    result.pop("_id", None)
+    return result
+
+@api_router.delete("/blog/{post_id}", status_code=204)
+async def delete_blog_post(post_id: str, x_admin_key: str = Header(None)):
+    if x_admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    result = await db.blog.delete_one({"id": post_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Article non trouvé")
+    return None
+
 from email_service import send_contact_notification, send_auto_reply
 
 @api_router.post("/contact")
@@ -373,9 +472,16 @@ async def check_zone_coverage(postcode=None, citycode=None, location=None):
         logging.error(f"Zone check error: {e}")
         return False  # Fail safe
 
+def generate_beneficiary_id():
+    """Generate a unique beneficiary ID in format YND-XXXXXX"""
+    import random
+    import string
+    chars = string.ascii_uppercase + string.digits
+    code = ''.join(random.choices(chars, k=6))
+    return f"YND-{code}"
+
 @api_router.post("/auth/register")
 async def register(user_data: UserRegister):
-    print(f"DEBUG REGISTER CALLED. Email: {user_data.email}, Partner: {user_data.is_partner}, Services: {user_data.services}")
     existing_user = await db.users.find_one({"email": user_data.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -395,7 +501,30 @@ async def register(user_data: UserRegister):
         )
     
     user_id = str(uuid.uuid4())
-    print(f"DEBUG: Constructing user dict for {user_id}")
+    
+    # Password strength validation
+    pwd = user_data.password
+    if len(pwd) < 8:
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 8 caractères")
+    if not any(c.isupper() for c in pwd):
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins une majuscule")
+    if not any(c.islower() for c in pwd):
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins une minuscule")
+    if not any(c.isdigit() for c in pwd):
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins un chiffre")
+    import re as re_pwd
+    if not re_pwd.search(r'[!@#$%^&*()_+\-=\[\]{};\':"|,.<>/?`~]', pwd):
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins un caractère spécial")
+    
+    # Phone validation (required, French format)
+    import re
+    phone = user_data.phone
+    if not phone:
+        raise HTTPException(status_code=400, detail="Le numéro de téléphone est obligatoire")
+    clean_phone = re.sub(r'[\s.\-]', '', phone)
+    if not re.match(r'^(\+33[1-9]\d{8}|0[1-9]\d{8})$', clean_phone):
+        raise HTTPException(status_code=400, detail="Numéro de téléphone invalide. Format attendu : +33 6 12 34 56 78")
+    
     user_dict = {
         "id": user_id,
         "email": user_data.email,
@@ -419,10 +548,30 @@ async def register(user_data: UserRegister):
         "context": user_data.context,
         "location": user_data.location.dict() if user_data.location else None,
         "co2_saved": 0.0,
-        "created_at": datetime.utcnow()
+        "beneficiary_id": generate_beneficiary_id(),  # Unique ID for beneficiary linking
+        "created_at": datetime.utcnow(),
+        "email_verified": False
     }
     
     await db.users.insert_one(user_dict)
+    
+    # Generate 6-digit verification code
+    import random
+    code = f"{random.randint(100000, 999999)}"
+    await db.email_verifications.insert_one({
+        "email": user_data.email,
+        "code": code,
+        "expires_at": datetime.utcnow() + timedelta(minutes=10),
+        "created_at": datetime.utcnow()
+    })
+    
+    # Send verification email
+    try:
+        from email_service import send_verification_email
+        send_verification_email(user_data.email, code)
+        logger.info(f"Verification email sent to {user_data.email}")
+    except Exception as e:
+        logger.error(f"Failed to send verification email: {e}")
     
     # Track user signup event
     try:
@@ -434,24 +583,198 @@ async def register(user_data: UserRegister):
             territory_code=user_data.postcode or "00000"
         )
     except:
-        pass  # Don't block registration if tracking fails
-    
-    access_token = create_access_token(data={"sub": user_id})
-    
-    user_dict.pop("password_hash")
-    user_dict.pop("_id", None)
+        pass
     
     return {
-        "user": user_dict,
+        "requires_verification": True,
+        "email": user_data.email,
+        "message": "Un code de vérification a été envoyé à votre adresse email."
+    }
+
+class VerifyEmailRequest(BaseModel):
+    email: str
+    code: str
+
+class ResendCodeRequest(BaseModel):
+    email: str
+
+@api_router.post("/auth/verify-email")
+async def verify_email(data: VerifyEmailRequest):
+    """Verify email with 6-digit code and return JWT."""
+    verification = await db.email_verifications.find_one({
+        "email": data.email,
+        "code": data.code,
+        "expires_at": {"$gt": datetime.utcnow()}
+    })
+    
+    if not verification:
+        raise HTTPException(status_code=400, detail="Code invalide ou expiré")
+    
+    # Mark email as verified
+    await db.users.update_one(
+        {"email": data.email},
+        {"$set": {"email_verified": True}}
+    )
+    
+    # Clean up verification codes
+    await db.email_verifications.delete_many({"email": data.email})
+    
+    # Get user and return JWT
+    user = await db.users.find_one({"email": data.email})
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    
+    access_token = create_access_token(data={"sub": user["id"]})
+    
+    user.pop("password_hash", None)
+    user.pop("_id", None)
+    
+    return {
+        "user": user,
         "access_token": access_token,
         "token_type": "bearer"
     }
 
+@api_router.post("/auth/resend-code")
+async def resend_code(data: ResendCodeRequest):
+    """Resend a new verification code."""
+    user = await db.users.find_one({"email": data.email})
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    
+    if user.get("email_verified"):
+        raise HTTPException(status_code=400, detail="Email déjà vérifié")
+    
+    # Clean old codes
+    await db.email_verifications.delete_many({"email": data.email})
+    
+    # Generate new code
+    import random
+    code = f"{random.randint(100000, 999999)}"
+    await db.email_verifications.insert_one({
+        "email": data.email,
+        "code": code,
+        "expires_at": datetime.utcnow() + timedelta(minutes=10),
+        "created_at": datetime.utcnow()
+    })
+    
+    try:
+        from email_service import send_verification_email
+        send_verification_email(data.email, code)
+    except Exception as e:
+        logger.error(f"Failed to resend verification email: {e}")
+        raise HTTPException(status_code=500, detail="Erreur lors de l'envoi de l'email")
+    
+    return {"message": "Un nouveau code a été envoyé."}
+
+# --- Password Reset ---
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    code: str
+    new_password: str
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(data: ForgotPasswordRequest):
+    """Send a password reset code to the user's email."""
+    user = await db.users.find_one({"email": data.email})
+    if not user:
+        # Don't reveal if user exists or not (security)
+        return {"message": "Si ce compte existe, un code de réinitialisation a été envoyé."}
+    
+    # Clean old reset codes
+    await db.password_resets.delete_many({"email": data.email})
+    
+    # Generate 6-digit code
+    import random
+    code = f"{random.randint(100000, 999999)}"
+    await db.password_resets.insert_one({
+        "email": data.email,
+        "code": code,
+        "expires_at": datetime.utcnow() + timedelta(minutes=10),
+        "created_at": datetime.utcnow()
+    })
+    
+    try:
+        from email_service import send_password_reset_email
+        send_password_reset_email(data.email, code)
+    except Exception as e:
+        logger.error(f"Failed to send password reset email: {e}")
+        raise HTTPException(status_code=500, detail="Erreur lors de l'envoi de l'email")
+    
+    return {"message": "Si ce compte existe, un code de réinitialisation a été envoyé."}
+
+@api_router.post("/auth/reset-password")
+async def reset_password(data: ResetPasswordRequest):
+    """Reset password using the 6-digit code."""
+    # Validate code
+    reset = await db.password_resets.find_one({
+        "email": data.email,
+        "code": data.code,
+        "expires_at": {"$gt": datetime.utcnow()}
+    })
+    
+    if not reset:
+        raise HTTPException(status_code=400, detail="Code invalide ou expiré")
+    
+    # Validate new password strength
+    password = data.new_password
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 8 caractères")
+    if not any(c.isupper() for c in password):
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins une majuscule")
+    if not any(c.islower() for c in password):
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins une minuscule")
+    if not any(c.isdigit() for c in password):
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins un chiffre")
+    import re as re_pwd2
+    if not re_pwd2.search(r'[!@#$%^&*()_+\-=\[\]{};\':"|,.<>/?`~]', password):
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins un caractère spécial")
+    
+    # Update password
+    new_hash = hash_password(data.new_password)
+    await db.users.update_one(
+        {"email": data.email},
+        {"$set": {"password_hash": new_hash}}
+    )
+    
+    # Clean up reset codes
+    await db.password_resets.delete_many({"email": data.email})
+    
+    return {"message": "Mot de passe réinitialisé avec succès."}
+
 @api_router.post("/auth/login")
 async def login(credentials: UserLogin):
     user = await db.users.find_one({"email": credentials.email})
-    if not user or not verify_password(credentials.password, user["password_hash"]):
+    if not user:
         raise HTTPException(status_code=401, detail="Incorrect email or password")
+        
+    if not verify_password(credentials.password, user.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Incorrect email or password")
+    
+    # Check email verification (skip for social login accounts)
+    if not user.get("email_verified", True) and not user.get("auth_provider"):
+        # Resend verification code
+        import random
+        code = f"{random.randint(100000, 999999)}"
+        await db.email_verifications.delete_many({"email": credentials.email})
+        await db.email_verifications.insert_one({
+            "email": credentials.email,
+            "code": code,
+            "expires_at": datetime.utcnow() + timedelta(minutes=10),
+            "created_at": datetime.utcnow()
+        })
+        try:
+            from email_service import send_verification_email
+            send_verification_email(credentials.email, code)
+        except:
+            pass
+        raise HTTPException(
+            status_code=403,
+            detail="Email non vérifié. Un nouveau code a été envoyé."
+        )
     
     access_token = create_access_token(data={"sub": user["id"]})
     
@@ -464,8 +787,125 @@ async def login(credentials: UserLogin):
         "token_type": "bearer"
     }
 
+class SocialLoginRequest(BaseModel):
+    provider: str  # "apple" or "google"
+    id_token: str
+    display_name: Optional[str] = None
+
+@api_router.post("/auth/social")
+async def social_login(data: SocialLoginRequest):
+    """Authenticate via Apple or Google ID token."""
+    import httpx
+    
+    email = None
+    social_name = data.display_name
+    
+    if data.provider == "google":
+        # Verify Google ID token via Google's tokeninfo endpoint
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"https://oauth2.googleapis.com/tokeninfo?id_token={data.id_token}"
+            )
+            if resp.status_code != 200:
+                raise HTTPException(status_code=401, detail="Invalid Google token")
+            payload = resp.json()
+            email = payload.get("email")
+            if not social_name:
+                social_name = payload.get("name", email.split("@")[0] if email else "User")
+                
+    elif data.provider == "apple":
+        # Verify Apple ID token by decoding JWT header + claims
+        # Apple tokens are JWTs signed by Apple's public keys
+        try:
+            # Decode without verification first to get email
+            # (In production, verify against Apple's public keys)
+            import jwt as pyjwt
+            unverified = pyjwt.decode(data.id_token, options={"verify_signature": False})
+            email = unverified.get("email")
+            if not social_name:
+                social_name = email.split("@")[0] if email else "Apple User"
+        except Exception as e:
+            logger.error(f"Apple token decode error: {e}")
+            raise HTTPException(status_code=401, detail="Invalid Apple token")
+            
+    elif data.provider == "facebook":
+        # Verify Facebook access token via Graph API
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"https://graph.facebook.com/me?fields=id,name,email&access_token={data.id_token}"
+            )
+            if resp.status_code != 200:
+                raise HTTPException(status_code=401, detail="Invalid Facebook token")
+            payload = resp.json()
+            email = payload.get("email")
+            if not social_name:
+                social_name = payload.get("name", "Facebook User")
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported provider")
+    
+    if not email:
+        raise HTTPException(status_code=400, detail="Could not extract email from token")
+    
+    # Find or create user
+    user = await db.users.find_one({"email": email})
+    
+    if not user:
+        # Create new user (no password needed for social login)
+        user_id = str(uuid.uuid4())
+        user = {
+            "id": user_id,
+            "email": email,
+            "password_hash": None,  # No password for social accounts
+            "display_name": social_name or email.split("@")[0],
+            "phone": None,
+            "photo_url": None,
+            "ratings_avg": 0.0,
+            "ratings_count": 0,
+            "wallet_balance_cents": 0,
+            "points": 0,
+            "level": "Graine",
+            "stripe_account_id": None,
+            "is_partner": False,
+            "services": [],
+            "street": None,
+            "city": None,
+            "postcode": None,
+            "citycode": None,
+            "context": None,
+            "location": None,
+            "co2_saved": 0.0,
+            "beneficiary_id": generate_beneficiary_id(),
+            "auth_provider": data.provider,
+            "created_at": datetime.utcnow()
+        }
+        await db.users.insert_one(user)
+        
+        # Track signup
+        try:
+            from analytics_routes import track_event_internal
+            await track_event_internal(
+                user_id=user_id,
+                event_name="user_signup",
+                territory_type="social",
+                territory_code=data.provider
+            )
+        except:
+            pass
+    
+    access_token = create_access_token(data={"sub": user["id"]})
+    
+    user.pop("password_hash", None)
+    user.pop("_id", None)
+    
+    return {
+        "user": user,
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
+
 @api_router.get("/auth/me")
 async def get_me(current_user: dict = Depends(get_current_user)):
+
     current_user.pop("password_hash", None)
     current_user.pop("_id", None)
     return current_user
@@ -913,7 +1353,11 @@ async def get_items(
     lng: Optional[float] = None,
     limit: int = 50,
     min_rating: Optional[float] = None,
-    radius_km: Optional[float] = None
+    radius_km: Optional[float] = None,
+    min_price: Optional[int] = None,
+    max_price: Optional[int] = None,
+    condition: Optional[List[str]] = Query(None),
+    sort_by: Optional[str] = 'date_desc'
 ):
     query = {}
     if type:
@@ -922,6 +1366,19 @@ async def get_items(
         query["category"] = category
     if status:
         query["status"] = status
+        
+    # Price Filter
+    if min_price is not None or max_price is not None:
+        price_query = {}
+        if min_price is not None:
+            price_query["$gte"] = min_price
+        if max_price is not None:
+            price_query["$lte"] = max_price
+        query["price_cents"] = price_query
+
+    # Condition Filter
+    if condition:
+        query["condition"] = {"$in": condition}
     
     # Check for expired items and update them
     now = datetime.utcnow()
@@ -933,8 +1390,17 @@ async def get_items(
         {"$set": {"status": "expired"}}
     )
     
+    # Sorting Setup
+    sort_criteria = [("created_at", -1)] # Default
+    if sort_by == 'price_asc':
+        sort_criteria = [("price_cents", 1)]
+    elif sort_by == 'price_desc':
+        sort_criteria = [("price_cents", -1)]
+    elif sort_by == 'date_desc':
+        sort_criteria = [("created_at", -1)]
+    
     # Increase limit to allow for post-filtering
-    items = await db.items.find(query).sort("created_at", -1).limit(limit * 5).to_list(limit * 5)
+    items = await db.items.find(query).sort(sort_criteria).limit(limit * 5).to_list(limit * 5)
     
     filtered_items = []
     
@@ -1234,6 +1700,23 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
     # For donations, price is 0
     is_donation = item["type"] == "donation"
     price_cents = 0 if is_donation else item.get("price_cents", 0)
+    
+    # Check for private accepted offer (Negotiation)
+    if not is_donation:
+        offer = await db.offers.find_one({
+            "item_id": item["id"],
+            "buyer_id": current_user["id"],
+            "status": "accepted",
+            "expires_at": {"$gt": datetime.utcnow()}
+        })
+        
+        if offer:
+            # Use negotiated price
+            # Priority: Counter-offer amount > Original offer amount
+            negotiated_price = offer.get("counter_offer_amount_cents") or offer.get("amount_cents")
+            if negotiated_price:
+                price_cents = negotiated_price
+                print(f"Applying negotiated price: {price_cents} (Public: {item.get('price_cents')})")
     
     # Calculate fees (0 for donations)
     # Fetch seller to check level for fees
@@ -2029,24 +2512,15 @@ async def accept_offer(offer_id: str, current_user: dict = Depends(get_current_u
         }}
     )
     
-    # Decline other offers
-    await db.offers.update_many(
-        {"item_id": offer["item_id"], "id": {"$ne": offer_id}, "status": {"$in": ["pending", "countered"]}},
-        {"$set": {"status": "declined"}}
-    )
+    # Decline other offers? 
+    # NO: In Private Offer model, multiple people can have accepted offers (first to pay wins).
+    # But usually we want to keep it simple. Let's NOT auto-decline others for now, 
+    # or maybe we should? If I accept Offer A, maybe I want to accept Offer B too?
+    # Let's stick to: "Accepting doesn't block others". So REMOVE auto-decline.
     
-    # Update item price (locked to final accepted amount)
-    update_result = await db.items.update_one(
-        {"id": item["id"]},
-        {"$set": {
-            "price_cents": final_amount,
-            "locked_offer_id": offer_id,
-            "locked_until": expires_at
-        }}
-    )
+    # REMOVED: Item price update and locking. The price is now dynamic at checkout.
     
-    print(f"Item {item['id']} locked until {expires_at.isoformat()}")
-    print(f"Update result: matched={update_result.matched_count}, modified={update_result.modified_count}")
+    print(f"Offer {offer_id} accepted until {expires_at.isoformat()}")
     
     # Send notification to buyer
     buyer_id = offer["buyer_id"] if is_seller else item["owner_id"]
@@ -3929,7 +4403,7 @@ async def unfollow_store(store_id: str, current_user: dict = Depends(get_current
 
 
 @api_router.post("/deals/{deal_id}/order")
-async def create_deal_order(deal_id: str, current_user: dict = Depends(get_current_user)):
+async def create_deal_order(deal_id: str, current_user: dict = Depends(get_current_user), is_suspension_gift: bool = False):
     """Reserve/Buy a deal"""
     deal = await db.deals.find_one({"id": deal_id})
     if not deal:
@@ -3964,11 +4438,11 @@ async def create_deal_order(deal_id: str, current_user: dict = Depends(get_curre
         "platform_fee_cents": fee_info["platform_fee_cents"],
         "payout_cents": fee_info["payout_cents"],
         "payment_status": "released", # Mock payment success immediately
-        "type": "deal", # New type to distinguish
+        "type": "suspension_gift" if is_suspension_gift else "deal", # New type to distinguish
         "store_id": store["id"],
         "handoff": {
             "mode": "store_pickup",
-            "code": pickup_code,
+            "code": pickup_code if not is_suspension_gift else None, # Donors don't need a code
             "photo_url": None
         },
         "created_at": datetime.utcnow()
@@ -3981,28 +4455,301 @@ async def create_deal_order(deal_id: str, current_user: dict = Depends(get_curre
         payment_intent = stripe.PaymentIntent.create(
             amount=order_doc["amount_cents"],
             currency="eur",
-            metadata={"order_id": order_id, "type": "deal"},
+            metadata={"order_id": order_id, "type": order_doc["type"]},
             automatic_payment_methods={"enabled": True},
         )
         order_doc["payment_intent_id"] = payment_intent.id
         client_secret = payment_intent.client_secret
     except Exception as e:
         logger.error(f"Stripe error: {e}")
-        raise HTTPException(status_code=500, detail=f"Stripe Payment Error: {str(e)}")
+        # raise HTTPException(status_code=500, detail=f"Stripe Payment Error: {str(e)}")
+        # MOCK FOR DEV if Stripe fails (no API key)
+        client_secret = "mock_secret"
     
     await db.orders.insert_one(order_doc)
     
-    # Mark deal as sold (if it's a single item)
-    # Ideally deals might have stock. For now assume single stock or decrease stock.
-    # We will assume "sold" for this specific deal entry.
-    await db.deals.update_one(
-        {"id": deal_id}, 
-        {"$set": {"status": "sold"}}
-    )
+    # Mark deal as sold OR update suspended counts
+    if is_suspension_gift:
+        await db.deals.update_one(
+            {"id": deal_id}, 
+            {
+                "$inc": {
+                    "suspended_quantity": 1,
+                    "suspended_available": 1
+                }
+            }
+        )
+    else:
+        # Normal purchase - decrease remaining stock
+        # Only mark as sold when stock is depleted
+        new_remaining = deal.get("remaining", 1) - 1
+        if new_remaining <= 0:
+            await db.deals.update_one(
+                {"id": deal_id}, 
+                {"$set": {"status": "sold", "remaining": 0}}
+            )
+        else:
+            await db.deals.update_one(
+                {"id": deal_id}, 
+                {"$set": {"remaining": new_remaining}}
+            )
     
     order_doc.pop("_id", None)
     order_doc["client_secret"] = client_secret
     return order_doc
+
+@api_router.post("/deals/{deal_id}/claim-suspended")
+async def claim_suspended_deal(deal_id: str, quantity: int = 1, current_user: dict = Depends(get_current_user)):
+    """Claim suspended (free) deal(s) - ASSOCIATIONS or AUTHORIZED BENEFICIARIES"""
+    
+    is_association = current_user.get("is_association", False)
+    is_beneficiary_claim = False
+    
+    # === ACCESS CONTROL ===
+    if is_association:
+        # Check if user is a verified association
+        if not current_user.get("association_verified", False):
+            raise HTTPException(status_code=403, detail="Votre association doit être vérifiée par un administrateur")
+    else:
+        # Check if user is an authorized beneficiary
+        beneficiary = await db.beneficiaries.find_one({"linked_user_id": current_user["id"], "is_active": True})
+        
+        if not beneficiary:
+             raise HTTPException(status_code=403, detail="Accès réservé aux associations et bénéficiaires habilités")
+             
+        if not beneficiary.get("allow_self_service", False):
+             raise HTTPException(status_code=403, detail="Votre association ne vous a pas activé le Mode Autonomie")
+             
+        is_beneficiary_claim = True
+    
+    if quantity < 1:
+        raise HTTPException(status_code=400, detail="La quantité doit être au moins 1")
+    
+    # === QUOTA CHECK ===
+    if is_association:
+        DAILY_QUOTA = 10  # Max baskets per association per day
+        
+        # Get today's start (midnight UTC)
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Count today's claims for this association
+        today_claims = await db.orders.aggregate([
+            {
+                "$match": {
+                    "buyer_id": current_user["id"],
+                    "type": "suspension_claim",
+                    "created_at": {"$gte": today_start}
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "total": {"$sum": "$quantity"}
+                }
+            }
+        ]).to_list(1)
+        
+        claimed_today = today_claims[0]["total"] if today_claims else 0
+        remaining_quota = DAILY_QUOTA - claimed_today
+        
+        if remaining_quota <= 0:
+            raise HTTPException(status_code=429, detail=f"Quota journalier atteint ({DAILY_QUOTA} paniers/jour). Revenez demain !")
+        
+        if quantity > remaining_quota:
+            raise HTTPException(status_code=400, detail=f"Quota insuffisant. Il vous reste {remaining_quota} panier(s) aujourd'hui.")
+            
+    else:
+        # BENEFICIARY QUOTA CHECK
+        user_quota = beneficiary.get("self_service_quota", 3)
+        
+        # Count claims in last 7 days
+        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+        recent_claims = await db.orders.aggregate([
+            {
+                 "$match": {
+                     "buyer_id": current_user["id"],
+                     "type": "suspension_claim",
+                     "created_at": {"$gte": seven_days_ago}
+                 }
+            },
+            {
+                 "$group": {
+                     "_id": None,
+                     "total": {"$sum": "$quantity"}
+                 }
+            }
+        ]).to_list(1)
+        
+        claimed_recent = recent_claims[0]["total"] if recent_claims else 0
+        
+        if claimed_recent + quantity > user_quota:
+             raise HTTPException(status_code=429, detail=f"Quota hebdomadaire atteint ({user_quota} paniers/semaine). Vous en avez pris {claimed_recent}.")
+
+        
+    deal = await db.deals.find_one({"id": deal_id})
+    if not deal:
+        raise HTTPException(status_code=404, detail="Deal not found")
+        
+    available = deal.get("suspended_available", 0)
+    if available <= 0:
+        raise HTTPException(status_code=400, detail="Aucun panier suspendu disponible pour cette offre")
+    
+    if quantity > available:
+        raise HTTPException(status_code=400, detail=f"Seulement {available} panier(s) disponible(s)")
+        
+    store = await db.stores.find_one({"id": deal["store_id"]})
+    
+    # Generate pickup code
+    from stripe_utils import generate_handoff_code
+    pickup_code = generate_handoff_code()
+    
+    order_id = str(uuid.uuid4())
+    order_doc = {
+        "id": order_id,
+        "item_id": deal_id,
+        "buyer_id": current_user["id"],
+        "seller_id": store["owner_id"] if store else "unknown",
+        "amount_cents": 0,  # FREE
+        "platform_fee_cents": 0,
+        "payout_cents": 0,
+        "payment_status": "paid",  # Already paid by donor
+        "type": "suspension_claim",
+        "quantity": quantity,  # Number of baskets claimed
+        "store_id": deal["store_id"],
+        "association_name": current_user.get("association_name", "Association"),
+        "handoff": {
+            "mode": "store_pickup",
+            "code": pickup_code,
+            "photo_url": None
+        },
+        "created_at": datetime.utcnow()
+    }
+    
+    await db.orders.insert_one(order_doc)
+    
+    # Decrement suspended availability by quantity
+    await db.deals.update_one(
+        {"id": deal_id},
+        {"$inc": {"suspended_available": -quantity}}
+    )
+    
+    order_doc.pop("_id", None)
+    order_doc["remaining_quota"] = remaining_quota - quantity  # Return remaining quota
+    return order_doc
+
+@api_router.get("/associations/my-quota")
+async def get_association_quota(current_user: dict = Depends(get_current_user)):
+    """Get remaining daily quota for association"""
+    
+    if not current_user.get("is_association", False):
+        raise HTTPException(status_code=403, detail="Réservé aux associations")
+    
+    DAILY_QUOTA = 10
+    
+    # Get today's start (midnight UTC)
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Count today's claims
+    today_claims = await db.orders.aggregate([
+        {
+            "$match": {
+                "buyer_id": current_user["id"],
+                "type": "suspension_claim",
+                "created_at": {"$gte": today_start}
+            }
+        },
+        {
+            "$group": {
+                "_id": None,
+                "total": {"$sum": "$quantity"}
+            }
+        }
+    ]).to_list(1)
+    
+    claimed_today = today_claims[0]["total"] if today_claims else 0
+    remaining = max(0, DAILY_QUOTA - claimed_today)
+    
+    return {
+        "daily_quota": DAILY_QUOTA,
+        "claimed_today": claimed_today,
+        "remaining": remaining,
+        "reset_at": (today_start + timedelta(days=1)).isoformat()
+    }
+
+
+@api_router.post("/orders/{order_id}/assign-beneficiary")
+async def assign_beneficiary_to_order(
+    order_id: str, 
+    beneficiary_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Assign a beneficiary to a suspended basket order - ASSOCIATIONS ONLY"""
+    
+    # Only associations can assign beneficiaries
+    if not current_user.get("is_association", False):
+        raise HTTPException(status_code=403, detail="Seules les associations peuvent assigner des bénéficiaires")
+    
+    # Find the order
+    order = await db.orders.find_one({"id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Commande non trouvée")
+    
+    # Verify this is a suspension claim order
+    if order.get("type") != "suspension_claim":
+        raise HTTPException(status_code=400, detail="Cette commande n'est pas un panier suspendu")
+    
+    # Verify the order belongs to this association
+    if order.get("buyer_id") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Cette commande ne vous appartient pas")
+    
+    # Find the beneficiary
+    beneficiary = await db.beneficiaries.find_one({"id": beneficiary_id})
+    if not beneficiary:
+        raise HTTPException(status_code=404, detail="Bénéficiaire non trouvé")
+    
+    # Verify beneficiary belongs to this association
+    if beneficiary.get("association_id") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Ce bénéficiaire n'appartient pas à votre association")
+    
+    # Update the order with beneficiary info
+    await db.orders.update_one(
+        {"id": order_id},
+        {"$set": {
+            "beneficiary_id": beneficiary_id,
+            "beneficiary_ref": beneficiary.get("internal_ref", ""),
+            "assigned_at": datetime.utcnow()
+        }}
+    )
+    
+    # Update beneficiary stats
+    await db.beneficiaries.update_one(
+        {"id": beneficiary_id},
+        {
+            "$inc": {"total_baskets": order.get("quantity", 1)},
+            "$set": {"last_distribution": datetime.utcnow()}
+        }
+    )
+    
+    # Send notification if beneficiary is linked to a user account
+    linked_user_id = beneficiary.get("linked_user_id")
+    if linked_user_id:
+        store_name = order.get("store", {}).get("name", "un commerce")
+        pickup_code = order.get("handoff", {}).get("code", "????")
+        asso_name = current_user.get("association_name") or current_user.get("display_name") or "Votre association"
+        
+        # Run in background to not block response
+        asyncio.create_task(send_push_notification(
+            user_id=linked_user_id,
+            title="Panier attribué ! 🧺",
+            body=f"{asso_name} vous a attribué un panier de {store_name}. Code: {pickup_code}",
+            data={"type": "basket_assigned", "order_id": order_id}
+        ))
+    
+    return {
+        "success": True,
+        "message": f"Panier assigné à {beneficiary.get('internal_ref', 'bénéficiaire')}",
+        "pickup_code": order.get("handoff", {}).get("code")
+    }
 
     
 app.include_router(api_router)
@@ -4049,11 +4796,19 @@ async def get_admin_stats():
         orders_count = await db.orders.count_documents({"status": "completed"})
         total_co2 = orders_count * 3.75  # ~3.75kg per anti-gaspi basket
         
+        # Calculate total suspended baskets
+        pipeline = [
+            {"$group": {"_id": None, "total": {"$sum": "$suspended_quantity"}}}
+        ]
+        res_suspended = await db.deals.aggregate(pipeline).to_list(1)
+        total_suspended = res_suspended[0]["total"] if res_suspended else 0
+        
         return {
             "totalUsers": users_count,
             "totalPros": pros_count,
             "totalItems": items_count,
-            "totalCO2Kg": round(total_co2, 1)
+            "totalCO2Kg": round(total_co2, 1),
+            "totalSuspended": total_suspended
         }
     except Exception as e:
         logging.error(f"Admin stats error: {e}")
@@ -4101,6 +4856,354 @@ async def delete_user(user_id: str):
         return {"message": "User deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class UserLevelUpdate(BaseModel):
+    level: str
+
+@api_router.put("/admin/users/{user_id}/level")
+async def admin_update_user_level(
+    user_id: str,
+    level_data: UserLevelUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    valid_levels = ["Graine", "Pousse", "Arbre", "Forêt"]
+    if level_data.level not in valid_levels:
+        raise HTTPException(status_code=400, detail=f"Invalid level. Must be one of: {', '.join(valid_levels)}")
+
+    # Try exact string ID match first
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"level": level_data.level, "is_level_manual": True}}
+    )
+    
+    # If no match, try ObjectId
+    if result.matched_count == 0:
+        try:
+            from bson import ObjectId
+            result = await db.users.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"level": level_data.level, "is_level_manual": True}}
+            )
+        except:
+            pass
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    return {"message": "User level updated (Manual Override)", "level": level_data.level}
+
+# ============ ADMIN: ASSOCIATIONS ============
+
+@api_router.get("/admin/associations")
+async def admin_list_associations(current_user: dict = Depends(get_current_user)):
+    """List all association accounts"""
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    associations = await db.users.find({"is_association": True}).to_list(500)
+    for a in associations:
+        a.pop("_id", None)
+        a.pop("password_hash", None)
+    
+    return associations
+
+@api_router.put("/admin/associations/{user_id}/verify")
+async def admin_verify_association(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Verify an association account"""
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    result = await db.users.update_one(
+        {"id": user_id, "is_association": True},
+        {"$set": {"association_verified": True}}
+    )
+    
+    if result.matched_count == 0:
+        # Try ObjectId
+        try:
+            from bson import ObjectId
+            result = await db.users.update_one(
+                {"_id": ObjectId(user_id), "is_association": True},
+                {"$set": {"association_verified": True}}
+            )
+        except:
+            pass
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Association not found")
+    
+    return {"message": "Association vérifiée avec succès"}
+
+@api_router.put("/admin/associations/{user_id}/unverify")
+async def admin_unverify_association(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Revoke association verification"""
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    result = await db.users.update_one(
+        {"id": user_id, "is_association": True},
+        {"$set": {"association_verified": False}}
+    )
+    
+    if result.matched_count == 0:
+        try:
+            from bson import ObjectId
+            result = await db.users.update_one(
+                {"_id": ObjectId(user_id), "is_association": True},
+                {"$set": {"association_verified": False}}
+            )
+        except:
+            pass
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Association not found")
+    
+    return {"message": "Vérification révoquée"}
+
+# ============ ASSOCIATION: BENEFICIARIES ============
+
+@api_router.get("/association/beneficiaries")
+async def get_association_beneficiaries(current_user: dict = Depends(get_current_user)):
+    """Get all beneficiaries for the current association"""
+    # Verify is a verified association
+    if not current_user.get("is_association") or not current_user.get("association_verified"):
+        raise HTTPException(status_code=403, detail="Réservé aux associations vérifiées")
+    
+    association_id = current_user.get("id")
+    beneficiaries = await db.beneficiaries.find({"association_id": association_id}).to_list(500)
+    
+    for b in beneficiaries:
+        b.pop("_id", None)
+    
+    return beneficiaries
+
+
+@api_router.post("/association/beneficiaries")
+async def create_beneficiary(
+    data: BeneficiaryCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a new beneficiary for the association"""
+    if not current_user.get("is_association") or not current_user.get("association_verified"):
+        raise HTTPException(status_code=403, detail="Réservé aux associations vérifiées")
+    
+    association_id = current_user.get("id")
+    
+    # Check if internal_ref already exists
+    existing = await db.beneficiaries.find_one({
+        "association_id": association_id,
+        "internal_ref": data.internal_ref
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="Cette référence existe déjà")
+    
+    # Lookup user by yondly_id if provided (and not empty)
+    linked_user_id = None
+    if data.yondly_id and data.yondly_id.strip():
+        yondly_code = data.yondly_id.strip().upper()
+        user = await db.users.find_one({"beneficiary_id": yondly_code})
+        if user:
+            linked_user_id = user["id"]
+        else:
+            raise HTTPException(status_code=404, detail=f"Aucun utilisateur trouvé avec l'ID {yondly_code}")
+    
+    beneficiary = Beneficiary(
+        id=str(uuid.uuid4()),
+        association_id=association_id,
+        internal_ref=data.internal_ref,
+        initials=data.initials,
+        family_size=data.family_size,
+        notes=data.notes,
+        linked_user_id=linked_user_id
+    )
+    
+    await db.beneficiaries.insert_one(beneficiary.dict())
+    
+    return {"message": "Bénéficiaire créé", "beneficiary": beneficiary.dict(), "is_linked": linked_user_id is not None}
+
+
+@api_router.put("/association/beneficiaries/{beneficiary_id}")
+async def update_beneficiary(
+    beneficiary_id: str,
+    data: BeneficiaryUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update a beneficiary"""
+    if not current_user.get("is_association") or not current_user.get("association_verified"):
+        raise HTTPException(status_code=403, detail="Réservé aux associations vérifiées")
+    
+    association_id = current_user.get("id")
+    
+    # Build update dict, excluding None values
+    update_data = {k: v for k, v in data.dict().items() if v is not None}
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="Aucune donnée à mettre à jour")
+    
+    result = await db.beneficiaries.update_one(
+        {"id": beneficiary_id, "association_id": association_id},
+        {"$set": update_data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Bénéficiaire non trouvé")
+    
+    return {"message": "Bénéficiaire mis à jour"}
+
+
+@api_router.delete("/association/beneficiaries/{beneficiary_id}")
+async def archive_beneficiary(
+    beneficiary_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Soft delete (archive) a beneficiary"""
+    if not current_user.get("is_association") or not current_user.get("association_verified"):
+        raise HTTPException(status_code=403, detail="Réservé aux associations vérifiées")
+    
+    association_id = current_user.get("id")
+    
+    result = await db.beneficiaries.update_one(
+        {"id": beneficiary_id, "association_id": association_id},
+        {"$set": {"is_active": False}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Bénéficiaire non trouvé")
+    
+    return {"message": "Bénéficiaire archivé"}
+
+
+# ============ ASSOCIATION: DISTRIBUTIONS ============
+
+@api_router.get("/association/distributions")
+async def get_association_distributions(
+    limit: int = 50,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get distribution history for the association"""
+    if not current_user.get("is_association") or not current_user.get("association_verified"):
+        raise HTTPException(status_code=403, detail="Réservé aux associations vérifiées")
+    
+    association_id = current_user.get("id")
+    
+    distributions = await db.distributions.find(
+        {"association_id": association_id}
+    ).sort("distributed_at", -1).limit(limit).to_list(limit)
+    
+    for d in distributions:
+        d.pop("_id", None)
+    
+    return distributions
+
+
+@api_router.post("/association/distributions")
+async def record_distribution(
+    data: DistributionCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Record a distribution to a beneficiary"""
+    if not current_user.get("is_association") or not current_user.get("association_verified"):
+        raise HTTPException(status_code=403, detail="Réservé aux associations vérifiées")
+    
+    association_id = current_user.get("id")
+    beneficiary_initials = None
+    
+    # If beneficiary specified, verify it belongs to this association
+    if data.beneficiary_id:
+        beneficiary = await db.beneficiaries.find_one({
+            "id": data.beneficiary_id,
+            "association_id": association_id
+        })
+        if not beneficiary:
+            raise HTTPException(status_code=404, detail="Bénéficiaire non trouvé")
+        beneficiary_initials = beneficiary.get("initials")
+        
+        # Update beneficiary stats
+        await db.beneficiaries.update_one(
+            {"id": data.beneficiary_id},
+            {
+                "$inc": {"total_baskets": data.quantity},
+                "$set": {"last_distribution": datetime.utcnow()}
+            }
+        )
+    
+    distribution = Distribution(
+        id=str(uuid.uuid4()),
+        association_id=association_id,
+        beneficiary_id=data.beneficiary_id,
+        beneficiary_initials=beneficiary_initials,
+        quantity=data.quantity,
+        notes=data.notes
+    )
+    
+    await db.distributions.insert_one(distribution.dict())
+    
+    return {"message": "Distribution enregistrée", "distribution": distribution.dict()}
+
+
+# ============ ASSOCIATION: STATS ============
+
+@api_router.get("/association/stats")
+async def get_association_stats(current_user: dict = Depends(get_current_user)):
+    """Get dashboard statistics for the association"""
+    if not current_user.get("is_association") or not current_user.get("association_verified"):
+        raise HTTPException(status_code=403, detail="Réservé aux associations vérifiées")
+    
+    association_id = current_user.get("id")
+    
+    # Calculate stats
+    # Total claimed baskets from orders
+    orders = await db.orders.find({
+        "user_id": association_id,
+        "type": "suspension_claim"
+    }).to_list(1000)
+    total_baskets_claimed = sum(o.get("quantity", 1) for o in orders)
+    
+    # Total distributed
+    distributions = await db.distributions.find({"association_id": association_id}).to_list(1000)
+    total_baskets_distributed = sum(d.get("quantity", 1) for d in distributions)
+    
+    # Active beneficiaries
+    active_beneficiaries = await db.beneficiaries.count_documents({
+        "association_id": association_id,
+        "is_active": True
+    })
+    
+    # This month stats
+    from datetime import timedelta
+    now = datetime.utcnow()
+    first_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    this_month_orders = await db.orders.find({
+        "user_id": association_id,
+        "type": "suspension_claim",
+        "created_at": {"$gte": first_of_month}
+    }).to_list(500)
+    this_month_baskets = sum(o.get("quantity", 1) for o in this_month_orders)
+    
+    this_month_distributions = await db.distributions.count_documents({
+        "association_id": association_id,
+        "distributed_at": {"$gte": first_of_month}
+    })
+    
+    # Unique families helped (count beneficiaries who received at least one basket)
+    impact_families = await db.beneficiaries.count_documents({
+        "association_id": association_id,
+        "total_baskets": {"$gt": 0}
+    })
+    
+    return AssociationStats(
+        total_baskets_claimed=total_baskets_claimed,
+        total_baskets_distributed=total_baskets_distributed,
+        active_beneficiaries=active_beneficiaries,
+        this_month_baskets=this_month_baskets,
+        this_month_distributions=this_month_distributions,
+        impact_families=impact_families
+    ).dict()
+
 
 @api_router.get("/admin/pros")
 async def get_admin_pros():
@@ -4487,6 +5590,37 @@ async def analytics_dashboard():
 # ============ RENTAL BOOKING ROUTES ============
 from models import RentalBookingCreate
 
+async def get_or_create_stripe_customer(user: dict, db) -> str:
+    """
+    Get existing Stripe Customer ID or create a new one.
+    Updates the user record with the new ID.
+    """
+    if user.get("stripe_customer_id"):
+        return user["stripe_customer_id"]
+    
+    # Create new customer in Stripe
+    try:
+        customer = stripe.Customer.create(
+            email=user.get("email"),
+            name=user.get("display_name"),
+            metadata={"user_id": user["id"]}
+        )
+        
+        # Save to DB
+        await db.users.update_one(
+            {"id": user["id"]},
+            {"$set": {"stripe_customer_id": customer.id}}
+        )
+        
+        return customer.id
+    except Exception as e:
+        logger.error(f"Failed to create Stripe customer: {e}")
+        # Return None or raise? If we can't create customer, we can't save card.
+        # Fallback to guest checkout? But we need to save card for deposit...
+        raise HTTPException(status_code=500, detail="Payment setup failed")
+
+
+
 @api_router.post("/rentals")
 async def create_rental(booking: RentalBookingCreate, current_user: dict = Depends(get_current_user)):
     """Create a new rental booking."""
@@ -4529,10 +5663,27 @@ async def create_rental(booking: RentalBookingCreate, current_user: dict = Depen
         duration_days = 1
     
     price_per_day_cents = item.get("price_per_day_cents", 0)
+    
+    # Check for private accepted offer (Negotiation)
+    offer = await db.offers.find_one({
+        "item_id": item["id"],
+        "buyer_id": current_user["id"],
+        "status": "accepted",
+        "expires_at": {"$gt": datetime.utcnow()}
+    })
+    
+    if offer:
+        # For rentals, offer amount is per day
+        negotiated_price = offer.get("counter_offer_amount_cents") or offer.get("amount_cents")
+        if negotiated_price:
+            price_per_day_cents = negotiated_price
+            print(f"Applying negotiated rental price: {price_per_day_cents}/day (Public: {item.get('price_per_day_cents')})")
+
     deposit_cents = item.get("deposit_cents", 0)
     total_price_cents = price_per_day_cents * duration_days
     
     # Calculate platform fee
+
     fee_info = calculate_platform_fee(total_price_cents)
     
     # Generate codes
@@ -4563,15 +5714,27 @@ async def create_rental(booking: RentalBookingCreate, current_user: dict = Depen
     
     await db.rentals.insert_one(rental_dict)
     
-    # Create Stripe PaymentIntent for deposit + rental
-    total_to_pay = total_price_cents + deposit_cents
+    # Create Stripe PaymentIntent for Rental Price ONLY (Deposit is implicit via saved card)
+    # We use setup_future_usage='off_session' to save the card for later (Deposit charge if damaged)
+    total_to_pay = total_price_cents # ONLY PRICE, NO DEPOSIT UPFRONT
     client_secret = None
     
     if stripe_config['secret_key'].startswith('sk_test_') and len(stripe_config['secret_key']) > 20:
         try:
+            # Get/Create Customer
+            customer_id = await get_or_create_stripe_customer(db.users.find_one({"id": current_user["id"]}), db) # db.users.find_one returns coroutine? No, wait. 
+            # current_user is passed from Depends, it's a dict.
+            # But get_or_create needs to update DB, so it needs db access. 
+            # Re-fetch user to be sure? current_user is sufficient if we trust it.
+            # actually get_or_create_stripe_customer implementation above uses user["id"]
+            
+            stripe_customer_id = await get_or_create_stripe_customer(current_user, db)
+
             payment_intent = stripe.PaymentIntent.create(
                 amount=total_to_pay,
                 currency="eur",
+                customer=stripe_customer_id, # Link to Customer
+                setup_future_usage='off_session', # SAVE THE CARD
                 payment_method_types=["card"],
                 metadata={
                     "rental_id": rental_id,
@@ -4588,6 +5751,7 @@ async def create_rental(booking: RentalBookingCreate, current_user: dict = Depen
             client_secret = f"pi_demo_{rental_id[:8]}_secret_demo"
     else:
         client_secret = f"pi_demo_{rental_id[:8]}_secret_demo"
+
     
     rental_dict.pop("_id", None)
     rental_dict["client_secret"] = client_secret
@@ -4803,9 +5967,16 @@ async def confirm_rental_return(
     rental_id: str, 
     code: str,
     condition_ok: bool = True,
+    notes: Optional[str] = None,
+    photos: Optional[List[str]] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """Confirm return of rental item."""
+    """Confirm return of rental item. Single unified endpoint.
+    - code: return handoff code
+    - condition_ok: True if item is in good condition
+    - notes: optional notes about the return condition
+    - photos: optional list of photo URLs as evidence
+    """
     rental = await db.rentals.find_one({"id": rental_id})
     if not rental:
         raise HTTPException(status_code=404, detail="Rental not found")
@@ -4820,17 +5991,55 @@ async def confirm_rental_return(
     if code.upper() != rental["return_code"]:
         raise HTTPException(status_code=400, detail="Invalid return code")
     
-    # Update rental
-    deposit_status = "deposit_returned" if condition_ok else "deposit_kept"
-    await db.rentals.update_one(
-        {"id": rental_id},
-        {"$set": {
-            "status": "returned",
-            "payment_status": deposit_status,
-            "return_confirmed_at": datetime.utcnow(),
-            "return_condition_ok": condition_ok
-        }}
-    )
+    final_payment_status = "deposit_released" if condition_ok else "deposit_charged"
+    
+    # Handle Deposit Charge if Damaged
+    if not condition_ok:
+        try:
+            original_intent_id = rental.get("payment_intent_id")
+            if original_intent_id and not original_intent_id.startswith("pi_demo"):
+                original_intent = stripe.PaymentIntent.retrieve(original_intent_id)
+                customer_id = original_intent.customer
+                payment_method_id = original_intent.payment_method
+                
+                if customer_id and payment_method_id:
+                    deposit_intent = stripe.PaymentIntent.create(
+                        amount=rental.get("deposit_cents", 0),
+                        currency="eur",
+                        customer=customer_id,
+                        payment_method=payment_method_id,
+                        off_session=True,
+                        confirm=True,
+                        metadata={
+                            "rental_id": rental_id,
+                            "type": "rental_deposit_charge",
+                            "reason": "damage_reported"
+                        }
+                    )
+                    await db.rentals.update_one(
+                        {"id": rental_id},
+                        {"$set": {"deposit_charge_id": deposit_intent.id}}
+                    )
+                else:
+                    logger.error("Cannot charge deposit: Missing customer or payment method")
+            else:
+                 logger.info("Demo mode: Skipping deposit charge")
+        except Exception as e:
+            logger.error(f"Failed to charge deposit: {e}")
+    
+    # Build update: status + optional evidence (photos/notes)
+    update_data = {
+        "status": "returned",
+        "payment_status": final_payment_status,
+        "return_confirmed_at": datetime.utcnow(),
+        "return_condition_ok": condition_ok
+    }
+    if notes:
+        update_data["return_notes"] = notes
+    if photos:
+        update_data["return_photos"] = photos
+    
+    await db.rentals.update_one({"id": rental_id}, {"$set": update_data})
     
     # Restore item availability
     await db.items.update_one(
@@ -4838,23 +6047,20 @@ async def confirm_rental_return(
         {"$set": {"status": "active"}}
     )
     
-    # Handle deposit refund
-    if condition_ok:
-        # TODO: Process deposit refund via Stripe
-        pass
-    
     # Notify renter
+    msg_status = "Aucun frais supplémentaire ne sera débité." if condition_ok else f"La caution de {rental['deposit_cents']/100:.2f}€ a été débitée pour dédommagement."
+    
     await db.notifications.insert_one({
         "user_id": rental["renter_id"],
         "type": "rental_completed",
-        "title": "Location terminée!",
-        "message": f"La caution de {rental['deposit_cents']/100:.2f}€ sera {'remboursée' if condition_ok else 'conservée'}.",
+        "title": "Location terminée",
+        "message": f"Retour confirmé. {msg_status}",
         "rental_id": rental_id,
         "read": False,
         "created_at": datetime.utcnow()
     })
     
-    return {"message": "Return confirmed", "deposit_status": deposit_status}
+    return {"message": "Return confirmed", "deposit_status": final_payment_status}
 
 
 @api_router.get("/items/{item_id}/availability")
@@ -5313,25 +6519,18 @@ async def get_admin_pros(current_user: dict = Depends(get_current_user)):
 
 @api_router.get("/admin/pros/{pro_id}")
 async def get_admin_pro_detail(pro_id: str, current_user: dict = Depends(get_current_user)):
-    print(f"DEBUG: Requesting details for {pro_id}")
-    print(f"DEBUG: Current User: {current_user.get('email')}")
-    
     if current_user.get("email") != "admin@yondly.com":
-        print(f"DEBUG: Auth failed. Email mismatch: {current_user.get('email')}")
         raise HTTPException(status_code=403, detail="Not authorized")
         
     pro = await db.users.find_one({"id": pro_id})
     if not pro:
-        pass
-        # Try finding by _id if invalid uuid
         try:
             from bson import ObjectId
             pro = await db.users.find_one({"_id": ObjectId(pro_id)})
-        except Exception as e:
-            print(f"DEBUG: ObjectId conversion failed: {e}")
+        except Exception:
+            pass
             
     if not pro:
-        print(f"DEBUG: Pro not found: {pro_id}")
         raise HTTPException(status_code=404, detail="Pro not found")
         
     # Standardize result ID for consistency
@@ -5790,12 +6989,14 @@ async def create_inspection_out(
     report.created_by = current_user["id"]
     report_dict = report.dict()
     
+    # Save evidence only. Does NOT close/complete the rental.
+    # The official return is done via POST /rentals/{id}/return
     await db.rentals.update_one(
         {"id": booking_id},
-        {"$set": {"inspection_out": report_dict, "status": "completed"}} # Status completed (pending dispute check?)
+        {"$set": {"inspection_out": report_dict}}
     )
     
-    return {"message": "Exit inspection saved", "report": report_dict}
+    return {"message": "Exit inspection saved (return must be confirmed separately)", "report": report_dict}
 
 # ============ DISPUTE ROUTES ============
 
@@ -5937,6 +7138,13 @@ async def upload_file(
 
 # Include router at the end after all routes are defined
 app.include_router(api_router)
+
+# Include Association Router
+try:
+    from association_routes import router as association_router
+    app.include_router(association_router, prefix="/api")
+except Exception as e:
+    print(f"Failed to load association routes: {e}")
 
 if __name__ == "__main__":
     import uvicorn
