@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yondly - Dashboard Collectivités</title>
+    <link rel="stylesheet" href="/admin/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .analytics-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            text-align: center;
+        }
+
+        .analytics-card .value {
+            font-size: 36px;
+            font-weight: 800;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .analytics-card .label {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .city-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .city-row:hover {
+            background: var(--bg-glass);
+        }
+
+        .city-name {
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .city-stats {
+            display: flex;
+            gap: 24px;
+        }
+
+        .city-stat {
+            text-align: center;
+        }
+
+        .city-stat .num {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .city-stat .lbl {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .breadcrumb a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .breadcrumb span {
+            color: var(--text-muted);
+        }
+
+        .export-btn {
+            background: var(--gradient-2);
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .back-link:hover {
+            color: var(--accent);
+        }
+
+        .export-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .export-option:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .trend-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .trend-bar-label {
+            width: 80px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .trend-bar-track {
+            flex: 1;
+            height: 24px;
+            background: var(--bg-glass);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .trend-bar-fill {
+            height: 100%;
+            background: var(--gradient-1);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <img src="/admin/logo.png" alt="Yondly" class="brand-logo" style="height: 32px; width: auto;">
+                <span class="brand-text">Collectivités</span>
+            </div>
+
+            <nav class="nav-menu">
+                <a href="/admin" class="nav-link">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Retour Admin</span>
+                </a>
+                <a href="#" class="nav-link active" data-page="overview">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>Vue d'ensemble</span>
+                </a>
+                <a href="#" class="nav-link" data-page="cities">
+                    <i class="fas fa-city"></i>
+                    <span>Par Commune</span>
+                </a>
+                <a href="#" class="nav-link" data-page="trends">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Tendances</span>
+                </a>
+                <a href="#" class="nav-link" data-page="export">
+                    <i class="fas fa-file-export"></i>
+                    <span>Exporter</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main -->
+        <main class="main">
+            <header class="header">
+                <div class="header-left">
+                    <h1 id="page-title">Dashboard Collectivités</h1>
+                </div>
+                <div class="header-right">
+                    <select id="zone-selector" class="form-select" style="width: 250px;">
+                        <option value="">Toutes les zones</option>
+                    </select>
+                </div>
+            </header>
+
+            <div class="content">
+                <!-- Loading -->
+                <div id="loading" style="text-align: center; padding: 48px;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 32px; color: var(--accent);"></i>
+                    <p style="margin-top: 16px; color: var(--text-secondary);">Chargement des données...</p>
+                </div>
+
+                <!-- Overview -->
+                <section id="page-overview" class="page" style="display: none;">
+                    <div class="analytics-grid" id="global-stats"></div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Activité par Commune</h3>
+                            <button class="btn-primary export-btn" onclick="exportCSV()">
+                                <i class="fas fa-download"></i> Exporter CSV
+                            </button>
+                        </div>
+                        <div id="cities-list"></div>
+                    </div>
+                </section>
+
+                <!-- City Detail -->
+                <section id="page-city-detail" class="page" style="display: none;">
+                    <a href="#" class="back-link" onclick="showOverview(); return false;">
+                        <i class="fas fa-arrow-left"></i> Retour aux communes
+                    </a>
+                    <h2 id="city-detail-title" style="margin-bottom: 24px;"></h2>
+                    <div class="analytics-grid" id="city-stats"></div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Détail par Quartier</h3>
+                            <small style="color: var(--text-muted);">Cliquez sur un quartier pour voir les rues</small>
+                        </div>
+                        <div id="neighborhoods-list"></div>
+                    </div>
+                </section>
+
+                <!-- Neighborhood Detail (Streets) -->
+                <section id="page-neighborhood-detail" class="page" style="display: none;">
+                    <a href="#" class="back-link" onclick="backToCity(); return false;">
+                        <i class="fas fa-arrow-left"></i> Retour au quartier
+                    </a>
+                    <div class="breadcrumb" id="neighborhood-breadcrumb"></div>
+                    <h2 id="neighborhood-detail-title" style="margin-bottom: 24px;"></h2>
+                    <div class="analytics-grid" id="neighborhood-stats"></div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Détail par Rue</h3>
+                        </div>
+                        <div id="streets-list"></div>
+                    </div>
+                </section>
+
+                <!-- Tendances -->
+                <section id="page-trends" class="page" style="display: none;">
+                    <h2 style="margin-bottom: 24px;">📈 Tendances sur 30 jours</h2>
+
+                    <div class="analytics-grid" id="trends-summary"></div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Évolution journalière</h3>
+                            <select id="trends-city-filter" class="form-select" style="width: 200px;"
+                                onchange="loadTrends()">
+                                <option value="">Toutes les communes</option>
+                            </select>
+                        </div>
+                        <div id="trends-chart" style="padding: 24px;">
+                            <div style="display: flex; flex-direction: column; gap: 8px;" id="trends-bars"></div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 24px;">
+                        <div class="card-header">
+                            <h3>Données journalières</h3>
+                        </div>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Annonces</th>
+                                    <th>Dons</th>
+                                    <th>Ventes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trends-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Exporter -->
+                <section id="page-export" class="page" style="display: none;">
+                    <h2 style="margin-bottom: 24px;">📥 Exporter les données</h2>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Rapports disponibles</h3>
+                        </div>
+                        <div style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+                            <div class="export-option" onclick="exportFullReport()">
+                                <div style="display: flex; align-items: center; gap: 16px;">
+                                    <i class="fas fa-file-csv" style="font-size: 32px; color: var(--accent);"></i>
+                                    <div>
+                                        <h4 style="margin: 0;">Rapport par commune (CSV)</h4>
+                                        <p style="margin: 4px 0 0; color: var(--text-muted); font-size: 14px;">
+                                            Toutes les communes avec utilisateurs, annonces, dons, ventes, CO2
+                                        </p>
+                                    </div>
+                                </div>
+                                <button class="btn-primary">
+                                    <i class="fas fa-download"></i> Télécharger
+                                </button>
+                            </div>
+
+                            <div class="export-option" onclick="exportQuartiers()">
+                                <div style="display: flex; align-items: center; gap: 16px;">
+                                    <i class="fas fa-map-marker-alt" style="font-size: 32px; color: #10b981;"></i>
+                                    <div>
+                                        <h4 style="margin: 0;">Rapport par quartier (CSV)</h4>
+                                        <p style="margin: 4px 0 0; color: var(--text-muted); font-size: 14px;">
+                                            Détail par quartier pour chaque commune
+                                        </p>
+                                    </div>
+                                </div>
+                                <button class="btn-primary" style="background: #10b981;">
+                                    <i class="fas fa-download"></i> Télécharger
+                                </button>
+                            </div>
+
+                            <div class="export-option" onclick="exportTrends()">
+                                <div style="display: flex; align-items: center; gap: 16px;">
+                                    <i class="fas fa-chart-line" style="font-size: 32px; color: #8b5cf6;"></i>
+                                    <div>
+                                        <h4 style="margin: 0;">Tendances (CSV)</h4>
+                                        <p style="margin: 4px 0 0; color: var(--text-muted); font-size: 14px;">
+                                            Données journalières sur les 30 derniers jours
+                                        </p>
+                                    </div>
+                                </div>
+                                <button class="btn-primary" style="background: #8b5cf6;">
+                                    <i class="fas fa-download"></i> Télécharger
+                                </button>
+                            </div>
+
+                            <div class="export-option" onclick="exportPDF()">
+                                <div style="display: flex; align-items: center; gap: 16px;">
+                                    <i class="fas fa-file-pdf" style="font-size: 32px; color: #ef4444;"></i>
+                                    <div>
+                                        <h4 style="margin: 0;">Rapport complet (PDF)</h4>
+                                        <p style="margin: 4px 0 0; color: var(--text-muted); font-size: 14px;">
+                                            Synthèse complète avec graphiques (bientôt disponible)
+                                        </p>
+                                    </div>
+                                </div>
+                                <button class="btn-secondary" disabled>
+                                    <i class="fas fa-clock"></i> Bientôt
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_URL = 'https://yondly-backend-951855414282.europe-west1.run.app/api';
+        let dashboardData = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDashboard();
+        });
+
+        async function loadDashboard() {
+            console.log('Loading dashboard...');
+            try {
+                const res = await fetch(`${API_URL}/admin/analytics/dashboard`);
+                console.log('Response status:', res.status);
+                dashboardData = await res.json();
+                console.log('Dashboard data:', dashboardData);
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('page-overview').style.display = 'block';
+
+                if (dashboardData.global) {
+                    renderGlobalStats(dashboardData.global);
+                }
+                if (dashboardData.zones) {
+                    renderZoneSelector(dashboardData.zones);
+                }
+                renderCitiesList(dashboardData.cities || []);
+
+                console.log('Dashboard loaded successfully');
+            } catch (e) {
+                console.error('Failed to load dashboard:', e);
+                document.getElementById('loading').innerHTML = '<p style="color: #ef4444;">Erreur de chargement: ' + e.message + '</p>';
+            }
+        }
+
+        function renderGlobalStats(stats) {
+            document.getElementById('global-stats').innerHTML = `
+                <div class="analytics-card">
+                    <div class="value">${stats.total_users}</div>
+                    <div class="label">Utilisateurs</div>
+                </div>
+                <div class="analytics-card">
+                    <div class="value">${stats.total_items}</div>
+                    <div class="label">Annonces</div>
+                </div>
+                <div class="analytics-card">
+                    <div class="value">${stats.total_transactions}</div>
+                    <div class="label">Transactions</div>
+                </div>
+                <div class="analytics-card">
+                    <div class="value">${stats.co2_saved_kg} kg</div>
+                    <div class="label">CO2 économisé</div>
+                </div>
+                <div class="analytics-card">
+                    <div class="value">${stats.zones_count}</div>
+                    <div class="label">Zones actives</div>
+                </div>
+            `;
+        }
+
+        function renderZoneSelector(zones) {
+            const selector = document.getElementById('zone-selector');
+            zones.forEach(z => {
+                const opt = document.createElement('option');
+                opt.value = z.name;
+                opt.textContent = `${z.displayName} (${z.active_communes}/${z.communes_count} communes)`;
+                selector.appendChild(opt);
+            });
+        }
+
+        function renderCitiesList(cities) {
+            if (!cities || cities.length === 0) {
+                document.getElementById('cities-list').innerHTML = `
+                    <p style="text-align: center; color: var(--text-muted); padding: 24px;">
+                        Aucune donnée disponible. Les statistiques apparaîtront quand il y aura des annonces.
+                    </p>
+                `;
+                return;
+            }
+
+            document.getElementById('cities-list').innerHTML = cities.map(city => `
+                <div class="city-row" onclick="showCityDetail('${city.city}')">
+                    <div class="city-name">${city.city}</div>
+                    <div class="city-stats">
+                        <div class="city-stat">
+                            <div class="num">${city.users_count}</div>
+                            <div class="lbl">Utilisateurs</div>
+                        </div>
+                        <div class="city-stat">
+                            <div class="num">${city.items_count}</div>
+                            <div class="lbl">Annonces</div>
+                        </div>
+                        <div class="city-stat">
+                            <div class="num">${city.donations}</div>
+                            <div class="lbl">Dons</div>
+                        </div>
+                        <div class="city-stat">
+                            <div class="num">${city.sales}</div>
+                            <div class="lbl">Ventes</div>
+                        </div>
+                        <div class="city-stat">
+                            <div class="num">${city.rentals || 0}</div>
+                            <div class="lbl">Locations</div>
+                        </div>
+                        <div class="city-stat">
+                            <div class="num">${city.baskets || 0}</div>
+                            <div class="lbl">Anti-gaspi</div>
+                        </div>
+                        <div class="city-stat">
+                            <div class="num">${city.co2_saved_kg} kg</div>
+                            <div class="lbl">CO2</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function showCityDetail(cityName) {
+            document.getElementById('page-overview').style.display = 'none';
+            document.getElementById('page-city-detail').style.display = 'block';
+            document.getElementById('city-detail-title').textContent = cityName;
+
+            const cityData = dashboardData.cities.find(c => c.city === cityName);
+            if (cityData) {
+                document.getElementById('city-stats').innerHTML = `
+                    <div class="analytics-card">
+                        <div class="value">${cityData.users_count}</div>
+                        <div class="label">Utilisateurs</div>
+                    </div>
+                    <div class="analytics-card">
+                        <div class="value">${cityData.items_count}</div>
+                        <div class="label">Annonces</div>
+                    </div>
+                    <div class="analytics-card">
+                        <div class="value">${cityData.donations}</div>
+                        <div class="label">Dons</div>
+                    </div>
+                    <div class="analytics-card">
+                        <div class="value">${cityData.sales}</div>
+                        <div class="label">Ventes</div>
+                    </div>
+                    <div class="analytics-card">
+                        <div class="value">${cityData.rentals || 0}</div>
+                        <div class="label">Locations</div>
+                    </div>
+                    <div class="analytics-card">
+                        <div class="value">${cityData.baskets || 0}</div>
+                        <div class="label">Paniers anti-gaspi</div>
+                    </div>
+                `;
+            }
+
+            // Load neighborhoods
+            try {
+                const res = await fetch(`${API_URL}/admin/analytics/cities/${encodeURIComponent(cityName)}/neighborhoods`);
+                const neighborhoods = await res.json();
+                currentCity = cityName;
+
+                if (neighborhoods.length === 0) {
+                    document.getElementById('neighborhoods-list').innerHTML = `
+                        <p style="text-align: center; color: var(--text-muted); padding: 24px;">
+                            Pas de données par quartier disponibles.
+                        </p>
+                    `;
+                } else {
+                    document.getElementById('neighborhoods-list').innerHTML = neighborhoods.map(n => `
+                        <div class="city-row" onclick="showNeighborhoodDetail('${cityName}', '${n.neighborhood}')">
+                            <div class="city-name">${n.neighborhood}</div>
+                            <div class="city-stats">
+                                <div class="city-stat">
+                                    <div class="num">${n.users_count}</div>
+                                    <div class="lbl">Utilisateurs</div>
+                                </div>
+                                <div class="city-stat">
+                                    <div class="num">${n.items_count}</div>
+                                    <div class="lbl">Annonces</div>
+                                </div>
+                                <div class="city-stat">
+                                    <i class="fas fa-chevron-right" style="color: var(--text-muted);"></i>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('Failed to load neighborhoods:', e);
+            }
+        }
+
+        let currentCity = null;
+        let currentNeighborhood = null;
+
+        async function showNeighborhoodDetail(cityName, neighborhoodName) {
+            document.getElementById('page-city-detail').style.display = 'none';
+            document.getElementById('page-neighborhood-detail').style.display = 'block';
+
+            currentCity = cityName;
+            currentNeighborhood = neighborhoodName;
+
+            document.getElementById('neighborhood-detail-title').textContent = neighborhoodName;
+            document.getElementById('neighborhood-breadcrumb').innerHTML = `
+                <a href="#" onclick="showOverview(); return false;">Communes</a>
+                <span>›</span>
+                <a href="#" onclick="showCityDetail('${cityName}'); return false;">${cityName}</a>
+                <span>›</span>
+                <strong>${neighborhoodName}</strong>
+            `;
+
+            // Load streets
+            try {
+                const res = await fetch(`${API_URL}/admin/analytics/cities/${encodeURIComponent(cityName)}/streets?neighborhood=${encodeURIComponent(neighborhoodName)}`);
+                const streets = await res.json();
+
+                // Calculate neighborhood stats
+                const totalItems = streets.reduce((sum, s) => sum + (s.items_count || 0), 0);
+                const totalUsers = streets.reduce((sum, s) => sum + (s.users_count || 0), 0);
+
+                document.getElementById('neighborhood-stats').innerHTML = `
+                    <div class="analytics-card">
+                        <div class="value">${streets.length}</div>
+                        <div class="label">Rues</div>
+                    </div>
+                    <div class="analytics-card">
+                        <div class="value">${totalUsers}</div>
+                        <div class="label">Utilisateurs</div>
+                    </div>
+                    <div class="analytics-card">
+                        <div class="value">${totalItems}</div>
+                        <div class="label">Annonces</div>
+                    </div>
+                `;
+
+                if (streets.length === 0) {
+                    document.getElementById('streets-list').innerHTML = `
+                        <p style="text-align: center; color: var(--text-muted); padding: 24px;">
+                            Pas de données par rue disponibles.
+                        </p>
+                    `;
+                } else {
+                    document.getElementById('streets-list').innerHTML = streets.map(s => `
+                        <div class="city-row" style="cursor: default;">
+                            <div class="city-name">${s.street}</div>
+                            <div class="city-stats">
+                                <div class="city-stat">
+                                    <div class="num">${s.users_count}</div>
+                                    <div class="lbl">Utilisateurs</div>
+                                </div>
+                                <div class="city-stat">
+                                    <div class="num">${s.items_count}</div>
+                                    <div class="lbl">Annonces</div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('Failed to load streets:', e);
+            }
+        }
+
+        function backToCity() {
+            document.getElementById('page-neighborhood-detail').style.display = 'none';
+            document.getElementById('page-city-detail').style.display = 'block';
+        }
+
+        function hideAllPages() {
+            document.getElementById('page-overview').style.display = 'none';
+            document.getElementById('page-city-detail').style.display = 'none';
+            document.getElementById('page-neighborhood-detail').style.display = 'none';
+            document.getElementById('page-trends').style.display = 'none';
+            document.getElementById('page-export').style.display = 'none';
+        }
+
+        function showOverview() {
+            hideAllPages();
+            document.getElementById('page-overview').style.display = 'block';
+            setActiveNav('overview');
+        }
+
+        function setActiveNav(page) {
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            const link = document.querySelector(`.nav-link[data-page="${page}"]`);
+            if (link) link.classList.add('active');
+        }
+
+        // Setup navigation
+        document.querySelectorAll('.nav-link[data-page]').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const page = link.dataset.page;
+                hideAllPages();
+                setActiveNav(page);
+
+                if (page === 'overview' || page === 'cities') {
+                    document.getElementById('page-overview').style.display = 'block';
+                } else if (page === 'trends') {
+                    document.getElementById('page-trends').style.display = 'block';
+                    loadTrends();
+                } else if (page === 'export') {
+                    document.getElementById('page-export').style.display = 'block';
+                }
+            });
+        });
+
+        // ===== TRENDS =====
+        let trendsData = [];
+
+        async function loadTrends() {
+            const cityFilter = document.getElementById('trends-city-filter').value;
+            const url = cityFilter
+                ? `${API_URL}/admin/analytics/timeseries?city=${encodeURIComponent(cityFilter)}`
+                : `${API_URL}/admin/analytics/timeseries`;
+
+            try {
+                const res = await fetch(url);
+                trendsData = await res.json();
+                renderTrends();
+            } catch (e) {
+                console.error('Failed to load trends:', e);
+            }
+        }
+
+        function renderTrends() {
+            if (!trendsData || trendsData.length === 0) {
+                document.getElementById('trends-summary').innerHTML = `
+                    <div class="analytics-card">
+                        <div class="value">0</div>
+                        <div class="label">Annonces (30j)</div>
+                    </div>
+                `;
+                document.getElementById('trends-bars').innerHTML = '<p style="color: var(--text-muted);">Pas de données disponibles</p>';
+                document.getElementById('trends-table-body').innerHTML = '';
+                return;
+            }
+
+            const totalItems = trendsData.reduce((s, d) => s + d.items_count, 0);
+            const totalDonations = trendsData.reduce((s, d) => s + d.donations, 0);
+            const totalSales = trendsData.reduce((s, d) => s + d.sales, 0);
+            const maxItems = Math.max(...trendsData.map(d => d.items_count), 1);
+
+            document.getElementById('trends-summary').innerHTML = `
+                <div class="analytics-card">
+                    <div class="value">${totalItems}</div>
+                    <div class="label">Annonces (30j)</div>
+                </div>
+                <div class="analytics-card">
+                    <div class="value">${totalDonations}</div>
+                    <div class="label">Dons</div>
+                </div>
+                <div class="analytics-card">
+                    <div class="value">${totalSales}</div>
+                    <div class="label">Ventes</div>
+                </div>
+            `;
+
+            // Render bar chart
+            document.getElementById('trends-bars').innerHTML = trendsData.slice(-14).map(d => {
+                const pct = (d.items_count / maxItems) * 100;
+                const date = new Date(d.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+                return `
+                    <div class="trend-bar">
+                        <div class="trend-bar-label">${date}</div>
+                        <div class="trend-bar-track">
+                            <div class="trend-bar-fill" style="width: ${pct}%">${d.items_count}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Render table
+            document.getElementById('trends-table-body').innerHTML = trendsData.slice().reverse().map(d => `
+                <tr>
+                    <td>${d.date}</td>
+                    <td>${d.items_count}</td>
+                    <td>${d.donations}</td>
+                    <td>${d.sales}</td>
+                </tr>
+            `).join('');
+
+            // Populate city filter
+            if (dashboardData && dashboardData.cities) {
+                const select = document.getElementById('trends-city-filter');
+                if (select.options.length <= 1) {
+                    dashboardData.cities.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.city;
+                        opt.textContent = c.city;
+                        select.appendChild(opt);
+                    });
+                }
+            }
+        }
+
+        // ===== EXPORTS =====
+        function exportFullReport() {
+            if (!dashboardData || !dashboardData.cities) return;
+            let csv = 'Commune,Utilisateurs,Annonces,Dons,Ventes,CO2 économisé (kg)\n';
+            dashboardData.cities.forEach(c => {
+                csv += `${c.city},${c.users_count},${c.items_count},${c.donations},${c.sales},${c.co2_saved_kg}\n`;
+            });
+            downloadCSV(csv, 'rapport_communes');
+        }
+
+        async function exportQuartiers() {
+            let csv = 'Commune,Quartier,Utilisateurs,Annonces\n';
+            if (dashboardData && dashboardData.cities) {
+                for (const city of dashboardData.cities) {
+                    try {
+                        const res = await fetch(`${API_URL}/admin/analytics/cities/${encodeURIComponent(city.city)}/neighborhoods`);
+                        const neighborhoods = await res.json();
+                        neighborhoods.forEach(n => {
+                            csv += `${city.city},${n.neighborhood},${n.users_count},${n.items_count}\n`;
+                        });
+                    } catch (e) { }
+                }
+            }
+            downloadCSV(csv, 'rapport_quartiers');
+        }
+
+        function exportTrends() {
+            if (!trendsData || trendsData.length === 0) {
+                loadTrends().then(() => {
+                    let csv = 'Date,Annonces,Dons,Ventes\n';
+                    trendsData.forEach(d => {
+                        csv += `${d.date},${d.items_count},${d.donations},${d.sales}\n`;
+                    });
+                    downloadCSV(csv, 'rapport_tendances');
+                });
+                return;
+            }
+            let csv = 'Date,Annonces,Dons,Ventes\n';
+            trendsData.forEach(d => {
+                csv += `${d.date},${d.items_count},${d.donations},${d.sales}\n`;
+            });
+            downloadCSV(csv, 'rapport_tendances');
+        }
+
+        function exportPDF() {
+            alert('La génération PDF sera disponible prochainement !');
+        }
+
+        function downloadCSV(csv, filename) {
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `yondly_${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function exportCSV() {
+            exportFullReport();
+        }
+    </script>
+</body>
+
+</html>

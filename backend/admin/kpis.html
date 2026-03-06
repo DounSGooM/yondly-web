@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yondly - KPIs B2G</title>
+    <link rel="stylesheet" href="/admin/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .kpi-section {
+            margin-bottom: 32px;
+        }
+
+        .kpi-section-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .kpi-section-title i {
+            font-size: 24px;
+            color: var(--accent);
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            text-align: center;
+            transition: var(--transition);
+        }
+
+        .kpi-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .kpi-value {
+            font-size: 28px;
+            font-weight: 800;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .kpi-value.green {
+            background: linear-gradient(135deg, #10b981, #059669);
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+
+        .kpi-value.blue {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+
+        .kpi-value.purple {
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+
+        .kpi-value.orange {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+
+        .kpi-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .kpi-sublabel {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .loading-kpis {
+            text-align: center;
+            padding: 48px;
+        }
+
+        .export-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .city-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .city-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .city-item:hover {
+            background: var(--bg-glass);
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: var(--bg-glass);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--gradient-1);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <img src="/admin/logo.png" alt="Yondly" class="brand-logo" style="height: 32px; width: auto;">
+                <span class="brand-text">KPIs B2G</span>
+            </div>
+
+            <nav class="nav-menu">
+                <a href="/admin" class="nav-link">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Retour Admin</span>
+                </a>
+                <a href="#" class="nav-link active" data-section="all">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Tous les KPIs</span>
+                </a>
+                <a href="#" class="nav-link" data-section="users">
+                    <i class="fas fa-users"></i>
+                    <span>Utilisateurs</span>
+                </a>
+                <a href="#" class="nav-link" data-section="items">
+                    <i class="fas fa-box"></i>
+                    <span>Annonces</span>
+                </a>
+                <a href="#" class="nav-link" data-section="transactions">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>Transactions</span>
+                </a>
+                <a href="#" class="nav-link" data-section="environmental">
+                    <i class="fas fa-leaf"></i>
+                    <span>Impact Environnemental</span>
+                </a>
+                <a href="#" class="nav-link" data-section="economic">
+                    <i class="fas fa-euro-sign"></i>
+                    <span>Impact Économique</span>
+                </a>
+                <a href="#" class="nav-link" data-section="geographic">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <span>Géographie</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main -->
+        <main class="main">
+            <header class="header">
+                <div class="header-left">
+                    <h1>📊 KPIs pour Collectivités</h1>
+                </div>
+                <div class="header-right export-bar">
+                    <select id="city-filter" class="form-select">
+                        <option value="">Toutes les villes</option>
+                    </select>
+                    <button class="btn-primary" onclick="exportAllKPIs()">
+                        <i class="fas fa-download"></i> Exporter JSON
+                    </button>
+                    <button class="btn-secondary" onclick="exportCSVReport()">
+                        <i class="fas fa-file-csv"></i> Rapport CSV
+                    </button>
+                </div>
+            </header>
+
+            <div class="content">
+                <div id="loading" class="loading-kpis">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 32px; color: var(--accent);"></i>
+                    <p style="margin-top: 16px; color: var(--text-secondary);">Chargement des KPIs...</p>
+                </div>
+
+                <div id="kpi-content" style="display: none;">
+                    <!-- User KPIs -->
+                    <div class="kpi-section" id="section-users">
+                        <div class="kpi-section-title">
+                            <i class="fas fa-users"></i>
+                            <span>Utilisateurs</span>
+                        </div>
+                        <div class="kpi-grid" id="user-kpis"></div>
+                    </div>
+
+                    <!-- Item KPIs -->
+                    <div class="kpi-section" id="section-items">
+                        <div class="kpi-section-title">
+                            <i class="fas fa-box"></i>
+                            <span>Annonces & Articles</span>
+                        </div>
+                        <div class="kpi-grid" id="item-kpis"></div>
+                    </div>
+
+                    <!-- Transaction KPIs -->
+                    <div class="kpi-section" id="section-transactions">
+                        <div class="kpi-section-title">
+                            <i class="fas fa-shopping-cart"></i>
+                            <span>Transactions</span>
+                        </div>
+                        <div class="kpi-grid" id="transaction-kpis"></div>
+                    </div>
+
+                    <!-- Environmental KPIs -->
+                    <div class="kpi-section" id="section-environmental">
+                        <div class="kpi-section-title">
+                            <i class="fas fa-leaf"></i>
+                            <span>Impact Environnemental</span>
+                        </div>
+                        <div class="kpi-grid" id="environmental-kpis"></div>
+                    </div>
+
+                    <!-- Economic KPIs -->
+                    <div class="kpi-section" id="section-economic">
+                        <div class="kpi-section-title">
+                            <i class="fas fa-euro-sign"></i>
+                            <span>Impact Économique</span>
+                        </div>
+                        <div class="kpi-grid" id="economic-kpis"></div>
+                    </div>
+
+                    <!-- Geographic KPIs -->
+                    <div class="kpi-section" id="section-geographic">
+                        <div class="kpi-section-title">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span>Répartition Géographique</span>
+                        </div>
+                        <div class="kpi-grid" id="geographic-kpis"></div>
+                        <div class="card" style="margin-top: 16px;">
+                            <div class="card-header">
+                                <h3>Top Villes</h3>
+                            </div>
+                            <div class="city-list" id="cities-ranking"></div>
+                        </div>
+                    </div>
+
+                    <!-- Social KPIs -->
+                    <div class="kpi-section" id="section-social">
+                        <div class="kpi-section-title">
+                            <i class="fas fa-heart"></i>
+                            <span>Engagement Social</span>
+                        </div>
+                        <div class="kpi-grid" id="social-kpis"></div>
+                    </div>
+
+                    <!-- Category KPIs -->
+                    <div class="kpi-section" id="section-categories">
+                        <div class="kpi-section-title">
+                            <i class="fas fa-tags"></i>
+                            <span>Par Catégorie</span>
+                        </div>
+                        <div class="kpi-grid" id="category-kpis"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_URL = 'https://yondly-backend-951855414282.europe-west1.run.app/api';
+        let kpiData = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadKPIs();
+            setupNavigation();
+        });
+
+        async function loadKPIs() {
+            const city = document.getElementById('city-filter').value;
+            const url = city ? `${API_URL}/admin/kpis?city=${encodeURIComponent(city)}` : `${API_URL}/admin/kpis`;
+
+            try {
+                const res = await fetch(url);
+                kpiData = await res.json();
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('kpi-content').style.display = 'block';
+
+                renderUserKPIs(kpiData.user_kpis);
+                renderItemKPIs(kpiData.item_kpis);
+                renderTransactionKPIs(kpiData.transaction_kpis);
+                renderEnvironmentalKPIs(kpiData.environmental_kpis);
+                renderEconomicKPIs(kpiData.economic_kpis);
+                renderGeographicKPIs(kpiData.geographic_kpis);
+                renderSocialKPIs(kpiData.social_kpis);
+                renderCategoryKPIs(kpiData.category_kpis);
+                populateCityFilter(kpiData.geographic_kpis);
+            } catch (e) {
+                console.error('Failed to load KPIs:', e);
+                document.getElementById('loading').innerHTML = '<p style="color: #ef4444;">Erreur de chargement</p>';
+            }
+        }
+
+        function kpiCard(value, label, sublabel = '', colorClass = '') {
+            return `
+                <div class="kpi-card">
+                    <div class="kpi-value ${colorClass}">${value}</div>
+                    <div class="kpi-label">${label}</div>
+                    ${sublabel ? `<div class="kpi-sublabel">${sublabel}</div>` : ''}
+                </div>
+            `;
+        }
+
+        function renderUserKPIs(data) {
+            if (!data || data.error) return;
+            document.getElementById('user-kpis').innerHTML = `
+                ${kpiCard(data.total_users, 'Total Utilisateurs')}
+                ${kpiCard(data.new_users_today, 'Nouveaux Aujourd\'hui', '', 'green')}
+                ${kpiCard(data.new_users_this_week, 'Cette Semaine', '', 'blue')}
+                ${kpiCard(data.new_users_this_month, 'Ce Mois', '', 'purple')}
+                ${kpiCard(data.growth_rate_monthly + '%', 'Croissance Mensuelle')}
+                ${kpiCard(data.pro_users, 'Comptes Pro', data.pro_ratio + '% du total')}
+                ${kpiCard(data.active_sellers, 'Vendeurs Actifs', data.seller_activation_rate + '% activés')}
+                ${kpiCard(data.verification_rate + '%', 'Taux Vérification')}
+            `;
+        }
+
+        function renderItemKPIs(data) {
+            if (!data || data.error) return;
+            document.getElementById('item-kpis').innerHTML = `
+                ${kpiCard(data.total_items, 'Total Annonces')}
+                ${kpiCard(data.items_available, 'Disponibles', '', 'green')}
+                ${kpiCard(data.items_sold, 'Vendus/Donnés', '', 'blue')}
+                ${kpiCard(data.total_donations, 'Dons', data.donations_ratio + '%', 'green')}
+                ${kpiCard(data.total_sales, 'Ventes', data.sales_ratio + '%', 'blue')}
+                ${kpiCard(data.total_rentals, 'Locations', data.rentals_ratio + '%', 'purple')}
+                ${kpiCard(data.total_antigaspi_baskets, 'Paniers Anti-gaspi', data.antigaspi_ratio + '%', 'orange')}
+                ${kpiCard(data.new_items_this_month, 'Nouveaux ce Mois')}
+                ${kpiCard(data.avg_items_per_day, 'Moyenne/Jour')}
+                ${kpiCard(data.price_average + '€', 'Prix Moyen')}
+                ${kpiCard(data.conversion_rate + '%', 'Taux Conversion')}
+            `;
+        }
+
+        function renderTransactionKPIs(data) {
+            if (!data || data.error) return;
+            document.getElementById('transaction-kpis').innerHTML = `
+                ${kpiCard(data.total_orders, 'Total Commandes')}
+                ${kpiCard(data.orders_completed, 'Complétées', '', 'green')}
+                ${kpiCard(data.orders_pending, 'En Attente', '', 'orange')}
+                ${kpiCard(data.orders_this_month, 'Ce Mois')}
+                ${kpiCard(data.avg_orders_per_day, 'Moyenne/Jour')}
+                ${kpiCard(data.total_revenue + '€', 'Revenu Total', '', 'blue')}
+                ${kpiCard(data.avg_order_value + '€', 'Panier Moyen')}
+                ${kpiCard(data.completion_rate + '%', 'Taux Complétion', '', 'green')}
+                ${kpiCard(data.cancellation_rate + '%', 'Taux Annulation', '', 'orange')}
+            `;
+        }
+
+        function renderEnvironmentalKPIs(data) {
+            if (!data || data.error) return;
+            document.getElementById('environmental-kpis').innerHTML = `
+                ${kpiCard(data.total_co2_saved_kg + ' kg', 'CO2 Économisé', '', 'green')}
+                ${kpiCard(data.total_items_reused, 'Objets Réutilisés', '', 'green')}
+                ${kpiCard(data.donations_completed, 'Dons Complétés', '', 'blue')}
+                ${kpiCard(data.antigaspi_baskets_sold, 'Paniers Anti-gaspi', '', 'orange')}
+                ${kpiCard(data.trees_equivalent, 'Équivalent Arbres', '21kg CO2/arbre/an', 'green')}
+                ${kpiCard(data.car_km_avoided + ' km', 'Km Voiture Évités', '120g CO2/km')}
+                ${kpiCard(data.flights_avoided, 'Vols Paris-Londres Évités', '255kg CO2/vol')}
+                ${kpiCard(data.estimated_waste_avoided_kg + ' kg', 'Déchets Évités')}
+                ${kpiCard(data.circular_economy_contribution + '€', 'Contribution Économie Circulaire', '', 'purple')}
+            `;
+        }
+
+        function renderEconomicKPIs(data) {
+            if (!data || data.error) return;
+            document.getElementById('economic-kpis').innerHTML = `
+                ${kpiCard(data.total_listed_value + '€', 'Valeur Totale Listée', '', 'blue')}
+                ${kpiCard(data.total_transacted_value + '€', 'Valeur Transactée', '', 'green')}
+                ${kpiCard(data.estimated_buyer_savings + '€', 'Économies Acheteurs', '60% vs neuf', 'purple')}
+                ${kpiCard(data.donations_value_estimate + '€', 'Valeur Dons Estimée')}
+                ${kpiCard(data.local_economic_circulation + '€', 'Circulation Locale', '', 'orange')}
+                ${kpiCard(data.avg_listing_price + '€', 'Prix Moyen Listing')}
+            `;
+        }
+
+        function renderGeographicKPIs(data) {
+            if (!data || data.error) return;
+            document.getElementById('geographic-kpis').innerHTML = `
+                ${kpiCard(data.unique_cities, 'Villes Actives', '', 'blue')}
+                ${kpiCard(data.geographic_coverage_score + '%', 'Score Couverture')}
+                ${kpiCard(data.top_city ? data.top_city.city : '-', 'Ville #1', data.top_city ? data.top_city.total_items + ' annonces' : '')}
+            `;
+
+            // Ranking
+            if (data.cities_data && data.cities_data.length > 0) {
+                const maxItems = data.cities_data[0].total_items;
+                document.getElementById('cities-ranking').innerHTML = data.cities_data.slice(0, 15).map((c, i) => `
+                    <div class="city-item">
+                        <div>
+                            <strong>#${i + 1} ${c.city}</strong>
+                            <div class="progress-bar" style="width: 200px;">
+                                <div class="progress-fill" style="width: ${(c.total_items / maxItems) * 100}%;"></div>
+                            </div>
+                        </div>
+                        <div style="text-align: right; font-size: 12px;">
+                            <div><strong>${c.total_items}</strong> annonces</div>
+                            <div style="color: var(--text-muted);">${c.donations} dons · ${c.sales} ventes</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function renderSocialKPIs(data) {
+            if (!data || data.error) return;
+            document.getElementById('social-kpis').innerHTML = `
+                ${kpiCard(data.total_messages_sent, 'Messages Envoyés')}
+                ${kpiCard(data.total_conversations, 'Conversations')}
+                ${kpiCard(data.total_favorites, 'Favoris Ajoutés', '', 'orange')}
+                ${kpiCard(data.total_reviews, 'Avis Laissés')}
+                ${kpiCard(data.average_rating || '-', 'Note Moyenne', '/5')}
+                ${kpiCard(data.engaged_sellers, 'Vendeurs Engagés', '3+ articles')}
+                ${kpiCard(data.messages_per_user, 'Messages/Utilisateur')}
+            `;
+        }
+
+        function renderCategoryKPIs(data) {
+            if (!data || data.error || !data.categories) return;
+            document.getElementById('category-kpis').innerHTML = data.categories.slice(0, 12).map(c => `
+                <div class="kpi-card">
+                    <div class="kpi-value">${c.total}</div>
+                    <div class="kpi-label">${c.category}</div>
+                    <div class="kpi-sublabel">${c.donations} dons · ${c.avg_price}€ moy.</div>
+                </div>
+            `).join('');
+        }
+
+        function populateCityFilter(data) {
+            if (!data || !data.cities_data) return;
+            const select = document.getElementById('city-filter');
+            data.cities_data.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.city;
+                opt.textContent = c.city;
+                select.appendChild(opt);
+            });
+            select.addEventListener('change', loadKPIs);
+        }
+
+        function setupNavigation() {
+            document.querySelectorAll('.nav-link[data-section]').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const section = link.dataset.section;
+
+                    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+
+                    document.querySelectorAll('.kpi-section').forEach(s => {
+                        if (section === 'all') {
+                            s.style.display = 'block';
+                        } else {
+                            s.style.display = s.id === `section-${section}` ? 'block' : 'none';
+                        }
+                    });
+                });
+            });
+        }
+
+        function exportAllKPIs() {
+            if (!kpiData) return;
+            const blob = new Blob([JSON.stringify(kpiData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `yondly_kpis_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+        }
+
+        function exportCSVReport() {
+            if (!kpiData) return;
+            let csv = 'Catégorie,Métrique,Valeur\n';
+
+            // Users
+            if (kpiData.user_kpis) {
+                Object.entries(kpiData.user_kpis).forEach(([k, v]) => {
+                    if (typeof v !== 'object') csv += `Utilisateurs,${k},${v}\n`;
+                });
+            }
+            // Items
+            if (kpiData.item_kpis) {
+                Object.entries(kpiData.item_kpis).forEach(([k, v]) => {
+                    if (typeof v !== 'object') csv += `Annonces,${k},${v}\n`;
+                });
+            }
+            // Environmental
+            if (kpiData.environmental_kpis) {
+                Object.entries(kpiData.environmental_kpis).forEach(([k, v]) => {
+                    if (typeof v !== 'object') csv += `Environnement,${k},${v}\n`;
+                });
+            }
+            // Economic
+            if (kpiData.economic_kpis) {
+                Object.entries(kpiData.economic_kpis).forEach(([k, v]) => {
+                    if (typeof v !== 'object') csv += `Économie,${k},${v}\n`;
+                });
+            }
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `yondly_kpis_rapport_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+        }
+    </script>
+</body>
+
+</html>

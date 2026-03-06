@@ -1,0 +1,291 @@
+from pydantic import BaseModel, Field, EmailStr
+from typing import List, Optional, Literal
+from datetime import datetime
+
+class Location(BaseModel):
+    lat: float
+    lng: float
+
+class UserRegister(BaseModel):
+    email: EmailStr
+    password: str
+    display_name: str
+    phone: Optional[str] = None
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class User(BaseModel):
+    id: str
+    email: str
+    display_name: str
+    phone: Optional[str] = None
+    photo_url: Optional[str] = None
+    ratings_avg: Optional[float] = 0.0
+    ratings_count: int = 0
+    wallet_balance_cents: int = 0
+    points: int = 0
+    level: Literal['Novice', 'Habitué', 'Expert', 'Ambassadeur'] = 'Novice'
+    profile_theme_color: Optional[str] = None
+    stripe_account_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class UserUpdate(BaseModel):
+    display_name: Optional[str] = None
+    phone: Optional[str] = None
+    photo_url: Optional[str] = None
+    profile_theme_color: Optional[str] = None
+
+class ItemCreate(BaseModel):
+    type: Literal['donation', 'sale', 'rent']
+    food_type: Optional[Literal['non_perishable', 'fresh_produce']] = None
+    title: str
+    description: Optional[str] = None
+    photos: List[str] = []  # base64 encoded
+    category: str
+    condition: Optional[Literal['new', 'good', 'repair']] = None
+    tags: Optional[List[str]] = []
+    location: Location
+    radius_km: Optional[float] = 5.0
+    urgency_hours: Optional[int] = None  # For food donations
+    price_cents: Optional[int] = None  # For sales
+    price_per_day_cents: Optional[int] = None  # For rentals
+    deposit_cents: Optional[int] = None  # For rentals
+    max_duration_days: Optional[int] = None  # For rentals
+    allow_offers: bool = False
+
+class Item(BaseModel):
+    id: str
+    type: Literal['donation', 'sale', 'rent']
+    food_type: Optional[Literal['non_perishable', 'fresh_produce']] = None
+    title: str
+    description: Optional[str] = None
+    photos: List[str] = []
+    category: str
+    condition: Optional[Literal['new', 'good', 'repair']] = None
+    tags: Optional[List[str]] = []
+    location: Location
+    radius_km: Optional[float] = 5.0
+    urgency_hours: Optional[int] = None
+    price_cents: Optional[int] = None
+    price_per_day_cents: Optional[int] = None
+    deposit_cents: Optional[int] = None
+    max_duration_days: Optional[int] = None
+    allow_offers: bool = False
+    status: Literal['active', 'reserved', 'completed', 'expired'] = 'active'
+    owner_id: str
+    owner: Optional[User] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: Optional[datetime] = None
+    locked_offer_id: Optional[str] = None
+    locked_until: Optional[datetime] = None
+
+class HandoffData(BaseModel):
+    mode: Literal['local', 'relay', 'home'] = 'local'
+    code: Optional[str] = None
+    photo_url: Optional[str] = None
+
+class OrderCreate(BaseModel):
+    item_id: str
+
+class Order(BaseModel):
+    id: str
+    item_id: str
+    buyer_id: str
+    seller_id: str
+    amount_cents: int
+    platform_fee_cents: int
+    payout_cents: int
+    payment_status: Literal['initiated', 'escrowed', 'released', 'refunded'] = 'initiated'
+    payment_intent_id: Optional[str] = None
+    handoff: HandoffData
+    dispute_status: Optional[Literal['open', 'resolved', 'rejected']] = None
+    sponsor_id: Optional[str] = None  # Sponsor qui finance ce don
+    sponsor_shown: bool = False  # Flag pour savoir si le sponsor a été affiché
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class Message(BaseModel):
+    id: str
+    item_id: str
+    from_id: str
+    to_id: str
+    text: str
+    read: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class MessageCreate(BaseModel):
+    item_id: str
+    to_id: str
+    text: str
+
+class OfferCreate(BaseModel):
+    item_id: str
+    amount_cents: int
+    message: Optional[str] = None
+
+class Offer(BaseModel):
+    id: str
+    item_id: str
+    buyer_id: str
+    buyer: Optional[User] = None
+    amount_cents: int
+    message: Optional[str] = None
+    status: Literal['pending', 'accepted', 'declined', 'expired'] = 'pending'
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    accepted_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+
+class PartnerRequest(BaseModel):
+    email: str
+    business_name: str
+    business_type: Literal['food', 'textile',  'furniture', 'electronics', 'books', 'sports', 'children', 'other']
+    description: Optional[str] = None
+    estimated_volume: Optional[str] = None
+
+# Stores
+class StoreHours(BaseModel):
+    monday: Optional[str] = None
+    tuesday: Optional[str] = None
+    wednesday: Optional[str] = None
+    thursday: Optional[str] = None
+    friday: Optional[str] = None
+    saturday: Optional[str] = None
+    sunday: Optional[str] = None
+
+class StoreCreate(BaseModel):
+    name: str
+    address: str
+    location: Location
+    category: str
+    logo_url: Optional[str] = None
+    hours: Optional[StoreHours] = None
+    description: Optional[str] = None
+    website: Optional[str] = None
+
+class Store(BaseModel):
+    id: str
+    name: str
+    address: str
+    location: Location
+    category: str
+    logo_url: Optional[str] = None
+    hours: Optional[StoreHours] = None
+    description: Optional[str] = None
+    website: Optional[str] = None
+    followers_count: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class PartnerApplication(BaseModel):
+    id: str
+    email: str
+    business_name: str
+    business_type: str
+    contact_name: str
+    contact_email: str
+    contact_phone: str
+    hours: Optional[StoreHours] = None
+    description: Optional[str] = None
+    website: Optional[str] = None
+    estimated_volume: Optional[str] = None
+    status: Literal['pending', 'approved', 'rejected'] = 'pending'
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class StoreFollower(BaseModel):
+    id: str
+    user_id: str
+    store_id: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class Sponsor(BaseModel):
+    id: str
+    name: str
+    logo_url: str  # URL ou base64 du logo
+    message: str  # Message de sponsoring
+    website: Optional[str] = None
+    display_count: int = 0  # Nombre de fois affiché pour rotation équitable
+    active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class CounterOfferUpdate(BaseModel):
+    amount_cents: int
+    message: Optional[str] = None
+
+# Rental Booking Models
+class BookingCreate(BaseModel):
+    item_id: str
+    start_date: str  # ISO format date string YYYY-MM-DD
+    end_date: str    # ISO format date string YYYY-MM-DD
+    message: Optional[str] = None
+
+class Booking(BaseModel):
+    id: str
+    item_id: str
+    renter_id: str
+    owner_id: str
+    start_date: str  # ISO format date string
+    end_date: str    # ISO format date string
+    status: Literal['pending', 'accepted', 'declined', 'cancelled', 'completed'] = 'pending'
+    total_price_cents: int
+    deposit_cents: int
+    message: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = None
+    item: Optional[Item] = None
+    renter: Optional[User] = None
+
+# Wallet Models
+class Transaction(BaseModel):
+    id: str
+    user_id: str
+    amount_cents: int  # Positive for credit, negative for debit
+    type: Literal['sale', 'rental', 'withdrawal', 'refund', 'deposit']
+    status: Literal['pending', 'completed', 'failed'] = 'completed'
+    reference_id: Optional[str] = None  # Order ID, Booking ID, or Withdrawal ID
+    description: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class WithdrawalRequest(BaseModel):
+    amount_cents: int
+    iban: str
+    bic: str
+    account_holder_name: str
+
+class Withdrawal(BaseModel):
+    id: str
+    user_id: str
+    amount_cents: int
+    status: Literal['pending', 'processing', 'completed', 'failed'] = 'pending'
+    iban: str
+    bic: str
+    account_holder_name: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    processed_at: Optional[datetime] = None
+
+class SavedSearchCreate(BaseModel):
+    query: Optional[str] = None
+    category: Optional[str] = None
+    filters: Optional[dict] = None  # JSON object for other filters
+    alert_enabled: bool = True
+
+class SavedSearch(BaseModel):
+    id: str
+    user_id: str
+    query: Optional[str] = None
+    category: Optional[str] = None
+    filters: Optional[dict] = None
+    alert_enabled: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class PublicListCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    item_ids: List[str] = []
+
+class PublicList(BaseModel):
+    id: str
+    user_id: str
+    name: str
+    description: Optional[str] = None
+    item_ids: List[str] = []
+    created_at: datetime = Field(default_factory=datetime.utcnow)

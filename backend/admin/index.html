@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yondly Admin</title>
+    <link rel="stylesheet" href="./styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-container">
+        <div class="login-bg"></div>
+        <div class="login-card">
+            <div class="login-logo">
+                <span class="logo-icon">🌱</span>
+                <h1>Yondly</h1>
+                <span class="logo-badge">ADMIN</span>
+            </div>
+
+            <form id="login-form">
+                <div class="input-group">
+                    <i class="fas fa-envelope"></i>
+                    <input type="email" id="login-email" placeholder="Email" required>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="login-password" placeholder="Mot de passe" required>
+                </div>
+                <button type="submit" class="btn-login">
+                    <span>Se connecter</span>
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+            </form>
+
+            <p class="login-hint">admin@yondly.com / admin123</p>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="dashboard hidden">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <img src="./logo.png" alt="Yondly" class="brand-logo" style="height: 32px; width: auto;">
+                <span class="brand-text">Yondly</span>
+            </div>
+
+            <nav class="nav-menu">
+                <div class="nav-section">
+                    <span class="nav-section-title">Principal</span>
+                    <a href="#" class="nav-link active" data-page="overview">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="zones">
+                        <i class="fas fa-map-marked-alt"></i>
+                        <span>Zones</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="users">
+                        <i class="fas fa-users"></i>
+                        <span>Utilisateurs</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="pros">
+                        <i class="fas fa-store"></i>
+                        <span>Pros (DSA)</span>
+                        <span class="nav-badge new">DSA</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <span class="nav-section-title">Données</span>
+                    <a href="#" class="nav-link" data-page="data-dictionary">
+                        <i class="fas fa-book"></i>
+                        <span>Data Dictionary</span>
+                        <span class="nav-badge new">NEW</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="events">
+                        <i class="fas fa-stream"></i>
+                        <span>Event Explorer</span>
+                        <span class="nav-badge new">NEW</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <span class="nav-section-title">Exports Collectivités</span>
+                    <a href="#" class="nav-link" data-page="aggregation-builder">
+                        <i class="fas fa-cogs"></i>
+                        <span>Aggregation Builder</span>
+                        <span class="nav-badge new">NEW</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="export-center">
+                        <i class="fas fa-file-export"></i>
+                        <span>Export Center</span>
+                        <span class="nav-badge new">NEW</span>
+                    </a>
+                    <a href="./collectivites.html" class="nav-link"
+                        style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;">
+                        <i class="fas fa-city"></i>
+                        <span>📊 Collectivités</span>
+                    </a>
+                    <a href="./kpis.html" class="nav-link" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>📈 KPIs B2G</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="waitlist">
+                        <i class="fas fa-hourglass-half"></i>
+                        <span>Waitlist</span>
+                        <span class="nav-badge new">BETA</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="contact-messages">
+                        <i class="fas fa-comment-alt"></i>
+                        <span>Messages</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="partners">
+                        <i class="fas fa-handshake"></i>
+                        <span>Partenaires</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <span class="nav-section-title">Gestion</span>
+                    <a href="#" class="nav-link" data-page="items">
+                        <i class="fas fa-box"></i>
+                        <span>Annonces</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="disputes">
+                        <i class="fas fa-gavel"></i>
+                        <span>Litiges</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="safety-logs">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Sécurité & Trust</span>
+                        <span class="nav-badge new">NEW</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="impact">
+                        <i class="fas fa-leaf"></i>
+                        <span>Impact CO2</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <span class="nav-section-title">PRO Module</span>
+                    <a href="#" class="nav-link" data-page="pro-verifications">
+                        <i class="fas fa-user-check"></i>
+                        <span>Vérifications PRO</span>
+                        <span class="nav-badge warning" id="pending-verif-badge">0</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="pro-offers">
+                        <i class="fas fa-store"></i>
+                        <span>Offres PRO</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="pro-transparency">
+                        <i class="fas fa-balance-scale"></i>
+                        <span>Transparence DSA</span>
+                    </a>
+                    <a href="#" class="nav-link" data-page="dac7-exports">
+                        <i class="fas fa-file-export"></i>
+                        <span>Exports DAC7</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <span class="nav-section-title">Gouvernance</span>
+                    <a href="#" class="nav-link" data-page="audit-logs">
+                        <i class="fas fa-history"></i>
+                        <span>Audit Logs</span>
+                        <span class="nav-badge new">NEW</span>
+                    </a>
+
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar">A</div>
+                    <div class="user-details">
+                        <span class="user-name">Admin</span>
+                        <span class="user-role">Super Admin</span>
+                    </div>
+                </div>
+                <button id="logout-btn" class="btn-icon">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main">
+            <header class="header">
+                <div class="header-left">
+                    <button class="btn-menu" id="menu-toggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 id="page-title">Dashboard</h1>
+                </div>
+                <div class="header-right">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Rechercher...">
+                    </div>
+                    <button class="btn-icon notification">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">3</span>
+                    </button>
+                    <button class="btn-icon" onclick="handleLogout()" title="Se déconnecter">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="content">
+                <!-- Overview -->
+                <section id="page-overview" class="page active">
+                    <div class="stats-row">
+                        <div class="stat-card gradient-1">
+                            <div class="stat-icon"><i class="fas fa-users"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="total-users">0</span>
+                                <span class="stat-label">Utilisateurs</span>
+                            </div>
+                            <div class="stat-trend up">
+                                <i class="fas fa-arrow-up"></i> +12%
+                            </div>
+                        </div>
+                        <div class="stat-card gradient-2">
+                            <div class="stat-icon"><i class="fas fa-store"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="total-pros">0</span>
+                                <span class="stat-label">Commerces Pro</span>
+                            </div>
+                            <div class="stat-trend up">
+                                <i class="fas fa-arrow-up"></i> +5%
+                            </div>
+                        </div>
+                        <div class="stat-card gradient-3">
+                            <div class="stat-icon"><i class="fas fa-box"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="total-items">0</span>
+                                <span class="stat-label">Annonces actives</span>
+                            </div>
+                            <div class="stat-trend up">
+                                <i class="fas fa-arrow-up"></i> +23%
+                            </div>
+                        </div>
+                        <div class="stat-card gradient-4">
+                            <div class="stat-icon"><i class="fas fa-leaf"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="total-co2">0kg</span>
+                                <span class="stat-label">CO2 économisé</span>
+                            </div>
+                            <div class="stat-trend up">
+                                <i class="fas fa-arrow-up"></i> +18%
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Zones actives</h3>
+                                <a href="#" class="link" onclick="navigateTo('zones')">Voir tout</a>
+                            </div>
+                            <div class="zones-list" id="active-zones-list"></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Activité récente</h3>
+                            </div>
+                            <div class="activity-feed">
+                                <div class="activity-item">
+                                    <div class="activity-icon green"><i class="fas fa-user-plus"></i></div>
+                                    <div class="activity-content">
+                                        <p>Nouvel utilisateur inscrit</p>
+                                        <span>Il y a 5 min</span>
+                                    </div>
+                                </div>
+                                <div class="activity-item">
+                                    <div class="activity-icon blue"><i class="fas fa-shopping-bag"></i></div>
+                                    <div class="activity-content">
+                                        <p>Panier anti-gaspi vendu</p>
+                                        <span>Il y a 12 min</span>
+                                    </div>
+                                </div>
+                                <div class="activity-item">
+                                    <div class="activity-icon purple"><i class="fas fa-store"></i></div>
+                                    <div class="activity-content">
+                                        <p>Nouveau commerce Pro</p>
+                                        <span>Il y a 1h</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pie Charts Row -->
+                    <div class="grid-2" style="margin-top: 24px;">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Utilisateurs par niveau de confiance</h3>
+                            </div>
+                            <div style="height: 250px; display: flex; justify-content: center; align-items: center;">
+                                <canvas id="chart-trust-levels"></canvas>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Annonces par catégorie</h3>
+                            </div>
+                            <div style="height: 250px; display: flex; justify-content: center; align-items: center;">
+                                <canvas id="chart-item-categories"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Zones -->
+                <section id="page-zones" class="page">
+                    <div class="page-actions">
+                        <button class="btn-primary" onclick="showAddZoneModal()">
+                            <i class="fas fa-plus"></i> Ajouter une zone
+                        </button>
+                    </div>
+                    <div class="card">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Zone (EPCI)</th>
+                                    <th>Communes</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="zones-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Users -->
+                <section id="page-users" class="page">
+                    <div class="page-actions">
+                        <div class="search-box large">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="user-search" placeholder="Rechercher un utilisateur...">
+                        </div>
+                    </div>
+                    <div class="card">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Utilisateur</th>
+                                    <th>Email</th>
+                                    <th>Niveau éco</th>
+                                    <th>CO2 économisé</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Waitlist -->
+                <section id="page-waitlist" class="page">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Waitlist (Bêta)</h3>
+                            <button class="btn-sm btn-secondary" onclick="loadWaitlist()">
+                                <i class="fas fa-sync"></i> Actualiser
+                            </button>
+                        </div>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Email</th>
+                                    <th>Ville</th>
+                                    <th>Statut</th>
+                                    <th>Commentaire</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="waitlist-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Contact Messages -->
+                <section id="page-contact-messages" class="page">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Messages de Contact</h3>
+                            <button class="btn-sm btn-secondary" onclick="loadContacts()">
+                                <i class="fas fa-sync"></i> Actualiser
+                            </button>
+                        </div>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Nom</th>
+                                    <th>Email</th>
+                                    <th>Sujet</th>
+                                    <th>Message</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contacts-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Partner Applications -->
+                <section id="page-partners" class="page">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Candidatures Partenaires</h3>
+                            <button class="btn-sm btn-secondary" onclick="loadPartners()">
+                                <i class="fas fa-sync"></i> Actualiser
+                            </button>
+                        </div>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Nom</th>
+                                    <th>Business</th>
+                                    <th>Ville</th>
+                                    <th>Contact</th>
+                                    <th>Message</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="partners-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Pros View -->
+                <main id="view-pros" class="main-content hidden">
+                    <header class="header">
+                        <h2>Commerçants Partenaires</h2>
+                        <div class="header-actions">
+                            <button class="btn-primary" onclick="showAddProModal()">
+                                <i class="fas fa-plus"></i> Nouveau
+                            </button>
+                            <div class="user-menu">
+                                <span class="user-name">Admin</span>
+                                <div class="avatar">A</div>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div class="content-wrapper">
+                        <div class="card">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Entreprise</th>
+                                        <th>SIREN</th>
+                                        <th>Ville</th>
+                                        <th>Statut</th>
+                                        <th>Inscription</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pros-table-body">
+                                    <!-- Pros listing -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </main>
+
+                <!-- Disputes View -->
+                <main id="view-disputes" class="main-content hidden">
+                    <header class="header">
+                        <h2>Gestion des Litiges</h2>
+                        <div class="header-actions">
+                            <div class="user-menu">
+                                <span class="user-name">Admin</span>
+                                <div class="avatar">A</div>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div class="content-wrapper">
+                        <div class="card">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Type</th>
+                                        <th>Plaignant</th>
+                                        <th>Contre</th>
+                                        <th>Montant</th>
+                                        <th>Statut</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="disputes-table-body">
+                                    <!-- Disputes listing -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </main>
+                <!-- Items -->
+                <section id="page-items" class="page">
+                    <div class="page-actions">
+                        <div class="filter-tabs">
+                            <button class="filter-tab active" data-filter="all">Tous</button>
+                            <button class="filter-tab" data-filter="sale">Ventes</button>
+                            <button class="filter-tab" data-filter="donation">Dons</button>
+                            <button class="filter-tab" data-filter="antigaspi">Anti-gaspi</button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Annonce</th>
+                                    <th>Type</th>
+                                    <th>Prix</th>
+                                    <th>Vendeur</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="items-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Impact -->
+                <section id="page-impact" class="page">
+                    <div class="impact-hero">
+                        <div class="impact-main">
+                            <span class="impact-emoji">🌍</span>
+                            <div class="impact-value" id="impact-total">0 kg</div>
+                            <div class="impact-label">CO2 total économisé</div>
+                        </div>
+                    </div>
+
+                    <div class="stats-row">
+                        <div class="stat-card mini">
+                            <span class="stat-emoji">🌳</span>
+                            <div class="stat-info">
+                                <span class="stat-value" id="impact-trees">0</span>
+                                <span class="stat-label">Jours d'arbre</span>
+                            </div>
+                        </div>
+                        <div class="stat-card mini">
+                            <span class="stat-emoji">🚗</span>
+                            <div class="stat-info">
+                                <span class="stat-value" id="impact-car">0</span>
+                                <span class="stat-label">Km évités</span>
+                            </div>
+                        </div>
+                        <div class="stat-card mini">
+                            <span class="stat-emoji">🍽️</span>
+                            <div class="stat-info">
+                                <span class="stat-value" id="impact-meals">0</span>
+                                <span class="stat-label">Repas sauvés</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Répartition par action</h3>
+                        </div>
+                        <div class="impact-bars">
+                            <div class="impact-bar-item">
+                                <div class="bar-label">
+                                    <span>🧺 Paniers anti-gaspi</span>
+                                    <span id="impact-baskets">0</span>
+                                </div>
+                                <div class="bar-track">
+                                    <div class="bar-fill" style="width: 60%"></div>
+                                </div>
+                            </div>
+                            <div class="impact-bar-item">
+                                <div class="bar-label">
+                                    <span>🎁 Dons</span>
+                                    <span id="impact-donations">0</span>
+                                </div>
+                                <div class="bar-track">
+                                    <div class="bar-fill" style="width: 25%"></div>
+                                </div>
+                            </div>
+                            <div class="impact-bar-item">
+                                <div class="bar-label">
+                                    <span>🏷️ Ventes seconde main</span>
+                                    <span id="impact-sales">0</span>
+                                </div>
+                                <div class="bar-track">
+                                    <div class="bar-fill" style="width: 35%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Data Dictionary Page -->
+                <section id="page-data-dictionary" class="page">
+                    <div class="page-actions">
+                        <button class="btn-primary" onclick="seedDataDictionary()">
+                            <i class="fas fa-database"></i> Seed Initial Data
+                        </button>
+                        <button class="btn-secondary" onclick="showAddDictionaryModal()">
+                            <i class="fas fa-plus"></i> Ajouter un champ
+                        </button>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Catalogue des Données</h3>
+                            <div class="filter-tabs">
+                                <button class="filter-tab active" data-filter="all">Tous</button>
+                                <button class="filter-tab" data-filter="EXPORT_SAFE">Export Safe</button>
+                                <button class="filter-tab" data-filter="INTERNAL">Interne</button>
+                                <button class="filter-tab" data-filter="NEVER_EXPORT">Jamais Exporter</button>
+                            </div>
+                        </div>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Champ</th>
+                                    <th>Type</th>
+                                    <th>Collection</th>
+                                    <th>Sensibilité</th>
+                                    <th>Politique</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="data-dictionary-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Event Explorer Page -->
+                <section id="page-events" class="page">
+                    <div class="page-actions">
+                        <div class="filter-group">
+                            <select id="event-type-filter" class="form-select">
+                                <option value="">Tous les types</option>
+                            </select>
+                            <input type="date" id="event-date-from" class="form-input">
+                            <input type="date" id="event-date-to" class="form-input">
+                            <button class="btn-primary" onclick="loadEvents()">
+                                <i class="fas fa-search"></i> Filtrer
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Funnel de Conversion</h3>
+                            </div>
+                            <div id="funnel-chart" class="funnel-container">
+                                <div class="funnel-step">
+                                    <div class="funnel-bar" style="width: 100%"></div>
+                                    <span class="funnel-label">Annonces créées</span>
+                                    <span class="funnel-value" id="funnel-listings">0</span>
+                                </div>
+                                <div class="funnel-step">
+                                    <div class="funnel-bar" style="width: 60%"></div>
+                                    <span class="funnel-label">Réservées</span>
+                                    <span class="funnel-value" id="funnel-reserved">0</span>
+                                </div>
+                                <div class="funnel-step">
+                                    <div class="funnel-bar" style="width: 40%"></div>
+                                    <span class="funnel-label">Complétées</span>
+                                    <span class="funnel-value" id="funnel-completed">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Taux de Conversion</h3>
+                            </div>
+                            <div class="conversion-stats">
+                                <div class="conversion-stat">
+                                    <span class="conversion-value" id="conv-listings-reserved">0%</span>
+                                    <span class="conversion-label">Annonces → Réservées</span>
+                                </div>
+                                <div class="conversion-stat">
+                                    <span class="conversion-value" id="conv-reserved-completed">0%</span>
+                                    <span class="conversion-label">Réservées → Complétées</span>
+                                </div>
+                                <div class="conversion-stat">
+                                    <span class="conversion-value" id="conv-overall">0%</span>
+                                    <span class="conversion-label">Conversion globale</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 20px;">
+                        <div class="card-header">
+                            <h3>Événements récents</h3>
+                            <span class="privacy-badge">
+                                <i class="fas fa-shield-alt"></i> Sans PII
+                            </span>
+                        </div>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Zone</th>
+                                    <th>Date</th>
+                                    <th>Métadonnées</th>
+                                </tr>
+                            </thead>
+                            <tbody id="events-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Aggregation Builder Page -->
+                <section id="page-aggregation-builder" class="page">
+                    <div class="wizard-container">
+                        <div class="wizard-steps">
+                            <div class="wizard-step active" data-step="1">
+                                <span class="step-number">1</span>
+                                <span class="step-label">Période</span>
+                            </div>
+                            <div class="wizard-step" data-step="2">
+                                <span class="step-number">2</span>
+                                <span class="step-label">Géographie</span>
+                            </div>
+                            <div class="wizard-step" data-step="3">
+                                <span class="step-number">3</span>
+                                <span class="step-label">Métriques</span>
+                            </div>
+                            <div class="wizard-step" data-step="4">
+                                <span class="step-number">4</span>
+                                <span class="step-label">Privacy</span>
+                            </div>
+                        </div>
+
+                        <div class="wizard-content">
+                            <!-- Step 1: Period -->
+                            <div id="wizard-step-1" class="wizard-panel active">
+                                <h3>Sélectionnez la période</h3>
+                                <div class="form-group">
+                                    <label>Granularité</label>
+                                    <div class="radio-group">
+                                        <label class="radio-btn">
+                                            <input type="radio" name="period-granularity" value="day"> Jour
+                                        </label>
+                                        <label class="radio-btn active">
+                                            <input type="radio" name="period-granularity" value="week" checked> Semaine
+                                        </label>
+                                        <label class="radio-btn">
+                                            <input type="radio" name="period-granularity" value="month"> Mois
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Nom de l'export</label>
+                                    <input type="text" id="export-name" class="form-input"
+                                        placeholder="Ex: Export Poitiers Q4 2024">
+                                </div>
+                            </div>
+
+                            <!-- Step 2: Geography -->
+                            <div id="wizard-step-2" class="wizard-panel">
+                                <h3>Niveau géographique</h3>
+                                <div class="radio-cards">
+                                    <label class="radio-card">
+                                        <input type="radio" name="geo-level" value="QUARTIER">
+                                        <div class="radio-card-content">
+                                            <i class="fas fa-map-pin"></i>
+                                            <span>Quartier</span>
+                                            <small>Plus précis, seuil k_min plus strict</small>
+                                        </div>
+                                    </label>
+                                    <label class="radio-card active">
+                                        <input type="radio" name="geo-level" value="VILLE" checked>
+                                        <div class="radio-card-content">
+                                            <i class="fas fa-city"></i>
+                                            <span>Ville</span>
+                                            <small>Recommandé pour la plupart des exports</small>
+                                        </div>
+                                    </label>
+                                    <label class="radio-card">
+                                        <input type="radio" name="geo-level" value="EPCI">
+                                        <div class="radio-card-content">
+                                            <i class="fas fa-map"></i>
+                                            <span>EPCI / Métropole</span>
+                                            <small>Vue d'ensemble territoriale</small>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Step 3: Metrics -->
+                            <div id="wizard-step-3" class="wizard-panel">
+                                <h3>Métriques à inclure</h3>
+                                <div id="metrics-checkboxes" class="metrics-grid">
+                                    <!-- Populated via JS -->
+                                </div>
+                            </div>
+
+                            <!-- Step 4: Privacy -->
+                            <div id="wizard-step-4" class="wizard-panel">
+                                <h3>Règles de confidentialité</h3>
+                                <div class="privacy-settings">
+                                    <div class="form-group">
+                                        <label>Seuil k_min (nombre minimum d'actions)</label>
+                                        <input type="number" id="k-min-threshold" class="form-input" value="30" min="10"
+                                            max="100">
+                                        <small>Si une zone a moins de k_min actions, les données seront masquées</small>
+                                    </div>
+                                    <div class="privacy-info">
+                                        <i class="fas fa-info-circle"></i>
+                                        <p>Les exports ne contiennent jamais d'identifiants utilisateurs, emails,
+                                            téléphones, ou coordonnées GPS précises.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="wizard-actions">
+                            <button class="btn-secondary" id="wizard-prev" onclick="wizardPrev()" disabled>
+                                <i class="fas fa-arrow-left"></i> Précédent
+                            </button>
+                            <button class="btn-primary" id="wizard-next" onclick="wizardNext()">
+                                Suivant <i class="fas fa-arrow-right"></i>
+                            </button>
+                            <button class="btn-primary hidden" id="wizard-save" onclick="saveExportDefinition()">
+                                <i class="fas fa-save"></i> Sauvegarder
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Export Center Page -->
+                <section id="page-export-center" class="page">
+                    <div class="page-actions">
+                        <button class="btn-primary" onclick="navigateTo('aggregation-builder')">
+                            <i class="fas fa-plus"></i> Nouvelle définition d'export
+                        </button>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Définitions d'export</h3>
+                            </div>
+                            <div id="export-definitions-list" class="export-list">
+                                <!-- Populated via JS -->
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Exports récents</h3>
+                            </div>
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Définition</th>
+                                        <th>Statut</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="export-runs-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Audit Logs Page -->
+                <section id="page-audit-logs" class="page">
+                    <div class="page-actions">
+                        <div class="filter-group">
+                            <select id="audit-action-filter" class="form-select">
+                                <option value="">Toutes les actions</option>
+                                <option value="CREATE">Création</option>
+                                <option value="UPDATE">Modification</option>
+                                <option value="DELETE">Suppression</option>
+                                <option value="GENERATE_EXPORT">Export généré</option>
+                            </select>
+                            <button class="btn-primary" onclick="loadAuditLogs()">
+                                <i class="fas fa-search"></i> Filtrer
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Journal d'audit</h3>
+                            <span class="privacy-badge internal">
+                                <i class="fas fa-lock"></i> Interne uniquement
+                            </span>
+                        </div>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Admin</th>
+                                    <th>Action</th>
+                                    <th>Cible</th>
+                                    <th>Détails</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-logs-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Safety Logs Page -->
+                <section id="page-safety-logs" class="page">
+                    <div class="page-actions">
+                        <button class="btn-secondary" onclick="loadSafetyLogs()">
+                            <i class="fas fa-sync"></i> Actualiser
+                        </button>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Registre de Sécurité</h3>
+                            <span class="privacy-badge internal">
+                                <i class="fas fa-lock"></i> Trust & Safety
+                            </span>
+                        </div>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Gravité</th>
+                                    <th>Message</th>
+                                    <th>Métadonnées</th>
+                                </tr>
+                            </thead>
+                            <tbody id="safety-logs-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- PRO Verifications Page -->
+                <section id="page-pro-verifications" class="page">
+                    <div class="page-actions">
+                        <select id="verif-status-filter" class="form-select" style="width: 200px;"
+                            onchange="loadProVerifications()">
+                            <option value="">Tous les statuts</option>
+                            <option value="PENDING">En attente</option>
+                            <option value="APPROVED">Approuvés</option>
+                            <option value="REJECTED">Rejetés</option>
+                        </select>
+                        <button class="btn-secondary" onclick="loadProVerifications()">
+                            <i class="fas fa-sync"></i> Actualiser
+                        </button>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Demandes de vérification PRO</h3>
+                            <span class="privacy-badge internal">
+                                <i class="fas fa-store"></i> Module PRO
+                            </span>
+                        </div>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Raison sociale</th>
+                                    <th>SIRET</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pro-verifications-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- PRO Offers Page -->
+                <section id="page-pro-offers" class="page">
+                    <div class="page-actions">
+                        <select id="offer-status-filter" class="form-select" style="width: 200px;"
+                            onchange="loadProOffers()">
+                            <option value="">Tous les statuts</option>
+                            <option value="DRAFT">Brouillon</option>
+                            <option value="PUBLISHED">Publiées</option>
+                            <option value="SUSPENDED">Suspendues</option>
+                        </select>
+                        <select id="offer-type-filter" class="form-select" style="width: 200px;"
+                            onchange="loadProOffers()">
+                            <option value="">Tous les types</option>
+                            <option value="ANTIGASPI_SALE">Anti-gaspi</option>
+                            <option value="RENTAL">Location</option>
+                        </select>
+                        <button class="btn-secondary" onclick="loadProOffers()">
+                            <i class="fas fa-sync"></i> Actualiser
+                        </button>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Offres PRO</h3>
+                        </div>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Titre</th>
+                                    <th>Type</th>
+                                    <th>PRO</th>
+                                    <th>Prix</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pro-offers-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- PRO Transparency Page -->
+                <section id="page-pro-transparency" class="page">
+                    <div class="page-actions">
+                        <button class="btn-primary" onclick="saveTransparency()">
+                            <i class="fas fa-save"></i> Enregistrer
+                        </button>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Textes de transparence (DSA)</h3>
+                            <span class="privacy-badge safe">
+                                <i class="fas fa-globe"></i> Public
+                            </span>
+                        </div>
+                        <div class="form-group" style="margin: 20px;">
+                            <label>Critères de classement des offres</label>
+                            <textarea id="ranking-text" class="form-textarea" rows="10"
+                                style="width: 100%; font-family: monospace;"></textarea>
+                        </div>
+                        <div class="form-group" style="margin: 20px;">
+                            <label>Règles de déréférencement</label>
+                            <textarea id="dereferencing-text" class="form-textarea" rows="10"
+                                style="width: 100%; font-family: monospace;"></textarea>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- DAC7 Exports Page -->
+                <section id="page-dac7-exports" class="page">
+                    <div class="page-actions">
+                        <button class="btn-primary" onclick="generateDac7Export()">
+                            <i class="fas fa-file-export"></i> Générer export DAC7
+                        </button>
+                        <button class="btn-secondary" onclick="loadDac7Jobs()">
+                            <i class="fas fa-sync"></i> Actualiser
+                        </button>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Exports DAC7</h3>
+                            <span class="privacy-badge internal">
+                                <i class="fas fa-file-code"></i> XML Fiscalité
+                            </span>
+                        </div>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Année</th>
+                                    <th>Vendeurs</th>
+                                    <th>Statut</th>
+                                    <th>Hash</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dac7-jobs-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal -->
+    <div id="add-zone-modal" class="modal hidden">
+        <div class="modal-overlay" onclick="closeModal()"></div>
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Ajouter une zone (EPCI)</h2>
+                <button class="btn-icon" onclick="closeModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="add-zone-form" onsubmit="handleAddZoneFromEPCI(event)">
+                <div class="form-group">
+                    <label>Rechercher un EPCI</label>
+                    <input type="text" id="epci-search"
+                        placeholder="Tapez le nom de l'EPCI (ex: Grand Poitiers, Bordeaux...)"
+                        oninput="searchEPCI(this.value)" autocomplete="off" required>
+                    <div id="epci-results" style="position: relative;"></div>
+                </div>
+                <input type="hidden" id="selected-epci-code">
+                <input type="hidden" id="selected-epci-name">
+
+                <div id="epci-preview"
+                    style="display: none; margin: 16px 0; padding: 16px; background: #f0fdf4; border-radius: 12px; border: 1px solid #86efac;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong id="preview-name" style="color: #166534;"></strong>
+                            <div id="preview-pop" style="font-size: 13px; color: #666;"></div>
+                        </div>
+                        <span id="preview-communes"
+                            style="background: #4C7B4B; color: white; padding: 4px 12px; border-radius: 20px; font-size: 13px;"></span>
+                    </div>
+                </div>
+
+                <p style="color: var(--text-muted); font-size: 13px;">
+                    ✨ Les communes seront récupérées automatiquement depuis l'API officielle de l'État.
+                </p>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Annuler</button>
+                    <button type="submit" class="btn-primary" id="create-zone-btn" disabled>
+                        <i class="fas fa-magic"></i> Créer avec communes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Pro Detail Modal -->
+    <div id="pro-detail-modal" class="modal hidden">
+        <div class="modal-overlay" onclick="closeProDetailModal()"></div>
+        <div class="modal-content"
+            style="max-width: 800px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h2 id="pro-detail-title">Détails du Pro</h2>
+                <button class="btn-icon" onclick="closeProDetailModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="pro-detail-content" style="overflow-y: auto; flex: 1; padding: 20px;">
+                <!-- Content injected via JS -->
+                <div style="display: flex; justify-content: center; padding: 40px;">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- Detail Modal -->
+    <div id="detail-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal"
+                onclick="document.getElementById('detail-modal').classList.add('hidden')">&times;</span>
+            <h2 id="modal-title">Détails</h2>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js?v=7"></script>
+</body>
+
+</html>

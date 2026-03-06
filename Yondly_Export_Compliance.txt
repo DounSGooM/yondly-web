@@ -1,0 +1,66 @@
+================================================================================
+                    EXPORT COMPLIANCE STATEMENT
+                         FOR YONDLY APPLICATION
+================================================================================
+
+Application Information
+-----------------------
+App Name:           Yondly
+Bundle Identifier:  com.yondly.app
+Version:            1.0.0
+Developer:          Gérald LAGAVILLE
+Company:            Individual Developer
+Country:            France
+Date:               January 11, 2026
+
+================================================================================
+
+ENCRYPTION DECLARATION
+----------------------
+
+This document certifies that the Yondly mobile application uses ONLY standard 
+encryption technologies that are exempt from export restrictions under the 
+Export Administration Regulations (EAR).
+
+ENCRYPTION TECHNOLOGIES USED:
+-----------------------------
+
+1. HTTPS/TLS Protocol
+   - Used for secure communication with backend servers
+   - Standard SSL/TLS encryption provided by iOS operating system
+   - No custom implementation
+
+2. Apple iOS Built-in Encryption
+   - Keychain Services for secure credential storage
+   - Standard iOS data protection APIs
+   - No proprietary encryption algorithms
+
+DECLARATION:
+------------
+
+The Yondly application:
+
+✓ Does NOT contain any proprietary or custom encryption algorithms
+✓ Does NOT implement any non-standard cryptographic functionality
+✓ Uses ONLY encryption provided by the iOS operating system
+✓ Uses ONLY standard HTTPS/TLS for network communications
+✓ Is NOT designed for military, government, or classified use
+✓ Does NOT require an export license under EAR
+
+ECCN CLASSIFICATION:
+--------------------
+
+Based on the above, this application qualifies for the encryption exemption 
+under License Exception ENC (§740.17) as mass market software with encryption 
+limited to standard protocols (HTTPS/TLS).
+
+================================================================================
+
+Signed electronically by:
+Gérald LAGAVILLE
+Developer & Owner
+lagaville.gerald@outlook.fr
+
+Date: January 11, 2026
+
+================================================================================
