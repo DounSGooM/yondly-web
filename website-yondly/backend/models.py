@@ -116,3 +116,60 @@ class ContactEntry(BaseModel):
     message: str
     rgpd_consent: bool = True
     created_at: datetime = Field(default_factory=get_current_time)
+
+
+# ============ BLOG MODELS ============
+
+class BlogPostCreate(BaseModel):
+    title: str
+    slug: str
+    excerpt: str
+    content: str
+    image: str
+    category: str
+    author: str
+    read_time: str
+    date: str
+    keywords: str
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "title": "Comment réduire ses déchets ?",
+                "slug": "comment-reduire-ses-dechets",
+                "excerpt": "Des astuces simples pour...",
+                "content": "<p>Contenu de l'article...</p>",
+                "image": "https://...",
+                "category": "Astuces",
+                "author": "Sophie",
+                "read_time": "5 min",
+                "date": "10 Oct 2025",
+                "keywords": "déchets, écologie"
+            }
+        }
+
+class BlogPostUpdate(BaseModel):
+    title: Optional[str] = None
+    slug: Optional[str] = None
+    excerpt: Optional[str] = None
+    content: Optional[str] = None
+    image: Optional[str] = None
+    category: Optional[str] = None
+    author: Optional[str] = None
+    read_time: Optional[str] = None
+    date: Optional[str] = None
+    keywords: Optional[str] = None
+
+class BlogPost(BaseModel):
+    id: str = Field(default_factory=generate_id)
+    title: str
+    slug: str
+    excerpt: str
+    content: str
+    image: str
+    category: str
+    author: str
+    read_time: str
+    date: str
+    keywords: str
+    created_at: datetime = Field(default_factory=get_current_time)

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import QRCode from 'react-native-qrcode-svg';
+import StyledQRCode from '../src/components/StyledQRCode';
 import axios from 'axios';
 import { useAuthStore } from '../src/store/authStore';
 import SponsorModal from '../src/components/SponsorModal';
@@ -298,7 +298,7 @@ export default function OrderDetailScreen() {
             <View style={styles.qrCard}>
               {activeCode ? (
                 <>
-                  <QRCode value={activeCode} size={200} />
+                  <StyledQRCode value={activeCode} size={180} />
                   <Text style={styles.qrCode}>{activeCode}</Text>
                   <Text style={styles.qrHint}>
                     Présentez ce code au vendeur.

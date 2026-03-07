@@ -41,6 +41,8 @@ async def handle_stripe_webhook(request: Request, db, stripe_config: dict):
     
     if event_type == 'payment_intent.succeeded':
         await handle_payment_succeeded(db, event_data)
+    elif event_type == 'checkout.session.completed':
+        await handle_checkout_completed(db, event_data)
     elif event_type == 'payment_intent.payment_failed':
         await handle_payment_failed(db, event_data)
     elif event_type == 'charge.refunded':
@@ -148,6 +150,55 @@ async def handle_payment_succeeded(db, payment_intent):
 
     else:
         logger.warning("Payment succeeded but no order_id or rental_id in metadata")
+
+
+from datetime import timedelta
+
+async def handle_checkout_completed(db, session):
+    """Handle successful checkout session (e.g. for paid boosts)."""
+    metadata = session.get('metadata', {})
+    if metadata.get('type') == 'pay_boost':
+        item_id = metadata.get('item_id')
+        user_id = metadata.get('user_id')
+        pack = int(metadata.get('boost_pack', 1))
+        
+        if not item_id or not user_id:
+            logger.error("Missing item_id or user_id in boost checkout metadata")
+            return
+            
+        item = await db.items.find_one({"id": item_id})
+        if not item:
+            logger.error(f"Item {item_id} not found for boost payment")
+            return
+            
+        # Add 7 days per boost in the pack
+        boost_duration = timedelta(days=7 * pack)
+        current_boost = item.get("boosted_until")
+        now = datetime.utcnow()
+        
+        if current_boost and current_boost > now:
+            new_boost_until = current_boost + boost_duration
+        else:
+            new_boost_until = now + boost_duration
+            
+        await db.items.update_one(
+            {"id": item_id},
+            {"$set": {"boosted_until": new_boost_until}}
+        )
+        
+        # Notify the user
+        await db.notifications.insert_one({
+            "user_id": user_id,
+            "type": "boost_applied",
+            "title": "Annonce boostée ! 🚀",
+            "message": f"Votre annonce '{item['title']}' sera mise en avant jusqu'au {new_boost_until.strftime('%d/%m/%Y')}.",
+            "item_id": item_id,
+            "read": False,
+            "created_at": now
+        })
+        
+        logger.info(f"Paid boost ({pack}x) applied for item {item_id}")
+
 
 
 async def handle_payment_failed(db, payment_intent):

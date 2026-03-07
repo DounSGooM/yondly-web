@@ -22,7 +22,7 @@ import { ItemType } from '../../src/types';
 import { API_URL } from '../../src/config/api';
 import ScreenHeader from '../../src/components/ScreenHeader';
 
-const CATEGORIES = ['Maison', 'Textile', 'Livres', 'Sport', 'Électronique', 'Enfants', 'Autre'];
+const CATEGORIES = ['Maison', 'Vêtements', 'Électronique', 'Multimédia', 'Véhicules', 'Sport', 'Livres', 'Enfants', 'Jeux & Jouets', 'Jardin', 'Bricolage', 'Beauté', 'Animaux', 'Musique', 'Mobilier', 'Autre'];
 type Condition = 'new' | 'good' | 'repair';
 
 export default function PostMarketScreen() {
@@ -36,6 +36,7 @@ export default function PostMarketScreen() {
   const [condition, setCondition] = useState<Condition>('good');
   const [photos, setPhotos] = useState<string[]>([]);
   const [title, setTitle] = useState('');
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
   // Step 2
   const [priceEuros, setPriceEuros] = useState('10');
@@ -260,27 +261,48 @@ export default function PostMarketScreen() {
         {step === 1 && (
           <View>
             <Text style={styles.label}>Catégorie *</Text>
-            <View style={styles.categoryGrid}>
-              {CATEGORIES.map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  style={[
-                    styles.categoryButton,
-                    category === cat && styles.categoryButtonActive,
-                  ]}
-                  onPress={() => setCategory(cat)}
-                >
-                  <Text
-                    style={[
-                      styles.categoryText,
-                      category === cat && styles.categoryTextActive,
-                    ]}
-                  >
-                    {cat}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => setShowCategoryDropdown(!showCategoryDropdown)}
+            >
+              <Text style={styles.dropdownButtonText}>{category}</Text>
+              <Ionicons
+                name={showCategoryDropdown ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color="#666"
+              />
+            </TouchableOpacity>
+            {showCategoryDropdown && (
+              <View style={styles.dropdownMenu}>
+                <ScrollView style={{ maxHeight: 250 }} showsVerticalScrollIndicator={false}>
+                  {CATEGORIES.map((cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[
+                        styles.dropdownItem,
+                        category === cat && styles.dropdownItemActive,
+                      ]}
+                      onPress={() => {
+                        setCategory(cat);
+                        setShowCategoryDropdown(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          category === cat && styles.dropdownItemTextActive,
+                        ]}
+                      >
+                        {cat}
+                      </Text>
+                      {category === cat && (
+                        <Ionicons name="checkmark" size={18} color="#4C7B4B" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             <Text style={styles.label}>État *</Text>
             <View style={styles.conditionButtons}>
@@ -515,30 +537,54 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 16,
   },
-  categoryGrid: {
+  dropdownButton: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  categoryButton: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
     borderWidth: 2,
     borderColor: '#e0e0e0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  categoryButtonActive: {
-    borderColor: '#4C7B4B',
+  dropdownButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+  },
+  dropdownMenu: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    marginTop: 4,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  dropdownItemActive: {
     backgroundColor: '#e8f5e9',
   },
-  categoryText: {
-    fontSize: 13,
-    color: '#666',
-    fontWeight: '500',
+  dropdownItemText: {
+    fontSize: 15,
+    color: '#333',
   },
-  categoryTextActive: {
+  dropdownItemTextActive: {
     color: '#4C7B4B',
+    fontWeight: '600',
   },
   conditionButtons: {
     flexDirection: 'row',

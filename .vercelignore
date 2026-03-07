@@ -1,0 +1,23 @@
+
+# Vercel Ignore File
+.git
+.DS_Store
+
+# Ignore huge node_modules directories
+node_modules
+**/node_modules
+
+# Ignore build artifacts
+build
+dist
+.next
+.vercel
+
+# Ignore the mobile app folder (we only deploy website-yondly & backend)
+frontend
+
+# Ignore Python caches
+__pycache__
+*.pyc
+.venv
+venv

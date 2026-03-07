@@ -1,74 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Cookie, Check, X } from 'lucide-react';
-import { Button } from '../components/ui/button';
+import React from 'react';
 import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 
-// Cookie Banner Component (exportable)
-export const CookieBanner = () => {
-  const [showBanner, setShowBanner] = useState(false);
 
-  useEffect(() => {
-    const consent = localStorage.getItem('yondly_cookie_consent');
-    if (!consent) {
-      setShowBanner(true);
-    }
-  }, []);
-
-  const acceptCookies = () => {
-    localStorage.setItem('yondly_cookie_consent', 'accepted');
-    setShowBanner(false);
-  };
-
-  const refuseCookies = () => {
-    localStorage.setItem('yondly_cookie_consent', 'refused');
-    setShowBanner(false);
-  };
-
-  if (!showBanner) return null;
-
-  return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 p-4">
-      <div className="container-main">
-        <div className="bg-white rounded-2xl shadow-xl border border-[var(--border-light)] p-6 max-w-3xl mx-auto">
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-            <div className="flex items-start gap-4 flex-1">
-              <div className="w-10 h-10 rounded-xl bg-[var(--accent-wash)] flex items-center justify-center flex-shrink-0">
-                <Cookie className="w-5 h-5 text-[var(--accent-strong)]" />
-              </div>
-              <div>
-                <p className="text-sm text-[var(--text-body)] mb-1">
-                  Nous utilisons des cookies pour améliorer votre expérience.
-                </p>
-                <a
-                  href="/cookies"
-                  className="text-sm text-[var(--accent-strong)] hover:underline"
-                >
-                  En savoir plus
-                </a>
-              </div>
-            </div>
-            <div className="flex gap-2 w-full md:w-auto">
-              <Button
-                variant="outline"
-                onClick={refuseCookies}
-                className="btn-secondary flex-1 md:flex-none h-10 px-4 text-sm"
-              >
-                Refuser
-              </Button>
-              <Button
-                onClick={acceptCookies}
-                className="btn-primary flex-1 md:flex-none h-10 px-4 text-sm"
-              >
-                Accepter
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // Cookies Page Component
 const Cookies = () => {

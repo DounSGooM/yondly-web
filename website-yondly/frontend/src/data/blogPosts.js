@@ -67,7 +67,7 @@ export const blogPosts = [
       </ol>
       <p>Le don alimentaire entre particuliers est la clé d'une consommation plus responsable et humaine. Rejoignez le mouvement !</p>
     `,
-    image: '/assets/blog_antigaspi.jpg',
+    image: '/assets/blog_antigaspi.png',
     category: 'Astuces',
     author: 'L\'équipe Yondly',
     date: '12 Jan 2026',
@@ -111,7 +111,7 @@ export const blogPosts = [
       <h2>Comment s'y mettre dès aujourd'hui ?</h2>
       <p>Commencez petit. Regardez autour de vous. Ce livre que vous avez lu et adoré ? Ce mixeur reçu en double ? Prenez une photo. Mettez-les sur Yondly. Vous serez surpris de la rapidité avec laquelle ça part, et du sourire de la personne qui viendra le chercher.</p>
     `,
-    image: '/assets/blog_local.jpg',
+    image: '/assets/blog_local.png',
     category: 'Société',
     author: 'L\'équipe Yondly',
     date: '10 Jan 2026',
@@ -161,7 +161,7 @@ export const blogPosts = [
       <p>Les premiers utilisateurs d'une plateforme définissent sa culture. En nous rejoignant aujourd'hui, vous posez les bases d'une communauté bienveillante, locale et responsable. Parlez-en à vos voisins, à vos amis, à vos commerçants.</p>
       <p>Bienvenue dans l'aventure Yondly. 🚀</p>
     `,
-    image: '/assets/blog_launch.jpg',
+    image: '/assets/blog_launch.png',
     category: 'Yondly News',
     author: 'L\'équipe Yondly',
     date: '01 Jan 2026',

@@ -128,7 +128,13 @@ export default function StoreDetailScreen() {
     }
   };
 
-  const handleOrder = (deal: Deal) => {
+  /* SUSPENDED BASKETS - TEMPORARILY DISABLED
+  const handleClaim = async (deal: Deal) => {
+    // ... claim suspended basket logic ...
+  };
+  */
+
+  const handleOrder = (deal: Deal, isGift: boolean = false) => {
     if (!user) {
       Alert.alert(
         "Connexion requise",
@@ -144,7 +150,7 @@ export default function StoreDetailScreen() {
     const price = deal.deal_price ? (deal.deal_price / 100).toFixed(2) : '0.00';
 
     // Navigate to payment screen instead of direct order
-    router.push(`/order/payment?dealId=${deal.id}`);
+    router.push(`/order/payment?dealId=${deal.id}&isGift=${isGift}`);
   };
 
   const getTimeRemaining = (expiresAt: string) => {
@@ -281,10 +287,9 @@ export default function StoreDetailScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Deals actifs ({store.deals.length})</Text>
               {store.deals.map((deal: Deal) => (
-                <TouchableOpacity
+                <View
                   key={deal.id}
                   style={styles.dealCard}
-                  onPress={() => handleOrder(deal)}
                 >
                   <View style={styles.dealHeader}>
                     <Text style={styles.dealTitle}>{deal.title}</Text>
@@ -312,12 +317,39 @@ export default function StoreDetailScreen() {
                         </Text>
                       </View>
                     )}
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={[styles.dealExpiry, { marginRight: 8 }]}>{getTimeRemaining(deal.expires_at)}</Text>
-                      <Ionicons name="cart-outline" size={20} color="#4C7B4B" />
-                    </View>
+                    <Text style={[styles.dealExpiry, { marginRight: 8 }]}>{getTimeRemaining(deal.expires_at)}</Text>
                   </View>
-                </TouchableOpacity>
+
+                  {/* Actions Row */}
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                    <TouchableOpacity
+                      style={[styles.actionButton, { backgroundColor: '#4C7B4B', flex: 1 }]}
+                      onPress={() => handleOrder(deal, false)}
+                    >
+                      <Text style={{ color: 'white', fontWeight: 'bold' }}>Acheter</Text>
+                    </TouchableOpacity>
+
+                    {/* SUSPENDED BASKETS - TEMPORARILY DISABLED
+                    {deal.allow_suspension && (
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: '#E57373', flex: 1 }]}
+                        onPress={() => handleOrder(deal, true)}
+                      >
+                        <Text style={{ color: 'white', fontWeight: 'bold' }}>Offrir 🎁</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {user?.is_association && user?.association_verified && deal.suspended_available && deal.suspended_available > 0 && (
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: '#4FC3F7', flex: 1 }]}
+                        onPress={() => handleClaim(deal)}
+                      >
+                        <Text style={{ color: 'white', fontWeight: 'bold' }}>Récupérer ({deal.suspended_available})</Text>
+                      </TouchableOpacity>
+                    )}
+                    */}
+                  </View>
+                </View>
               ))}
             </View>
           )}

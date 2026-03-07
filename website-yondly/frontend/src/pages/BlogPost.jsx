@@ -1,22 +1,43 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, Calendar, Share2, Facebook, Twitter, Linkedin } from 'lucide-react';
+import { ArrowLeft, Clock, Calendar, Share2, Facebook, Twitter, Linkedin, Loader2 } from 'lucide-react';
 import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 import SEO from '../components/shared/SEO';
-import { blogPosts } from '../data/blogPosts';
+import { blogService } from '../services/blogService';
 import { Button } from '../components/ui/button';
 
 const BlogPost = () => {
     const { slug } = useParams();
     const navigate = useNavigate();
-    const post = blogPosts.find((p) => p.slug === slug);
+    const [post, setPost] = useState(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!post) {
-            navigate('/blog'); // Redirect if not found
-        }
-    }, [post, navigate]);
+        const fetchPost = async () => {
+            try {
+                const posts = await blogService.getAll();
+                const foundPost = posts.find(p => p.slug === slug);
+                if (foundPost) {
+                    setPost(foundPost);
+                } else {
+                    navigate('/blog');
+                }
+            } catch (error) {
+                console.error('Failed to load blog post:', error);
+                navigate('/blog');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchPost();
+    }, [slug, navigate]);
+
+    if (loading) return (
+        <div className="min-h-screen flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[var(--accent-primary)]" />
+        </div>
+    );
 
     if (!post) return null;
 
@@ -78,7 +99,7 @@ const BlogPost = () => {
                                 <Calendar className="w-4 h-4" /> {post.date}
                             </span>
                             <span className="flex items-center gap-1">
-                                <Clock className="w-4 h-4" /> {post.readTime}
+                                <Clock className="w-4 h-4" /> {post.read_time || post.readTime}
                             </span>
                         </div>
 
@@ -98,11 +119,14 @@ const BlogPost = () => {
                         </div>
                     </div>
 
-                    {/* Featured Image (Placeholder style) */}
-                    <div className="w-full h-[400px] bg-gradient-to-tr from-gray-200 to-gray-100 rounded-[2rem] mb-12 flex items-center justify-center relative overflow-hidden shadow-lg">
-                        {/* If real image exists, we would use <img> tag here */}
-                        <div className="text-6xl opacity-20">🖼️</div>
-                        <div className="absolute inset-0 bg-black/5"></div>
+                    {/* Featured Image */}
+                    <div className="w-full h-[300px] md:h-[500px] rounded-[2rem] mb-12 relative overflow-hidden shadow-xl shadow-green-900/5 group">
+                        <img
+                            src={post.image}
+                            alt={post.title}
+                            className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
                     </div>
 
                     {/* Content */}

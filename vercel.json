@@ -19,8 +19,11 @@
             "dest": "/backend/api/index.py"
         },
         {
+            "handle": "filesystem"
+        },
+        {
             "src": "/(.*)",
-            "dest": "/website-yondly/frontend/$1"
+            "dest": "/website-yondly/frontend/package.json"
         }
     ]
 }

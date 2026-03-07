@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import QRCode from 'react-native-qrcode-svg';
+import StyledQRCode from '../../src/components/StyledQRCode';
 import axios from 'axios';
 import { useAuthStore } from '../../src/store/authStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -89,11 +89,9 @@ export default function OrderSuccessScreen() {
 
                 <View style={styles.qrContainer}>
                     {order.handoff?.code && (
-                        <QRCode
+                        <StyledQRCode
                             value={order.handoff.code}
-                            size={200}
-                            color="black"
-                            backgroundColor="white"
+                            size={180}
                         />
                     )}
                 </View>

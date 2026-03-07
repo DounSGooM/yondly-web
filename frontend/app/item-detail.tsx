@@ -23,6 +23,7 @@ import ScreenHeader from '../src/components/ScreenHeader';
 import CO2Badge from '../src/components/CO2Badge';
 import { getLevelBadge } from '../src/utils/levelBadges';
 import AddToInspirationModal from '../src/components/AddToInspirationModal';
+import LevelRestrictedAction from '../src/components/LevelRestrictedAction';
 
 import { API_URL } from '../src/config/api';
 import { getProximityLabel } from '../src/utils/locationUtils';
@@ -325,7 +326,7 @@ export default function ItemDetailScreen() {
         }
       />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}>
         <View style={styles.imageContainer}>
           {item.photos && item.photos.length > 0 ? (
             <Image
@@ -342,7 +343,6 @@ export default function ItemDetailScreen() {
               />
             </View>
           )}
-          <View style={styles.imageOverlay} />
         </View>
 
         <View style={styles.content}>
@@ -386,7 +386,7 @@ export default function ItemDetailScreen() {
             <View style={styles.tag}>
               <Text style={styles.tagText}>{item.category}</Text>
             </View>
-            {item.expires_at && (
+            {item.expires_at && isDonation && (
               <View style={[styles.tag, styles.urgentTag]}>
                 <Text style={styles.urgentText}>{getTimeRemaining(item.expires_at)}</Text>
               </View>
@@ -555,93 +555,97 @@ export default function ItemDetailScreen() {
         onClose={() => setShowInspirationModal(false)}
       />
 
-      {item.type === 'rent' && (
-        <BookingCalendar
-          visible={showBookingCalendar}
-          onClose={() => setShowBookingCalendar(false)}
-          item_id={item.id}
-          price_per_day_cents={item.price_per_day_cents || 0}
-          deposit_cents={item.deposit_cents || 0}
-          token={token || ''}
-          onBookingComplete={() => {
-            fetchItem();
-          }}
-        />
-      )}
+      {
+        item.type === 'rent' && (
+          <BookingCalendar
+            visible={showBookingCalendar}
+            onClose={() => setShowBookingCalendar(false)}
+            item_id={item.id}
+            price_per_day_cents={item.price_per_day_cents || 0}
+            deposit_cents={item.deposit_cents || 0}
+            token={token || ''}
+            onBookingComplete={() => {
+              fetchItem();
+            }}
+          />
+        )
+      }
 
-      {item.status === 'active' && (
-        <View style={styles.footer}>
-          {isDonation ? (
-            // For food donations
-            item.owner_id === user?.id ? (
-              <View style={styles.ownerFooterInfo}>
-                <Text style={styles.ownerInfoText}>✅ C'est votre annonce</Text>
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.actionButton} onPress={handlePickup}>
-                <Ionicons name="hand-right" size={24} color="#fff" />
-                <Text style={styles.actionButtonText}>Demander à récupérer</Text>
-              </TouchableOpacity>
-            )
-          ) : (
-            // For rentals or sales
-            item.owner_id === user?.id ? (
-              <View style={styles.ownerFooterInfo}>
-                <Text style={styles.ownerInfoText}>✅ C'est votre annonce</Text>
-              </View>
-            ) : myAcceptedOffer ? (
-              // Offre acceptée
-              <View style={styles.acceptedOfferContainer}>
-                <View style={styles.acceptedOfferInfo}>
-                  <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
-                  <View style={styles.acceptedOfferText}>
-                    <Text style={styles.acceptedOfferTitle}>
-                      ✅ Votre offre a été acceptée !
-                    </Text>
-                    <Text style={styles.acceptedOfferPrice}>
-                      {(myAcceptedOffer.amount_cents / 100).toFixed(2)}€
-                    </Text>
-                    <Text style={styles.acceptedOfferTimer}>
-                      Paiement requis: {getTimeRemaining()}
-                    </Text>
-                  </View>
+      {
+        item.status === 'active' && (
+          <View style={styles.footer}>
+            {isDonation ? (
+              // For food donations
+              item.owner_id === user?.id ? (
+                <View style={styles.ownerFooterInfo}>
+                  <Text style={styles.ownerInfoText}>✅ C'est votre annonce</Text>
                 </View>
-
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.payButton]}
-                  onPress={handleBuy}
-                >
-                  <Text style={styles.actionButtonText}>Payer maintenant</Text>
+              ) : (
+                <TouchableOpacity style={styles.actionButton} onPress={handlePickup}>
+                  <Ionicons name="hand-right" size={24} color="#fff" />
+                  <Text style={styles.actionButtonText}>Demander à récupérer</Text>
                 </TouchableOpacity>
-              </View>
+              )
             ) : (
-              // Standard View (Sale or Rent)
-              <View style={styles.footerActions}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.secondaryButton]}
-                  onPress={() => setShowOfferModal(true)}
-                >
-                  <Ionicons name="pricetag-outline" size={24} color="#4C7B4B" />
-                  <Text style={styles.secondaryButtonText}>
-                    {item.type === 'rent' ? 'Négocier' : 'Faire une offre'}
-                  </Text>
-                </TouchableOpacity>
+              // For rentals or sales
+              item.owner_id === user?.id ? (
+                <View style={styles.ownerFooterInfo}>
+                  <Text style={styles.ownerInfoText}>✅ C'est votre annonce</Text>
+                </View>
+              ) : myAcceptedOffer ? (
+                // Offre acceptée
+                <View style={styles.acceptedOfferContainer}>
+                  <View style={styles.acceptedOfferInfo}>
+                    <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
+                    <View style={styles.acceptedOfferText}>
+                      <Text style={styles.acceptedOfferTitle}>
+                        ✅ Votre offre a été acceptée !
+                      </Text>
+                      <Text style={styles.acceptedOfferPrice}>
+                        {(myAcceptedOffer.amount_cents / 100).toFixed(2)}€
+                      </Text>
+                      <Text style={styles.acceptedOfferTimer}>
+                        Paiement requis: {getTimeRemaining()}
+                      </Text>
+                    </View>
+                  </View>
 
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.primaryButton]}
-                  onPress={handleBuy}
-                >
-                  <Ionicons name={item.type === 'rent' ? "calendar-outline" : "cart-outline"} size={24} color="#fff" />
-                  <Text style={styles.primaryButtonText}>
-                    {item.type === 'rent' ? 'Louer' : 'Acheter'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.payButton]}
+                    onPress={handleBuy}
+                  >
+                    <Text style={styles.actionButtonText}>Payer maintenant</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                // Standard View (Sale or Rent)
+                <View style={styles.footerActions}>
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.secondaryButton]}
+                    onPress={() => setShowOfferModal(true)}
+                  >
+                    <Ionicons name="pricetag-outline" size={24} color="#4C7B4B" />
+                    <Text style={styles.secondaryButtonText}>
+                      {item.type === 'rent' ? 'Négocier' : 'Faire une offre'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.primaryButton]}
+                    onPress={handleBuy}
+                  >
+                    <Ionicons name={item.type === 'rent' ? "calendar-outline" : "cart-outline"} size={24} color="#fff" />
+                    <Text style={styles.primaryButtonText}>
+                      {item.type === 'rent' ? 'Louer' : 'Acheter'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )
             )
-          )
-          }
-        </View>
-      )}
+            }
+          </View>
+        )
+      }
 
       {
         item.status !== 'active' && (

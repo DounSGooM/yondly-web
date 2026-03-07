@@ -1,19 +1,33 @@
-import React, { useRef, useEffect } from 'react';
-import { View, StyleSheet, Text, Platform } from 'react-native';
-import MapView, { Marker, Callout, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
+import React, { useRef, useEffect, useState } from 'react';
+import { View, StyleSheet, Text, Platform, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import MapView, { Marker, Callout, PROVIDER_GOOGLE, PROVIDER_DEFAULT } from 'react-native-maps';
 
 interface MapItem {
   id: string;
   title: string;
   location: {
-    lat: number;
-    lng: number;
+    lat?: number;
+    lng?: number;
+    type?: string;
+    coordinates?: number[];
   };
   type: 'donation' | 'sale' | 'store' | 'rent';
   price_cents?: number;
   photos?: string[];
 }
+
+// Helper to extract lat/lng from either format
+const getCoords = (location: MapItem['location']): { lat: number; lng: number } | null => {
+  if (location.lat !== undefined && location.lng !== undefined) {
+    return { lat: location.lat, lng: location.lng };
+  }
+  if (location.coordinates && location.coordinates.length >= 2) {
+    // GeoJSON: [longitude, latitude]
+    return { lat: location.coordinates[1], lng: location.coordinates[0] };
+  }
+  return null;
+};
 
 interface InteractiveMapProps {
   items: MapItem[];
@@ -28,7 +42,7 @@ export default function InteractiveMap({
   onMarkerPress,
   userLocation,
 }: InteractiveMapProps) {
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<any>(null);
   const handlePress = onMarkerPress || onItemPress;
 
   // Initial region centered on user or Paris
@@ -40,7 +54,7 @@ export default function InteractiveMap({
   };
 
   useEffect(() => {
-    if (userLocation && mapRef.current) {
+    if (userLocation && mapRef.current && Platform.OS !== 'web') {
       mapRef.current.animateToRegion({
         latitude: userLocation.lat,
         longitude: userLocation.lng,
@@ -68,6 +82,22 @@ export default function InteractiveMap({
     }
   }
 
+  const [currentRegion, setCurrentRegion] = useState(initialRegion);
+
+  const handleZoom = (zoomIn: boolean) => {
+    if (!mapRef.current) return;
+    const newDelta = zoomIn ? currentRegion.latitudeDelta / 2 : currentRegion.latitudeDelta * 2;
+    const clampedDelta = Math.max(0.002, Math.min(newDelta, 5));
+    const newRegion = {
+      latitude: currentRegion.latitude,
+      longitude: currentRegion.longitude,
+      latitudeDelta: clampedDelta,
+      longitudeDelta: clampedDelta,
+    };
+    setCurrentRegion(newRegion);
+    mapRef.current.animateToRegion(newRegion, 300);
+  };
+
   return (
     <View style={styles.container}>
       <MapView
@@ -76,44 +106,59 @@ export default function InteractiveMap({
         initialRegion={initialRegion}
         showsUserLocation={true}
         showsMyLocationButton={true}
-        // Use PROVIDER_DEFAULT for iOS (Apple Maps) to avoid API Key crash, 
-        // PROVIDER_GOOGLE for Android (Standard).
-        // If user wants Google Maps on iOS, they must add API Key and set provider={PROVIDER_GOOGLE}
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+        onRegionChangeComplete={(region) => {
+          setCurrentRegion(region);
+        }}
       >
-        {items.map((item) => (
-          <Marker
-            key={item.id}
-            coordinate={{
-              latitude: item.location.lat,
-              longitude: item.location.lng,
-            }}
-            onCalloutPress={() => handlePress && handlePress(item.id)}
-          >
-            <View style={[styles.markerContainer, { backgroundColor: getMarkerColor(item.type) }]}>
-              <Ionicons name={getMarkerIcon(item.type) as any} size={14} color="#fff" />
-            </View>
-
-            <Callout tooltip>
-              <View style={styles.calloutContainer}>
-                <Text style={styles.calloutTitle}>{item.title}</Text>
-                {item.type === 'donation' ? (
-                  <Text style={styles.calloutBadge}>GRATUIT</Text>
-                ) : item.type === 'rent' && item.price_cents ? (
-                  <Text style={[styles.calloutPrice, { color: '#f57c00' }]}>
-                    {(item.price_cents / 100).toFixed(0)}€ /j
-                  </Text>
-                ) : item.price_cents ? (
-                  <Text style={styles.calloutPrice}>
-                    {(item.price_cents / 100).toFixed(0)}€
-                  </Text>
-                ) : null}
-                <Text style={styles.calloutSubtext}>Cliquer pour voir</Text>
+        {items.map((item) => {
+          const coords = getCoords(item.location);
+          if (!coords) return null;
+          return (
+            <Marker
+              key={item.id}
+              coordinate={{
+                latitude: coords.lat,
+                longitude: coords.lng,
+              }}
+              onCalloutPress={() => handlePress && handlePress(item.id)}
+            >
+              <View style={[styles.markerContainer, { backgroundColor: getMarkerColor(item.type) }]}>
+                <Ionicons name={getMarkerIcon(item.type) as any} size={14} color="#fff" />
               </View>
-            </Callout>
-          </Marker>
-        ))}
+
+              <Callout tooltip>
+                <View style={styles.calloutContainer}>
+                  <Text style={styles.calloutTitle}>{item.title}</Text>
+                  {item.type === 'donation' ? (
+                    <Text style={styles.calloutBadge}>GRATUIT</Text>
+                  ) : item.type === 'rent' && item.price_cents ? (
+                    <Text style={[styles.calloutPrice, { color: '#f57c00' }]}>
+                      {(item.price_cents / 100).toFixed(0)}€ /j
+                    </Text>
+                  ) : item.price_cents ? (
+                    <Text style={styles.calloutPrice}>
+                      {(item.price_cents / 100).toFixed(0)}€
+                    </Text>
+                  ) : null}
+                  <Text style={styles.calloutSubtext}>Cliquer pour voir</Text>
+                </View>
+              </Callout>
+            </Marker>
+          );
+        })}
       </MapView>
+
+      {/* Zoom Controls */}
+      <View style={styles.zoomControls}>
+        <TouchableOpacity style={styles.zoomButton} onPress={() => handleZoom(true)} activeOpacity={0.7}>
+          <Ionicons name="add" size={22} color="#333" />
+        </TouchableOpacity>
+        <View style={styles.zoomDivider} />
+        <TouchableOpacity style={styles.zoomButton} onPress={() => handleZoom(false)} activeOpacity={0.7}>
+          <Ionicons name="remove" size={22} color="#333" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -183,5 +228,62 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#666',
     marginTop: 2,
-  }
+  },
+  webFallback: {
+    flex: 1,
+    backgroundColor: '#f8faf8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderStyle: 'dashed',
+  },
+  webFallbackTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  webFallbackText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  webFallbackCount: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4C7B4B',
+    backgroundColor: '#e8f5e9',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  zoomControls: {
+    position: 'absolute',
+    right: 12,
+    bottom: 24,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  zoomButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  zoomDivider: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginHorizontal: 8,
+  },
 });

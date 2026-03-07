@@ -599,9 +599,21 @@ export default function ProOfferScreen() {
                         style={styles.input}
                         placeholder="168"
                         value={maxDurationHours}
-                        onChangeText={setMaxDurationHours}
+                        onChangeText={(val) => {
+                            const num = parseInt(val);
+                            if (!isNaN(num) && num > 168) {
+                                setMaxDurationHours('168');
+                                Alert.alert('Limite', 'La durée maximale est limitée à 7 jours (168 heures) en raison de la validité de l\'empreinte bancaire de la caution.');
+                            } else {
+                                setMaxDurationHours(val);
+                            }
+                        }}
                         keyboardType="numeric"
+                        maxLength={3}
                     />
+                    <Text style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
+                        Maximum de 168 heures (7 jours)
+                    </Text>
                 </View>
             </View>
 

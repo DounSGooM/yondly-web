@@ -132,9 +132,15 @@ export default function BookingScreen() {
             return;
         }
 
-        // Check max duration
+        // Check hard 7-day limit due to Stripe authorization
+        if (days > 7) {
+            Alert.alert('Erreur', `La durée maximale de location est de 7 jours en raison de l'expiration de l'empreinte bancaire de la caution.`);
+            return;
+        }
+
+        // Check max duration set by owner (if any)
         if (item?.max_duration_days && days > item.max_duration_days) {
-            Alert.alert('Erreur', `La durée maximale est de ${item.max_duration_days} jours`);
+            Alert.alert('Erreur', `La durée maximale est de ${item.max_duration_days} jours pour cet article.`);
             return;
         }
 

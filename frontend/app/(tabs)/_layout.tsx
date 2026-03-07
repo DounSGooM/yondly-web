@@ -1,8 +1,12 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuthStore } from '../../src/store/authStore';
 
 export default function TabLayout() {
+  const { user } = useAuthStore();
+
+  // Regular user tab bar (default)
   return (
     <Tabs
       screenOptions={{
@@ -77,12 +81,11 @@ export default function TabLayout() {
         }}
       />
 
-      <Tabs.Screen
-        name="messages"
-        options={{
-          href: null,
-        }}
-      />
+      {/* Hidden tabs */}
+      <Tabs.Screen name="messages" options={{ href: null }} />
+      <Tabs.Screen name="asso-dashboard" options={{ href: null }} />
+      <Tabs.Screen name="asso-suspended" options={{ href: null }} />
+      <Tabs.Screen name="asso-beneficiaries" options={{ href: null }} />
     </Tabs>
   );
 }

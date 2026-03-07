@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import QRCode from 'react-native-qrcode-svg';
+import StyledQRCode from '../../src/components/StyledQRCode';
 import axios from 'axios';
 import { useAuthStore } from '../../src/store/authStore';
 import { format } from 'date-fns';
@@ -260,7 +260,7 @@ export default function RentalDetailScreen() {
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Code de retrait</Text>
                         <View style={styles.qrCard}>
-                            <QRCode value={rental.pickup_code} size={180} />
+                            <StyledQRCode value={rental.pickup_code} size={160} />
                             <Text style={styles.qrCode}>{rental.pickup_code}</Text>
                             <Text style={styles.qrHint}>
                                 Présentez ce code au propriétaire lors du retrait
@@ -274,7 +274,7 @@ export default function RentalDetailScreen() {
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Code de retour</Text>
                         <View style={styles.qrCard}>
-                            <QRCode value={rental.return_code} size={180} />
+                            <StyledQRCode value={rental.return_code} size={160} />
                             <Text style={styles.qrCode}>{rental.return_code}</Text>
                             <Text style={styles.qrHint}>
                                 Présentez ce code au propriétaire lors du retour

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import QRCode from 'react-native-qrcode-svg';
+import StyledQRCode from '../../src/components/StyledQRCode';
 import axios from 'axios';
 import { useAuthStore } from '../../src/store/authStore';
 import { format } from 'date-fns';
@@ -202,7 +202,7 @@ export default function OrderDetailScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Votre code de remise</Text>
             <View style={styles.qrCard}>
-              <QRCode value={order.handoff.code} size={200} />
+              <StyledQRCode value={order.handoff.code} size={180} />
               <Text style={styles.qrCode}>{order.handoff.code}</Text>
               <Text style={styles.qrHint}>
                 Présentez ce code au vendeur lors de la remise
