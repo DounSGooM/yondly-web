@@ -21,6 +21,7 @@ import { useAuthStore } from '../../src/store/authStore';
 import InteractiveMap from '../../src/components/InteractiveMap';
 import ItemGridCard from '../../src/components/ItemGridCard';
 import MarketHeader from '../../src/components/MarketHeader';
+import FilterModal, { FilterState } from '../../src/components/FilterModal';
 import * as Location from 'expo-location';
 
 import { API_URL } from '../../src/config/api';
@@ -28,11 +29,20 @@ import { API_URL } from '../../src/config/api';
 const CATEGORIES = [
   { name: 'Tous', icon: 'apps' },
   { name: 'Maison', icon: 'home' },
-  { name: 'Textile', icon: 'shirt' },
-  { name: 'Livres', icon: 'book' },
-  { name: 'Sport', icon: 'basketball' },
+  { name: 'Vêtements', icon: 'shirt' },
   { name: 'Électronique', icon: 'phone-portrait' },
+  { name: 'Multimédia', icon: 'laptop' },
+  { name: 'Véhicules', icon: 'car' },
+  { name: 'Sport', icon: 'basketball' },
+  { name: 'Livres', icon: 'book' },
   { name: 'Enfants', icon: 'happy' },
+  { name: 'Jeux & Jouets', icon: 'game-controller' },
+  { name: 'Jardin', icon: 'leaf' },
+  { name: 'Bricolage', icon: 'hammer' },
+  { name: 'Beauté', icon: 'sparkles' },
+  { name: 'Animaux', icon: 'paw' },
+  { name: 'Musique', icon: 'musical-notes' },
+  { name: 'Mobilier', icon: 'bed' },
   { name: 'Autre', icon: 'ellipsis-horizontal' },
 ];
 
@@ -81,15 +91,29 @@ export default function MarketScreen() {
   const [selectedCategory, setSelectedCategory] = useState('Tous');
   const [showCategoryMenu, setShowCategoryMenu] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [minRating, setMinRating] = useState<number | null>(null);
-  const [radiusKm, setRadiusKm] = useState<number | null>(null);
+
+  const [filters, setFilters] = useState<FilterState>({
+    minPrice: '',
+    maxPrice: '',
+    conditions: [],
+    sortBy: 'date_desc',
+    radiusKm: null
+  });
+
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     getUserLocation();
-    fetchItems();
+
+    // Simple debounce for search
+    const delayDebounceFn = setTimeout(() => {
+      fetchItems();
+    }, 500);
+
     fetchUnreadNotifications();
-  }, [selectedCategory, minRating, radiusKm]);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [selectedCategory, filters, searchQuery]);
 
   const fetchUnreadNotifications = async () => {
     try {
@@ -134,8 +158,14 @@ export default function MarketScreen() {
         params.category = selectedCategory;
       }
 
-      if (minRating) params.min_rating = minRating;
-      if (radiusKm) params.radius_km = radiusKm;
+      if (searchQuery.trim()) {
+        params.q = searchQuery.trim();
+      }
+      if (filters.minPrice) params.min_price = parseInt(filters.minPrice);
+      if (filters.maxPrice) params.max_price = parseInt(filters.maxPrice);
+      if (filters.conditions.length > 0) params.condition = filters.conditions;
+      if (filters.sortBy) params.sort_by = filters.sortBy;
+      if (filters.radiusKm) params.radius_km = filters.radiusKm;
 
       const response = await axios.get(`${API_URL}/items`, { params });
       let fetchedItems = response.data;
@@ -178,12 +208,17 @@ export default function MarketScreen() {
   };
 
   const clearFilters = () => {
-    setMinRating(null);
-    setRadiusKm(null);
+    setFilters({
+      minPrice: '',
+      maxPrice: '',
+      conditions: [],
+      sortBy: 'date_desc',
+      radiusKm: null
+    });
     setShowFilters(false);
   };
 
-
+  // ...
 
   const toggleViewMode = () => {
     // Circle: Grid -> List -> Map -> Grid
@@ -198,8 +233,6 @@ export default function MarketScreen() {
     if (viewMode === 'list') return 'map-outline';
     return 'grid-outline';
   };
-
-
 
   if (loading) {
     return (
@@ -224,7 +257,7 @@ export default function MarketScreen() {
         onFilterPress={handleOpenFilters}
         onSaveSearchPress={handleSaveSearch}
         showSaveSearch={searchQuery.length > 0 || selectedCategory !== 'Tous'}
-        activeFilters={!!(minRating || radiusKm)}
+        activeFilters={!!(filters.minPrice || filters.maxPrice || filters.conditions.length > 0 || filters.radiusKm)}
       />
 
       {/* Category Dropdown */}
@@ -252,7 +285,7 @@ export default function MarketScreen() {
 
         {showCategoryMenu && (
           <View style={styles.categoryMenu}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', padding: 8, width: 300 }}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', padding: 8 }} style={{ maxHeight: 350 }}>
               {CATEGORIES.map((cat) => (
                 <TouchableOpacity
                   key={cat.name}
@@ -285,20 +318,20 @@ export default function MarketScreen() {
         )}
       </View>
 
-      {(minRating || radiusKm) && (
-        <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginBottom: 8 }}>
-          {minRating && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#e8f5e9', padding: 6, borderRadius: 16, marginRight: 8 }}>
-              <Text style={{ fontSize: 12, color: '#4C7B4B' }}>⭐ {minRating}+</Text>
-              <TouchableOpacity onPress={() => setMinRating(null)}>
+      {(filters.minPrice || filters.radiusKm || filters.conditions.length > 0) && (
+        <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+          {filters.minPrice && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#e8f5e9', padding: 6, borderRadius: 16 }}>
+              <Text style={{ fontSize: 12, color: '#4C7B4B' }}>Min {filters.minPrice}€</Text>
+              <TouchableOpacity onPress={() => setFilters({ ...filters, minPrice: '' })}>
                 <Ionicons name="close" size={14} color="#4C7B4B" />
               </TouchableOpacity>
             </View>
           )}
-          {radiusKm && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#e8f5e9', padding: 6, borderRadius: 16, marginRight: 8 }}>
-              <Text style={{ fontSize: 12, color: '#4C7B4B' }}>📍 &lt;{radiusKm}km</Text>
-              <TouchableOpacity onPress={() => setRadiusKm(null)}>
+          {filters.radiusKm && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#e8f5e9', padding: 6, borderRadius: 16 }}>
+              <Text style={{ fontSize: 12, color: '#4C7B4B' }}>📍 &lt;{filters.radiusKm}km</Text>
+              <TouchableOpacity onPress={() => setFilters({ ...filters, radiusKm: null })}>
                 <Ionicons name="close" size={14} color="#4C7B4B" />
               </TouchableOpacity>
             </View>
@@ -357,52 +390,15 @@ export default function MarketScreen() {
       )}
 
       {/* FILTER MODAL */}
-      <Modal visible={showFilters} animationType="slide" transparent>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, minHeight: 400 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <Text style={{ fontSize: 20, fontWeight: 'bold' }}>Filtres Avancés</Text>
-              <TouchableOpacity onPress={() => setShowFilters(false)}>
-                <Ionicons name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 12 }}>Note minimum du vendeur</Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
-              {[3, 4, 4.5, 5].map(rating => (
-                <TouchableOpacity
-                  key={rating}
-                  style={[{ padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', width: '22%', alignItems: 'center' }, minRating === rating && { backgroundColor: '#e8f5e9', borderColor: '#4C7B4B' }]}
-                  onPress={() => setMinRating(minRating === rating ? null : rating)}
-                >
-                  <Text style={[minRating === rating && { color: '#4C7B4B', fontWeight: 'bold' }]}>{rating === 5 ? '5' : `${rating}+`}</Text>
-                  <Ionicons name="star" size={12} color="#ffc107" />
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 12 }}>Distance maximum</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
-              {[1, 5, 10, 20, 50].map(dist => (
-                <TouchableOpacity
-                  key={dist}
-                  style={[{ paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, borderColor: '#ddd' }, radiusKm === dist && { backgroundColor: '#e8f5e9', borderColor: '#4C7B4B' }]}
-                  onPress={() => setRadiusKm(radiusKm === dist ? null : dist)}
-                >
-                  <Text style={[minRating === dist && { color: '#4C7B4B', fontWeight: 'bold' }]}>{dist} km</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <TouchableOpacity
-              style={{ backgroundColor: '#4C7B4B', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 20 }}
-              onPress={() => setShowFilters(false)}
-            >
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Voir les résultats</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <FilterModal
+        visible={showFilters}
+        onClose={() => setShowFilters(false)}
+        onApply={(newFilters) => {
+          setFilters(newFilters);
+          setShowFilters(false);
+        }}
+        initialFilters={filters}
+      />
 
     </View>
   );
@@ -493,11 +489,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 10,
-    width: '45%',
-    margin: '2.5%',
+    width: '30%',
+    margin: '1.5%',
     borderRadius: 8,
     backgroundColor: '#f5f5f5',
-    gap: 8,
+    gap: 6,
   },
   menuItemActive: {
     backgroundColor: '#4C7B4B',

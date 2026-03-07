@@ -21,7 +21,10 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, display_name: string, phone?: string, address?: AddressData | null, isPartner?: boolean, services?: string[]) => Promise<void>;
+  register: (email: string, password: string, display_name: string, phone?: string, address?: AddressData | null, isAssociation?: boolean, associationName?: string) => Promise<{ requires_verification?: boolean; email?: string }>;
+  socialLogin: (provider: string, id_token: string, display_name?: string) => Promise<void>;
+  verifyEmail: (email: string, code: string) => Promise<void>;
+  resendCode: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   loadToken: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
@@ -74,29 +77,42 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await AsyncStorage.setItem('auth_token', access_token);
       set({ user, token: access_token, isAuthenticated: true });
     } catch (error: any) {
-      console.error('LOGIN ERROR DETAILS:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        url: error.config?.url
-      });
-      const detailedError = error.response?.data?.detail
-        || error.message
-        || JSON.stringify(error);
-      throw new Error(`Debug: ${detailedError}`);
+      if (error.response?.status === 403) {
+        // Email not verified — throw special error with email for redirect
+        const err = new Error(error.response?.data?.detail || 'Email non vérifié');
+        (err as any).requiresVerification = true;
+        (err as any).email = email;
+        throw err;
+      }
+      throw new Error(error.response?.data?.detail || error.message || 'Login failed');
     }
   },
 
-  register: async (email, password, displayName, phone, address = null, isPartner = false, services = []) => {
+  socialLogin: async (provider: string, id_token: string, display_name?: string) => {
+    try {
+      const response = await axios.post(`${API_URL}/auth/social`, {
+        provider,
+        id_token,
+        display_name,
+      });
+      const { user, access_token } = response.data;
+      await AsyncStorage.setItem('auth_token', access_token);
+      set({ user, token: access_token, isAuthenticated: true });
+    } catch (error: any) {
+      console.error('SOCIAL LOGIN ERROR:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.detail || 'Social login failed');
+    }
+  },
+
+  register: async (email, password, displayName, phone, address = null, isAssociation = false, associationName) => {
     try {
       const response = await axios.post(`${API_URL}/auth/register`, {
         email,
         password,
         display_name: displayName,
         phone,
-        is_partner: isPartner,
-        services,
-        // Address fields for local community
+        is_association: isAssociation,
+        association_name: associationName,
         street: address?.street,
         city: address?.city,
         postcode: address?.postcode,
@@ -104,15 +120,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         context: address?.context,
         location: address ? { lat: address.lat, lng: address.lng } : undefined,
       });
+      return response.data; // { requires_verification, email, message }
+    } catch (error: any) {
+      if (error.message === 'Network Error') {
+        throw new Error('Connexion impossible au serveur.');
+      }
+      throw new Error(error.response?.data?.detail || `Registration failed: ${error.message}`);
+    }
+  },
+
+  verifyEmail: async (email: string, code: string) => {
+    try {
+      const response = await axios.post(`${API_URL}/auth/verify-email`, { email, code });
       const { user, access_token } = response.data;
       await AsyncStorage.setItem('auth_token', access_token);
       set({ user, token: access_token, isAuthenticated: true });
     } catch (error: any) {
-      console.error('REGISTRATION ERROR:', error);
-      if (error.message === 'Network Error') {
-        throw new Error('Connexion impossible au serveur. Vérifiez que le backend tourne et l\'adresse IP.');
-      }
-      throw new Error(error.response?.data?.detail || `Registration failed: ${error.message}`);
+      throw new Error(error.response?.data?.detail || 'Verification failed');
+    }
+  },
+
+  resendCode: async (email: string) => {
+    try {
+      await axios.post(`${API_URL}/auth/resend-code`, { email });
+    } catch (error: any) {
+      throw new Error(error.response?.data?.detail || 'Failed to resend code');
     }
   },
 

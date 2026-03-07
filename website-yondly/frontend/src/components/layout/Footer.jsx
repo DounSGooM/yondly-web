@@ -21,7 +21,9 @@ const Footer = () => {
             <div className="flex gap-3 mt-4">
               {/* Social links placeholders */}
               <a
-                href="#"
+                href="https://www.instagram.com/yondlyfr/"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="w-9 h-9 rounded-full bg-white border border-[var(--border-light)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--accent-strong)] hover:border-[var(--accent-primary)] transition-colors"
                 aria-label="Instagram"
               >

@@ -30,7 +30,7 @@ import Footer from '../components/layout/Footer';
 import { cities } from '../data/mock';
 import SEO from '../components/shared/SEO';
 
-const API = 'http://localhost:8000/api';
+const API = 'https://yondly-backend-951855414282.europe-west1.run.app/api/partners';
 
 const Pros = () => {
   const [formData, setFormData] = useState({
@@ -126,7 +126,8 @@ const Pros = () => {
     setIsSubmitting(true);
 
     try {
-      await axios.post(`${API}/partners`, {
+      await axios.post(API, {
+        type: 'partner',
         name: formData.name,
         business: formData.business,
         city: formData.city || null,

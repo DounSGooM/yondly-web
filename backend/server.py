@@ -1670,6 +1670,107 @@ async def delete_item(
     
     return {"message": "Item deleted successfully"}
 
+# ============ BOOSTING ROUTES ============
+from datetime import timedelta
+
+@api_router.post("/items/{item_id}/boost/free")
+async def free_boost_item(item_id: str, current_user: dict = Depends(get_current_user)):
+    """Use user's 1 free monthly boost (for Pousse+ levels)"""
+    user = await db.users.find_one({"id": current_user["id"]})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    co2 = user.get("co2_saved", 0)
+    # Pousse tier begins at 100kg
+    if co2 < 100:
+        raise HTTPException(status_code=403, detail="Le boost gratuit est réservé au niveau Pousse (100+ kg de CO2).")
+        
+    # Check if they have free boosts available
+    now = datetime.utcnow()
+    last_reset = user.get("last_boost_reset")
+    
+    # Reset logic if we are in a new month compared to last_reset
+    if last_reset is None or last_reset.month != now.month or last_reset.year != now.year:
+        user["free_boosts_available"] = 1
+        user["last_boost_reset"] = now
+        await db.users.update_one({"id": user["id"]}, {"$set": {"free_boosts_available": 1, "last_boost_reset": now}})
+        
+    if user.get("free_boosts_available", 0) <= 0:
+        raise HTTPException(status_code=400, detail="Vous avez déjà utilisé votre boost gratuit pour ce mois-ci.")
+        
+    # Apply boost
+    item = await db.items.find_one({"id": item_id})
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+        
+    if item["owner_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="You can only boost your own items")
+        
+    # Boost for 7 days
+    boost_duration = timedelta(days=7)
+    current_boost = item.get("boosted_until")
+    
+    if current_boost and current_boost > now:
+        new_boost_until = current_boost + boost_duration
+    else:
+        new_boost_until = now + boost_duration
+        
+    await db.items.update_one({"id": item_id}, {"$set": {"boosted_until": new_boost_until}})
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"free_boosts_available": -1}})
+    
+    return {"message": "Utilisation du boost gratuit réussie !", "boosted_until": new_boost_until.isoformat()}
+
+@api_router.post("/items/{item_id}/boost/checkout")
+async def paid_boost_checkout(
+    item_id: str, 
+    pack: int = 1, # 1, 3, or 5 boosts package
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a Stripe checkout for paid boosts"""
+    import stripe
+    item = await db.items.find_one({"id": item_id})
+    if not item or item["owner_id"] != current_user["id"]:
+        raise HTTPException(status_code=404, detail="Item not found or unauthorized")
+        
+    prices = {
+        1: 199,  # 1.99 EUR
+        3: 499,  # 4.99 EUR
+        5: 799   # 7.99 EUR
+    }
+    
+    if pack not in prices:
+        raise HTTPException(status_code=400, detail="Invalid pack size")
+        
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            customer=current_user.get("stripe_customer_id"),
+            line_items=[{
+                'price_data': {
+                    'currency': 'eur',
+                    'product_data': {
+                        'name': f'Boost d\'annonce ({pack}x) - {item.get("title", "Item")}',
+                        'description': 'Mise en avant pour 7 jours par boost.',
+                    },
+                    'unit_amount': prices[pack],
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url=f"exp://localhost:8081/--/item-detail?id={item_id}&boost_success=true",
+            cancel_url=f"exp://localhost:8081/--/item-detail?id={item_id}&boost_cancelled=true",
+            metadata={
+                "type": "pay_boost",
+                "item_id": item_id,
+                "user_id": current_user["id"],
+                "boost_pack": str(pack)
+            }
+        )
+        return {"checkout_url": session.url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============ STRIPE WEBHOOK ============
 from stripe_webhooks import handle_stripe_webhook
 

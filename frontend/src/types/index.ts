@@ -19,12 +19,20 @@ export interface User {
   profile_theme_color?: string;
   co2_saved?: number;
 
+  // Beneficiary ID for association linking
+  beneficiary_id?: string;
+
   // Trust & Safety
   trust_level?: 'NEW' | 'BASIC_VERIFIED' | 'TRUSTED' | 'RESTRICTED' | 'BANNED';
   risk_score?: number;
   verified_email?: boolean;
   verified_phone?: boolean;
   two_factor_enabled?: boolean;
+
+  // Association / CCAS
+  is_association?: boolean;
+  association_name?: string;
+  association_verified?: boolean;
 
   created_at: string;
 }
@@ -162,6 +170,14 @@ export interface Item {
     co2_saved_kg: number;
     [key: string]: any;
   };
+
+  // Gamification
+  views_count?: number;
+  boosted_until?: string;
+
+  // Suspended Baskets (Mapped from Deal)
+  allow_suspension?: boolean;
+  suspended_available?: number;
 }
 
 export interface Message {
@@ -235,7 +251,81 @@ export interface Deal {
   discount_value?: number;
   expires_at: string;
   quantity?: number;
+
+  // Suspended Baskets
+  allow_suspension?: boolean;
+  suspended_quantity?: number;
+  suspended_available?: number;
+
   category: string;
   status: 'active' | 'expired';
   created_at: string;
 }
+
+// ============================================
+// Association / CCAS Types
+// ============================================
+
+export interface Beneficiary {
+  id: string;
+  association_id: string;
+  internal_ref: string;
+  initials: string;
+  family_size: number;
+  notes?: string;
+  is_active: boolean;
+  total_baskets: number;
+  last_distribution?: string;
+  linked_user_id?: string;
+  allow_self_service: boolean;
+  self_service_quota: number;
+  created_at: string;
+}
+
+export interface BeneficiaryCreate {
+  internal_ref: string;
+  initials: string;
+  family_size?: number;
+  notes?: string;
+  yondly_id?: string;
+  allow_self_service: boolean;
+  self_service_quota: number;
+}
+
+export interface BeneficiaryUpdate {
+  internal_ref?: string;
+  initials?: string;
+  family_size?: number;
+  notes?: string;
+  is_active?: boolean;
+  allow_self_service?: boolean;
+  self_service_quota?: number;
+}
+
+export interface Distribution {
+  id: string;
+  association_id: string;
+  beneficiary_id?: string;
+  beneficiary_initials?: string;
+  deal_id?: string;
+  store_name?: string;
+  quantity: number;
+  notes?: string;
+  distributed_at: string;
+}
+
+export interface DistributionCreate {
+  beneficiary_id?: string;
+  quantity: number;
+  notes?: string;
+}
+
+export interface AssociationStats {
+  total_baskets_claimed: number;
+  total_baskets_distributed: number;
+  active_beneficiaries: number;
+  this_month_baskets: number;
+  this_month_distributions: number;
+  impact_families: number;
+}
+

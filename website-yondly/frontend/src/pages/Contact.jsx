@@ -10,9 +10,7 @@ import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 import SEO from '../components/shared/SEO';
 
-const API = 'http://localhost:8000/api'; // Hardcoded for local debug
-// const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-// const API = `${BACKEND_URL}/api`;
+const API = 'https://yondly-backend-951855414282.europe-west1.run.app/api/contact';
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -48,7 +46,8 @@ const Contact = () => {
     setIsSubmitting(true);
 
     try {
-      await axios.post(`${API}/contact`, {
+      await axios.post(API, {
+        type: 'contact',
         name: formData.name,
         email: formData.email,
         subject: formData.subject || null,
@@ -182,7 +181,9 @@ const Contact = () => {
                   Rejoignez la communauté sur Instagram pour ne rien rater des nouveautés !
                 </p>
                 <a
-                  href="#"
+                  href="https://www.instagram.com/yondlyfr/"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 bg-white text-[var(--accent-strong)] px-6 py-3 rounded-xl font-bold hover:scale-105 transition-transform shadow-md"
                 >
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">

@@ -53,8 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
 // Auth
 async function handleLogin(e) {
     e.preventDefault();
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
+    const email = document.getElementById('login-email').value.trim().toLowerCase();
+    const password = document.getElementById('login-password').value.trim();
     const btn = e.target.querySelector('button');
 
     try {
@@ -134,7 +134,8 @@ function navigateTo(page) {
         'pro-verifications': 'Vérifications PRO',
         'pro-offers': 'Offres PRO',
         'pro-transparency': 'Transparence DSA',
-        'dac7-exports': 'Exports DAC7'
+        'dac7-exports': 'Exports DAC7',
+        'associations': 'Associations / CCAS'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
 
@@ -180,6 +181,7 @@ function updateStats(s) {
     document.getElementById('total-pros').textContent = s.totalPros || 0;
     document.getElementById('total-items').textContent = s.totalItems || 0;
     document.getElementById('total-co2').textContent = formatCO2(s.totalCO2Kg || 0);
+    document.getElementById('total-suspended').textContent = s.totalSuspended || 0;
 }
 
 function formatCO2(kg) {
@@ -205,6 +207,7 @@ function loadPageData(page) {
         case 'waitlist': loadWaitlist(); break;
         case 'contact-messages': loadContacts(); break;
         case 'partners': loadPartners(); break;
+        case 'associations': loadAssociations(); break;
     }
 }
 
@@ -326,6 +329,89 @@ async function loadPartners() {
         }
     } catch (e) {
         tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Erreur API</td></tr>';
+    }
+}
+
+// ============ ASSOCIATIONS / CCAS ============
+
+async function loadAssociations() {
+    const tbody = document.getElementById('associations-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Chargement...</td></tr>';
+
+    try {
+        const res = await fetch(`${API_URL}/admin/associations`, {
+            headers: { Authorization: `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Aucune association inscrite</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(a => `
+                <tr>
+                    <td><strong>${a.association_name || a.display_name}</strong></td>
+                    <td>${a.email}</td>
+                    <td>${a.city || '-'}</td>
+                    <td>
+                        ${a.association_verified
+                    ? '<span class="badge badge-success">Vérifiée</span>'
+                    : '<span class="badge badge-warning">En attente</span>'
+                }
+                    </td>
+                    <td>
+                        ${a.association_verified
+                    ? `<button class="btn btn-sm btn-danger" onclick="unverifyAssociation('${a.id}')">Révoquer</button>`
+                    : `<button class="btn btn-sm btn-success" onclick="verifyAssociation('${a.id}')">Vérifier</button>`
+                }
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch (e) {
+        console.error('Error loading associations:', e);
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Erreur API</td></tr>';
+    }
+}
+
+async function verifyAssociation(userId) {
+    if (!confirm('Vérifier cette association ?')) return;
+
+    try {
+        const res = await fetch(`${API_URL}/admin/associations/${userId}/verify`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+            alert('Association vérifiée avec succès');
+            loadAssociations();
+        } else {
+            const err = await res.json();
+            alert('Erreur: ' + (err.detail || 'Impossible de vérifier'));
+        }
+    } catch (e) {
+        alert('Erreur réseau');
+    }
+}
+
+async function unverifyAssociation(userId) {
+    if (!confirm('Révoquer la vérification de cette association ?')) return;
+
+    try {
+        const res = await fetch(`${API_URL}/admin/associations/${userId}/unverify`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${authToken}` }
+        });
+        if (res.ok) {
+            alert('Vérification révoquée');
+            loadAssociations();
+        } else {
+            const err = await res.json();
+            alert('Erreur: ' + (err.detail || 'Impossible de révoquer'));
+        }
+    } catch (e) {
+        alert('Erreur réseau');
     }
 }
 
@@ -754,6 +840,78 @@ async function handleAddZoneFromEPCI(e) {
 }
 
 // Users
+async function editUserLevel(userId, currentLevel) {
+    event.stopPropagation(); // Prevent row click if any
+    const newLevel = prompt("Nouveau niveau (Graine, Pousse, Arbre, Forêt) :", currentLevel);
+    if (!newLevel || newLevel === currentLevel) return;
+
+    const validLevels = ["Graine", "Pousse", "Arbre", "Forêt"];
+    // Capitalize first letter
+    const formattedLevel = newLevel.charAt(0).toUpperCase() + newLevel.slice(1).toLowerCase();
+
+    if (!validLevels.includes(formattedLevel)) {
+        alert("Niveau invalide. Choix possibles : " + validLevels.join(", "));
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_URL}/admin/users/${userId}/level`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ level: formattedLevel })
+        });
+
+        if (res.ok) {
+            alert("Niveau mis à jour !");
+            loadUsers(); // Refresh list
+        } else {
+            const err = await res.json();
+            alert("Erreur : " + (err.detail || "Impossible de mettre à jour"));
+        }
+    } catch (e) {
+        alert("Erreur réseau");
+    }
+}
+
+async function editUserLevel(userId, currentLevel) {
+    event.stopPropagation(); // Prevent row click if any
+    const newLevel = prompt("Nouveau niveau (Graine, Pousse, Arbre, Forêt) :", currentLevel);
+    if (!newLevel || newLevel === currentLevel) return;
+
+    const validLevels = ["Graine", "Pousse", "Arbre", "Forêt"];
+    // Capitalize first letter
+    const formattedLevel = newLevel.charAt(0).toUpperCase() + newLevel.slice(1).toLowerCase();
+
+    if (!validLevels.includes(formattedLevel)) {
+        alert("Niveau invalide. Choix possibles : " + validLevels.join(", "));
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_URL}/admin/users/${userId}/level`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ level: formattedLevel })
+        });
+
+        if (res.ok) {
+            alert("Niveau mis à jour !");
+            loadUsers(); // Refresh list
+        } else {
+            const err = await res.json();
+            alert("Erreur : " + (err.detail || "Impossible de mettre à jour"));
+        }
+    } catch (e) {
+        alert("Erreur réseau");
+    }
+}
+
 async function loadUsers() {
     let users = [];
     try {
@@ -770,7 +928,7 @@ async function loadUsers() {
     }
 
     if (!users.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Aucun utilisateur</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Aucun utilisateur</td></tr>';
         return;
     }
 
@@ -784,6 +942,19 @@ async function loadUsers() {
                 ${u.verified ? '<i class="fas fa-check-circle" style="color:#10b981;font-size:12px;" title="Vérifié"></i>' : ''}
             </td>
             <td style="color: var(--text-secondary)">${u.email}</td>
+             <td>
+                <select 
+                    onchange="updateUserLevel(this, '${u.id}')" 
+                    data-original="${u.level || 'Graine'}"
+                    onclick="event.stopPropagation()"
+                    style="padding: 4px 8px; border-radius: 6px; border: 1px solid #ddd; background: white; font-size: 13px;"
+                >
+                    <option value="Graine" ${(!u.level || u.level === 'Graine') ? 'selected' : ''}>🌱 Graine</option>
+                    <option value="Pousse" ${u.level === 'Pousse' ? 'selected' : ''}>🌿 Pousse</option>
+                    <option value="Arbre" ${u.level === 'Arbre' ? 'selected' : ''}>🌳 Arbre</option>
+                    <option value="Forêt" ${u.level === 'Forêt' ? 'selected' : ''}>🌲 Forêt</option>
+                </select>
+            </td>
             <td>
                 <span class="badge-status badge-active" style="background:${riskColor}20; color:${riskColor};">
                     ${u.trust_level} (Risk: ${u.risk_score})

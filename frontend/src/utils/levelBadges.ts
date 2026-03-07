@@ -122,8 +122,8 @@ export const getLevelBadge = (level: string = 'Graine') => {
     const badge = getLevelFromCO2(co2Kg);
 
     return {
-        icon: badge.icon,
-        color: badge.color,
-        label: badge.level,
+        ...badge,
+        label: badge.level, // Maintain backward compatibility
+        level: badge.level, // Ensure level property exists
     };
 };

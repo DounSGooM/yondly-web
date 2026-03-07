@@ -6,7 +6,9 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  RefreshControl,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../src/store/authStore';
 import { Ionicons } from '@expo/vector-icons';
@@ -87,11 +89,26 @@ function CO2PreviewCard({ onPress, onLevelLoaded }: { onPress: () => void; onLev
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, logout, refreshUser } = useAuthStore();
 
   // Hooks must be called unconditionally before any returns
-  const [co2Level, setCo2Level] = useState<{ level: string; color: string; emoji: string; icon: string } | null>(null);
   const [stats, setStats] = useState<{ total_transactions: number; people_helped: number } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      if (refreshUser) await refreshUser();
+
+      if (user && user.level !== 'Graine') {
+        await fetchStats();
+      }
+    } catch (e) {
+      console.log(e);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -140,17 +157,16 @@ export default function ProfileScreen() {
     );
   }
 
-  // Unify badge format - use co2Level if available, otherwise map legacy getLevelBadge
-  const legacyBadge = getLevelBadge(user.level || 'Graine');
-  const badge = co2Level || {
-    level: legacyBadge.label,
-    color: legacyBadge.color,
-    emoji: '🌱',
-    icon: legacyBadge.icon
-  };
+  // Unify badge format - use DB user level as source of truth
+  const badge = getLevelBadge(user.level || 'Graine');
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4C7B4B" />
+      }
+    >
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Profil</Text>
       </View>
@@ -192,7 +208,7 @@ export default function ProfileScreen() {
           <Ionicons name="chevron-forward" size={14} color="#999" style={{ marginLeft: 4 }} />
         </TouchableOpacity>
 
-        {/* Graine Reward: Encouragement */}
+
         {user.level === 'Graine' && (
           <View style={{ marginTop: 16, backgroundColor: '#f9f9f9', padding: 12, borderRadius: 8, width: '100%', alignItems: 'center' }}>
             <Text style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>🌱 Graine d'Impact</Text>
@@ -244,7 +260,6 @@ export default function ProfileScreen() {
       {/* CO2 Impact Card with Preview */}
       <CO2PreviewCard
         onPress={() => router.push('/profile/impact' as any)}
-        onLevelLoaded={(level) => setCo2Level(level)}
       />
 
       {/* NEW: Espace Vendeur */}
@@ -655,5 +670,48 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#4C7B4B',
     fontWeight: '500',
+  },
+  // Beneficiary ID styles
+  beneficiaryIdCard: {
+    marginTop: 16,
+    backgroundColor: '#f0f7f0',
+    padding: 14,
+    borderRadius: 12,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#4C7B4B30',
+    borderStyle: 'dashed',
+  },
+  beneficiaryIdHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  beneficiaryIdLabel: {
+    fontSize: 13,
+    color: '#4C7B4B',
+    fontWeight: '600',
+  },
+  beneficiaryIdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  beneficiaryIdValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+    letterSpacing: 2,
+    fontFamily: 'monospace',
+  },
+  beneficiaryIdHint: {
+    fontSize: 11,
+    color: '#666',
+    textAlign: 'center',
   },
 });

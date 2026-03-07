@@ -13,7 +13,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useStripe } from '@stripe/stripe-react-native';
+import { useStripe } from '../../src/utils/stripe';
 
 import { API_URL } from '../../src/config/api';
 import ScreenHeader from '../../src/components/ScreenHeader';
@@ -57,6 +57,13 @@ export default function DealPaymentScreen() {
 
             if (!client_secret) {
                 Alert.alert('Erreur', 'Impossible d\'initialiser le paiement');
+                return;
+            }
+
+            // DEV MODE: If mock_secret, skip Stripe and go straight to success
+            if (client_secret === 'mock_secret') {
+                Alert.alert('Succès', 'Paiement simulé confirmé ! (Mode test)');
+                router.replace(`/order/success?orderId=${orderId}`);
                 return;
             }
 

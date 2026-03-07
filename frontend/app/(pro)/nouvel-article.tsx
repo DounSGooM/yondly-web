@@ -9,7 +9,7 @@ import { useAuthStore } from '../../src/store/authStore';
 import { API_URL } from '../../src/config/api';
 import ScreenHeader from '../../src/components/ScreenHeader';
 
-const CATEGORIES = ['Maison', 'Textile', 'Livres', 'Sport', 'Électronique', 'Enfants', 'Autre'];
+const CATEGORIES = ['Maison', 'Vêtements', 'Électronique', 'Multimédia', 'Véhicules', 'Sport', 'Livres', 'Enfants', 'Jeux & Jouets', 'Jardin', 'Bricolage', 'Beauté', 'Animaux', 'Musique', 'Mobilier', 'Autre'];
 
 export default function NouvelArticleProScreen() {
     const router = useRouter();

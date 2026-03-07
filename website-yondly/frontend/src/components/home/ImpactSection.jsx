@@ -46,10 +46,12 @@ const ImpactSection = () => {
                         </div>
 
                         <div className="flex justify-center lg:justify-start">
-                            <Button className="rounded-full px-8 py-6 text-lg bg-[var(--accent-strong)] hover:bg-[var(--accent-dark)] text-white shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
-                                Rejoindre le mouvement
-                                <ArrowRight className="ml-2 w-5 h-5" />
-                            </Button>
+                            <a href="/beta">
+                                <Button className="rounded-full px-8 py-6 text-lg bg-[var(--accent-strong)] hover:bg-[var(--accent-dark)] text-white shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
+                                    Rejoindre le mouvement
+                                    <ArrowRight className="ml-2 w-5 h-5" />
+                                </Button>
+                            </a>
                         </div>
                     </div>
 

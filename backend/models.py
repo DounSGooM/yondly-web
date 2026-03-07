@@ -40,7 +40,9 @@ class User(BaseModel):
     level: Literal['Novice', 'Habitué', 'Expert', 'Ambassadeur'] = 'Novice'
     profile_theme_color: Optional[str] = None
     stripe_account_id: Optional[str] = None
+    stripe_customer_id: Optional[str] = None  # For saving cards as a buyer/renter
     is_partner: bool = False
+
     services: List[str] = []
     # Address fields for local community
     street: Optional[str] = None
@@ -55,6 +57,16 @@ class User(BaseModel):
     verified_email: bool = False
     verified_phone: bool = False
     two_factor_enabled: bool = False
+    # Association / CCAS fields
+    is_association: bool = False
+    association_name: Optional[str] = None
+    association_verified: bool = False
+    beneficiary_id: Optional[str] = None
+    
+    # Gamification
+    free_boosts_available: int = 0
+    last_boost_reset: Optional[datetime] = None
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class UserUpdate(BaseModel):
@@ -110,6 +122,10 @@ class Item(BaseModel):
     locked_offer_id: Optional[str] = None
     locked_until: Optional[datetime] = None
     co2_estimate: Optional[Dict[str, Any]] = None
+    
+    # Gamification
+    boosted_until: Optional[datetime] = None
+    views_count: int = 0
 
 class HandoffData(BaseModel):
     mode: Literal['local', 'relay', 'home'] = 'local'
@@ -525,6 +541,12 @@ class Deal(BaseModel):
     category: Literal['Food', 'Flowers', 'Other']
     status: Literal['active', 'sold', 'expired'] = 'active'
     expires_at: datetime
+    
+    # Suspended Baskets (Paniers Suspendus)
+    allow_suspension: bool = False
+    suspended_quantity: int = 0
+    suspended_available: int = 0
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
     store: Optional[Store] = None  # For response population
 
@@ -1047,3 +1069,74 @@ class CO2EstimateRequest(BaseModel):
     price_cents: Optional[int] = None
     condition: Optional[str] = None
     image_urls: List[str] = []
+
+
+# ============================================
+# Association / CCAS Models
+# ============================================
+
+class BeneficiaryCreate(BaseModel):
+    """Create a new beneficiary for an association"""
+    internal_ref: str  # Internal reference (e.g., "B-001")
+    initials: str  # Initials for anonymity (e.g., "J.D.")
+    family_size: int = 1
+    notes: Optional[str] = None
+    yondly_id: Optional[str] = None  # Optional YND-XXXXX code to link user account
+
+
+class Beneficiary(BaseModel):
+    """Anonymized beneficiary tracked by an association"""
+    id: str
+    association_id: str  # ID of the association that manages this beneficiary
+    internal_ref: str  # Internal reference (e.g., "B-001")
+    initials: str  # Initials (e.g., "J.D.")
+    family_size: int = 1
+    notes: Optional[str] = None
+    is_active: bool = True
+    total_baskets: int = 0  # Total baskets received
+    last_distribution: Optional[datetime] = None
+    linked_user_id: Optional[str] = None  # Linked Yondly user account
+    allow_self_service: bool = False  # Toggle for "Mode Autonomie"
+    self_service_quota: int = 3       # Max baskets per week
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class BeneficiaryUpdate(BaseModel):
+    """Update beneficiary fields"""
+    internal_ref: Optional[str] = None
+    initials: Optional[str] = None
+    family_size: Optional[int] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+    allow_self_service: Optional[bool] = None
+    self_service_quota: Optional[int] = None
+
+
+class DistributionCreate(BaseModel):
+    """Record a distribution to a beneficiary"""
+    beneficiary_id: Optional[str] = None  # Can be null for anonymous distribution
+    quantity: int = 1
+    notes: Optional[str] = None
+
+
+class Distribution(BaseModel):
+    """Record of a basket distribution from an association to a beneficiary"""
+    id: str
+    association_id: str
+    beneficiary_id: Optional[str] = None  # Null if anonymous distribution
+    beneficiary_initials: Optional[str] = None  # Denormalized for display
+    deal_id: Optional[str] = None  # The deal the basket came from
+    store_name: Optional[str] = None  # Denormalized for display
+    quantity: int = 1
+    notes: Optional[str] = None
+    distributed_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AssociationStats(BaseModel):
+    """Statistics for association dashboard"""
+    total_baskets_claimed: int = 0  # Total claimed from stores
+    total_baskets_distributed: int = 0  # Total given to beneficiaries
+    active_beneficiaries: int = 0  # Number of active beneficiaries
+    this_month_baskets: int = 0  # Baskets claimed this month
+    this_month_distributions: int = 0  # Distributions this month
+    impact_families: int = 0  # Unique families helped

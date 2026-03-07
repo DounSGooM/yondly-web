@@ -13,7 +13,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useStripe } from '@stripe/stripe-react-native';
+import { useStripe } from '../../src/utils/stripe';
 import { useAuthStore } from '../../src/store/authStore';
 
 import { API_URL } from '../../src/config/api';

@@ -40,14 +40,16 @@ export default function LoginScreen() {
           "Compte Professionnel",
           "Ce compte est un compte partenaire. Veuillez utiliser l'Accès Pro."
         );
-        // Optionally logout immediately since they shouldn't be here
-        // useAuthStore.getState().logout(); 
         return;
       }
 
       router.replace('/(tabs)/food');
     } catch (error: any) {
-      Alert.alert('Erreur', error.message);
+      if ((error as any).requiresVerification) {
+        router.replace({ pathname: '/(auth)/verify-email', params: { email: (error as any).email || email } });
+      } else {
+        Alert.alert('Erreur', error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -99,6 +101,13 @@ export default function LoginScreen() {
             <Text style={styles.buttonText}>
               {loading ? 'Connexion...' : 'Se connecter'}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => router.push('/forgot-password')}
+            style={{ marginTop: 12, alignItems: 'center' }}
+          >
+            <Text style={{ color: '#999', fontSize: 13 }}>Mot de passe oublié ?</Text>
           </TouchableOpacity>
 
           <SocialAuth />

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 import csv
@@ -10,6 +10,7 @@ from models import (
     PartnerCreate, PartnerEntry,
     ContactCreate, ContactEntry
 )
+from email_service import send_contact_confirmation, send_waitlist_confirmation
 
 # Router will be configured with db in server.py
 router = APIRouter()
@@ -113,8 +114,11 @@ async def get_waitlist_stats():
 
 # ============ PARTNERS ROUTES ============
 
+from email_service import send_contact_confirmation, send_waitlist_confirmation, send_email, ADMIN_EMAIL  # Add imports
+
+# ... (inside create_partner_entry)
 @router.post("/partners", response_model=PartnerEntry, status_code=201)
-async def create_partner_entry(data: PartnerCreate):
+async def create_partner_entry(data: PartnerCreate, background_tasks: BackgroundTasks):
     """Register a new partner request (Pro or Association)"""
     if not data.rgpd_consent:
         raise HTTPException(status_code=400, detail="Le consentement RGPD est obligatoire")
@@ -126,6 +130,24 @@ async def create_partner_entry(data: PartnerCreate):
     
     entry = PartnerEntry(**data.model_dump())
     await db.partners.insert_one(entry.model_dump())
+
+    # Send notification to Admin
+    admin_subject = f"[Yondly Partner] Nouvelle demande partenaire ({data.type})"
+    admin_content = f"""
+    <html>
+    <body>
+        <h3>Nouvelle demande partenaire</h3>
+        <p><strong>Type:</strong> {data.type}</p>
+        <p><strong>Nom:</strong> {data.name}</p>
+        <p><strong>Ville:</strong> {data.city}</p>
+        <p><strong>Email:</strong> {data.email}</p>
+        <p><strong>Message:</strong></p>
+        <pre>{data.message}</pre>
+    </body>
+    </html>
+    """
+    background_tasks.add_task(send_email, ADMIN_EMAIL, "Admin Yondly", admin_subject, admin_content)
+
     return entry
 
 
@@ -243,3 +265,90 @@ async def export_contacts_csv():
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=yondly_contacts_{datetime.now().strftime('%Y%m%d')}.csv"}
     )
+
+
+# ============ BLOG ROUTES ============
+
+from models import BlogPost, BlogPostCreate, BlogPostUpdate
+from fastapi import Header
+
+import os
+ADMIN_KEY = os.environ.get("ADMIN_KEY", "SECRET_KEY_YONDLY_ADMIN_2025")
+
+@router.get("/blog", response_model=List[BlogPost])
+async def get_blog_posts():
+    """Get all blog posts (public)"""
+    posts = await db.blog.find().sort("created_at", -1).to_list(1000)
+    return [BlogPost(**post) for post in posts]
+
+@router.get("/blog/{slug}", response_model=BlogPost)
+async def get_blog_post(slug: str):
+    """Get a single blog post by slug (public)"""
+    post = await db.blog.find_one({"slug": slug})
+    if not post:
+        raise HTTPException(status_code=404, detail="Article non trouvé")
+    return BlogPost(**post)
+
+@router.post("/blog", response_model=BlogPost, status_code=201)
+async def create_blog_post(
+    data: BlogPostCreate, 
+    x_admin_key: Optional[str] = Header(None)
+):
+    """Create a new blog post (admin only)"""
+    if x_admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    
+    # Check slug uniqueness
+    existing = await db.blog.find_one({"slug": data.slug})
+    if existing:
+        raise HTTPException(status_code=400, detail="Ce slug existe déjà")
+        
+    post = BlogPost(**data.model_dump())
+    await db.blog.insert_one(post.model_dump())
+    return post
+
+@router.put("/blog/{id}", response_model=BlogPost)
+async def update_blog_post(
+    id: str, 
+    data: BlogPostUpdate,
+    x_admin_key: Optional[str] = Header(None)
+):
+    """Update a blog post (admin only)"""
+    if x_admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+        
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    
+    if "slug" in update_data:
+        existing = await db.blog.find_one({"slug": update_data["slug"], "id": {"$ne": id}})
+        if existing:
+            raise HTTPException(status_code=400, detail="Ce slug existe déjà")
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail="Aucune donnée à mettre à jour")
+        
+    result = await db.blog.find_one_and_update(
+        {"id": id},
+        {"$set": update_data},
+        return_document=True
+    )
+    
+    if not result:
+        raise HTTPException(status_code=404, detail="Article non trouvé")
+        
+    return BlogPost(**result)
+
+@router.delete("/blog/{id}", status_code=204)
+async def delete_blog_post(
+    id: str,
+    x_admin_key: Optional[str] = Header(None)
+):
+    """Delete a blog post (admin only)"""
+    if x_admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+        
+    result = await db.blog.delete_one({"id": id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Article non trouvé")
+    return None

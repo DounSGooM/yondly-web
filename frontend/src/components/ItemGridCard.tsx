@@ -80,17 +80,11 @@ export default function ItemGridCard({ item, layout = 'grid' }: ItemGridCardProp
           </View>
         )}
 
-        {/* Category Badge */}
-        {item.category && (
-          <View style={styles.categoryBadge}>
-            <Text style={styles.categoryIcon}>{getCategoryIcon(item.category)}</Text>
-          </View>
-        )}
 
         {/* CO2 Badge - Show on all items except anti-gaspi */}
         {item.type !== 'antigaspi' && (
           <View style={styles.co2Badge}>
-            <Ionicons name="leaf" size={12} color="#fff" />
+            <Ionicons name="leaf" size={12} color={Colors.primary} />
             <Text style={styles.co2Text}>-{getCO2Estimate()}kg</Text>
           </View>
         )}
@@ -193,18 +187,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.background,
   },
-  categoryBadge: {
-    position: 'absolute',
-    top: Spacing.sm,
-    left: Spacing.sm,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: BorderRadius.sm,
-    padding: 6,
-    ...Shadows.button,
-  },
-  categoryIcon: {
-    fontSize: 18,
-  },
   urgencyBadge: {
     position: 'absolute',
     top: Spacing.sm,
@@ -253,18 +235,19 @@ const styles = StyleSheet.create({
   },
   co2Badge: {
     position: 'absolute',
-    bottom: Spacing.sm,
+    top: Spacing.sm,
     left: Spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(76, 123, 75, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: BorderRadius.sm,
     gap: 4,
+    ...Shadows.button,
   },
   co2Text: {
-    color: '#fff',
+    color: Colors.primary,
     fontSize: 11,
     fontWeight: '600',
   },

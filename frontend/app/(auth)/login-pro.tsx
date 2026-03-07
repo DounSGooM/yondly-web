@@ -115,6 +115,13 @@ export default function LoginProScreen() {
                         </Text>
                     </TouchableOpacity>
 
+                    <TouchableOpacity
+                        onPress={() => router.push('/forgot-password')}
+                        style={{ marginTop: 12, alignItems: 'center' }}
+                    >
+                        <Text style={{ color: '#999', fontSize: 13 }}>Mot de passe oublié ?</Text>
+                    </TouchableOpacity>
+
 
                     <TouchableOpacity
                         onPress={() => router.push('/pro/registration-dsa')}

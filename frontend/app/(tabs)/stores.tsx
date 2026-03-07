@@ -19,6 +19,7 @@ import InteractiveMap from '../../src/components/InteractiveMap';
 import ItemGridCard from '../../src/components/ItemGridCard';
 import NotificationBell from '../../src/components/NotificationBell';
 import MarketHeader from '../../src/components/MarketHeader';
+import FilterModal, { FilterState } from '../../src/components/FilterModal';
 import * as Location from 'expo-location';
 
 import { API_URL } from '../../src/config/api';
@@ -44,11 +45,20 @@ export default function RentalScreen() {
   const [viewMode, setViewMode] = useState<'grid' | 'map' | 'list'>('grid');
   const [selectedCategory, setSelectedCategory] = useState('Tous');
   const [showCategoryMenu, setShowCategoryMenu] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+
+  const [filters, setFilters] = useState<FilterState>({
+    minPrice: '',
+    maxPrice: '',
+    conditions: [],
+    sortBy: 'date_desc',
+    radiusKm: null
+  });
 
   useEffect(() => {
     getUserLocation();
     fetchItems();
-  }, [selectedCategory]);
+  }, [selectedCategory, filters]);
 
   const getUserLocation = async () => {
     try {
@@ -77,6 +87,12 @@ export default function RentalScreen() {
       if (selectedCategory !== 'Tous') {
         params.category = selectedCategory;
       }
+
+      if (filters.minPrice) params.min_price = parseInt(filters.minPrice);
+      if (filters.maxPrice) params.max_price = parseInt(filters.maxPrice);
+      if (filters.conditions.length > 0) params.condition = filters.conditions;
+      if (filters.sortBy) params.sort_by = filters.sortBy;
+      if (filters.radiusKm) params.radius_km = filters.radiusKm;
 
       const response = await axios.get(`${API_URL}/items`, { params });
       setItems(response.data);
@@ -130,6 +146,8 @@ export default function RentalScreen() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onMessagePress={() => router.push('/messages' as any)}
+        onFilterPress={() => setShowFilters(true)}
+        activeFilters={!!(filters.minPrice || filters.maxPrice || filters.conditions.length > 0 || filters.radiusKm)}
       />
 
       {/* Category Dropdown */}
@@ -187,6 +205,30 @@ export default function RentalScreen() {
           </View>
         )}
       </View>
+
+      {(filters.minPrice || filters.radiusKm || filters.conditions.length > 0) && (
+        <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+          {filters.minPrice && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#e8f5e9', padding: 6, borderRadius: 16 }}>
+              <Text style={{ fontSize: 12, color: '#4C7B4B' }}>Min {filters.minPrice}€</Text>
+              <TouchableOpacity onPress={() => setFilters({ ...filters, minPrice: '' })}>
+                <Ionicons name="close" size={14} color="#4C7B4B" />
+              </TouchableOpacity>
+            </View>
+          )}
+          {filters.radiusKm && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#e8f5e9', padding: 6, borderRadius: 16 }}>
+              <Text style={{ fontSize: 12, color: '#4C7B4B' }}>📍 &lt;{filters.radiusKm}km</Text>
+              <TouchableOpacity onPress={() => setFilters({ ...filters, radiusKm: null })}>
+                <Ionicons name="close" size={14} color="#4C7B4B" />
+              </TouchableOpacity>
+            </View>
+          )}
+          <TouchableOpacity onPress={() => setFilters({ minPrice: '', maxPrice: '', conditions: [], sortBy: 'date_desc', radiusKm: null })}>
+            <Text style={{ fontSize: 12, color: '#666', marginTop: 4, textDecorationLine: 'underline' }}>Tout effacer</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Product Grid or Map */}
       {viewMode === 'map' ? (

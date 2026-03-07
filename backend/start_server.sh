@@ -14,5 +14,5 @@ lsof -ti:8000 | xargs kill -9 2>/dev/null
 sleep 2
 
 # Activate venv and start server
-source venv/bin/activate
+source ../.venv/bin/activate
 python3 server.py

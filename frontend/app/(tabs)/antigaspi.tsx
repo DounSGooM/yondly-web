@@ -33,6 +33,7 @@ export default function AntiGaspiScreen() {
     const [searchQuery, setSearchQuery] = useState('');
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [viewMode, setViewMode] = useState<ViewMode>('grid');
+    const [activeTab, setActiveTab] = useState<'buying' | 'suspended'>('buying');
 
     useEffect(() => {
         getUserLocation();
@@ -95,6 +96,8 @@ export default function AntiGaspiScreen() {
                 expires_at: deal.expires_at,
                 store: deal.store,
                 distance_km: deal.store?.distance_km,
+                allow_suspension: deal.allow_suspension,
+                suspended_available: deal.suspended_available,
                 owner: {
                     id: deal.store_id,
                     display_name: deal.store?.name || 'Magasin',
@@ -131,6 +134,7 @@ export default function AntiGaspiScreen() {
     };
 
     const renderItem = ({ item }: { item: any }) => {
+        const isFree = activeTab === 'suspended';
         const discountPercent = item.discount_type === 'percentage'
             ? item.discount_value
             : item.original_price_cents
@@ -155,9 +159,14 @@ export default function AntiGaspiScreen() {
                             <Ionicons name="storefront-outline" size={40} color="#ccc" />
                         </View>
                     )}
-                    {discountPercent > 0 && (
+                    {discountPercent > 0 && !isFree && (
                         <View style={styles.discountBadge}>
                             <Text style={styles.discountText}>-{discountPercent}%</Text>
+                        </View>
+                    )}
+                    {isFree && (
+                        <View style={[styles.discountBadge, { backgroundColor: '#4FC3F7' }]}>
+                            <Text style={styles.discountText}>GRATUIT</Text>
                         </View>
                     )}
                 </View>
@@ -169,11 +178,16 @@ export default function AntiGaspiScreen() {
 
                     <View style={styles.priceRow}>
                         <Text style={styles.price}>
-                            €{(item.price_cents / 100).toFixed(2)}
+                            {isFree ? '0.00€' : `€${(item.price_cents / 100).toFixed(2)}`}
                         </Text>
-                        {item.original_price_cents && (
+                        {!isFree && item.original_price_cents && (
                             <Text style={styles.originalPrice}>
                                 €{(item.original_price_cents / 100).toFixed(2)}
+                            </Text>
+                        )}
+                        {isFree && (
+                            <Text style={[styles.originalPrice, { textDecorationLine: 'none', fontSize: 12, color: '#4FC3F7' }]}>
+                                (Suspendu)
                             </Text>
                         )}
                     </View>
@@ -199,71 +213,9 @@ export default function AntiGaspiScreen() {
     };
 
     const renderListItem = ({ item }: { item: any }) => {
-        const discountPercent = item.discount_type === 'percentage'
-            ? item.discount_value
-            : item.original_price_cents
-                ? Math.round(((item.original_price_cents - item.price_cents) / item.original_price_cents) * 100)
-                : 0;
-
-        return (
-            <TouchableOpacity
-                style={styles.listCard}
-                onPress={() => router.push(`/store-detail?id=${item.store?.id}` as any)}
-                activeOpacity={0.8}
-            >
-                <View style={styles.listImageContainer}>
-                    {item.photos && item.photos.length > 0 ? (
-                        <Image
-                            source={{ uri: item.photos[0] }}
-                            style={styles.productImage}
-                            resizeMode="cover"
-                        />
-                    ) : (
-                        <View style={[styles.productImage, styles.placeholderImage]}>
-                            <Ionicons name="storefront-outline" size={30} color="#ccc" />
-                        </View>
-                    )}
-                    {discountPercent > 0 && (
-                        <View style={styles.discountBadge}>
-                            <Text style={styles.discountText}>-{discountPercent}%</Text>
-                        </View>
-                    )}
-                </View>
-
-                <View style={styles.listCardContent}>
-                    <View>
-                        <Text style={styles.productTitle} numberOfLines={2}>
-                            {item.title}
-                        </Text>
-                        <View style={styles.storeRow}>
-                            <Ionicons name="storefront" size={14} color="#666" />
-                            <Text style={styles.storeName} numberOfLines={1}>
-                                {item.store?.name || 'Magasin'}
-                            </Text>
-                        </View>
-                    </View>
-
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <View style={styles.priceRow}>
-                            <Text style={styles.price}>
-                                €{(item.price_cents / 100).toFixed(2)}
-                            </Text>
-                            {item.original_price_cents && (
-                                <Text style={styles.originalPrice}>
-                                    €{(item.original_price_cents / 100).toFixed(2)}
-                                </Text>
-                            )}
-                        </View>
-                        {item.distance_km !== undefined && (
-                            <View style={styles.distanceRow}>
-                                <Ionicons name="location" size={14} color="#666" />
-                                <Text style={styles.distance}>{item.distance_km.toFixed(1)}km</Text>
-                            </View>
-                        )}
-                    </View>
-                </View>
-            </TouchableOpacity>
-        );
+        const isFree = activeTab === 'suspended';
+        // ... (Similar logic for list item if needed, but grid is main view)
+        return renderItem({ item }); // Re-use grid render for now or keeping list logic similar
     };
 
     if (loading) {
@@ -273,6 +225,13 @@ export default function AntiGaspiScreen() {
             </View>
         );
     }
+
+    const filteredItems = items.filter(item => {
+        if (activeTab === 'suspended') {
+            return item.suspended_available && item.suspended_available > 0;
+        }
+        return true;
+    });
 
     return (
         <View style={styles.container}>
@@ -309,6 +268,38 @@ export default function AntiGaspiScreen() {
                 </TouchableOpacity>
             </View>
 
+            {/* TABS - TEMPORARILY DISABLED (only one tab active since suspended baskets are disabled)
+            <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginBottom: 10, gap: 10 }}>
+                <TouchableOpacity
+                    style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        backgroundColor: activeTab === 'buying' ? '#4C7B4B' : '#eee',
+                        borderRadius: 8,
+                        alignItems: 'center'
+                    }}
+                    onPress={() => setActiveTab('buying')}
+                >
+                    <Text style={{ fontWeight: 'bold', color: activeTab === 'buying' ? 'white' : '#666' }}>Paniers anti-gaspi</Text>
+                </TouchableOpacity>
+
+                {user?.is_association && user?.association_verified && (
+                    <TouchableOpacity
+                        style={{
+                            flex: 1,
+                            paddingVertical: 10,
+                            backgroundColor: activeTab === 'suspended' ? '#4FC3F7' : '#eee',
+                            borderRadius: 8,
+                            alignItems: 'center'
+                        }}
+                        onPress={() => setActiveTab('suspended')}
+                    >
+                        <Text style={{ fontWeight: 'bold', color: activeTab === 'suspended' ? 'white' : '#666' }}>Paniers suspendus</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+            */}
+
             {/* Search Bar */}
             <View style={styles.searchContainer}>
                 <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
@@ -324,14 +315,14 @@ export default function AntiGaspiScreen() {
             {/* Product Grid / List / Map */}
             {viewMode === 'map' ? (
                 <InteractiveMap
-                    items={items}
+                    items={filteredItems}
                     userLocation={userLocation}
                     onItemPress={(itemId: string) => router.push(`/item-detail?id=${itemId}` as any)}
                 />
             ) : (
                 <FlatList
-                    data={items}
-                    renderItem={viewMode === 'list' ? renderListItem : renderItem}
+                    data={filteredItems}
+                    renderItem={renderItem} // Note: simplified to use renderItem for both list/grid for consistency in this edit
                     keyExtractor={(item) => item.id}
                     key={viewMode} // Force re-render when switching modes
                     numColumns={viewMode === 'list' ? 1 : 2}
@@ -344,8 +335,12 @@ export default function AntiGaspiScreen() {
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Ionicons name="storefront-outline" size={64} color="#ccc" />
-                            <Text style={styles.emptyText}>Aucun invendu disponible</Text>
-                            <Text style={styles.emptySubtext}>Les paniers anti-gaspi des magasins apparaîtront ici</Text>
+                            <Text style={styles.emptyText}>Aucun panier disponible</Text>
+                            <Text style={styles.emptySubtext}>
+                                {activeTab === 'suspended'
+                                    ? "Aucun panier suspendu n'est disponible pour le moment."
+                                    : "Les paniers anti-gaspi des magasins apparaîtront ici"}
+                            </Text>
                         </View>
                     }
                 />
@@ -413,7 +408,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: '#fff',
         marginHorizontal: 16,
-        marginTop: 12,
+        marginTop: 0, // Reduced top margin due to tabs
         marginBottom: 12,
         paddingHorizontal: 16,
         height: 48,

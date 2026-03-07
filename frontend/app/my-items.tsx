@@ -17,6 +17,8 @@ import { Item } from '../src/types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale/fr';
 import { useAuthStore } from '../src/store/authStore';
+import BoostModal from '../src/components/BoostModal';
+import LevelRestrictedAction from '../src/components/LevelRestrictedAction';
 
 import { API_URL } from '../src/config/api';
 
@@ -27,6 +29,11 @@ export default function MyItemsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'donation' | 'sale' | 'rent'>('all');
+  const [userData, setUserData] = useState<any>(null);
+
+  // Boost Modal State
+  const [boostModalVisible, setBoostModalVisible] = useState(false);
+  const [selectedBoostItem, setSelectedBoostItem] = useState<{ id: string, title: string } | null>(null);
 
   useEffect(() => {
     fetchMyItems();
@@ -38,6 +45,12 @@ export default function MyItemsScreen() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setItems(response.data);
+
+      const userResponse = await axios.get(`${API_URL}/users/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUserData(userResponse.data);
+
     } catch (error) {
       Alert.alert('Erreur', 'Impossible de charger vos annonces');
     } finally {
@@ -144,7 +157,27 @@ export default function MyItemsScreen() {
             </Text>
           </View>
 
+          <LevelRestrictedAction
+            requiredLevel="ARBRE"
+            onPress={() => {
+              Alert.alert('Statistiques', `Cette annonce a été vue ${item.views_count || 0} fois.`);
+            }}
+            style={styles.statsBadge}
+          >
+            <Ionicons name="eye-outline" size={16} color="#666" />
+            <Text style={styles.statsText}>{item.views_count || 0}</Text>
+          </LevelRestrictedAction>
+
           <View style={styles.actions}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => {
+                setSelectedBoostItem({ id: item.id, title: item.title });
+                setBoostModalVisible(true);
+              }}
+            >
+              <Ionicons name="rocket-outline" size={20} color="#ff9800" />
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => router.push(`/edit-item?id=${item.id}` as any)}
@@ -231,6 +264,17 @@ export default function MyItemsScreen() {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4C7B4B']} />
           }
+        />
+      )}
+
+      {selectedBoostItem && (
+        <BoostModal
+          visible={boostModalVisible}
+          onClose={() => setBoostModalVisible(false)}
+          itemId={selectedBoostItem.id}
+          itemTitle={selectedBoostItem.title}
+          hasFreeBoost={userData?.free_boosts_available > 0}
+          onBoostSuccess={fetchMyItems}
         />
       )}
     </View>
@@ -363,6 +407,20 @@ const styles = StyleSheet.create({
   date: {
     fontSize: 12,
     color: '#666',
+  },
+  statsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  statsText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
   },
   actions: {
     flexDirection: 'row',

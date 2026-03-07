@@ -12,7 +12,7 @@ import {
 import { Calendar } from 'react-native-calendars';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
-import { useStripe } from '@stripe/stripe-react-native';
+import { useStripe } from '../utils/stripe';
 import PaymentMethodModal from './PaymentMethodModal';
 
 import { API_URL } from '../config/api';

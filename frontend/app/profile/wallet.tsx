@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { useAuthStore } from '../../src/store/authStore';
+import { LinearGradient } from 'expo-linear-gradient';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale/fr';
 
@@ -220,7 +221,12 @@ export default function WalletScreen() {
 
             <ScrollView style={styles.content}>
                 {/* Balance Card */}
-                <View style={styles.balanceCard}>
+                <LinearGradient
+                    colors={['#4C7B4B', '#2A4D29']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.balanceCard}
+                >
                     <Text style={styles.balanceLabel}>Solde disponible</Text>
                     <Text style={styles.balanceAmount}>{(balance / 100).toFixed(2)}€</Text>
 
@@ -228,14 +234,14 @@ export default function WalletScreen() {
                         style={[styles.withdrawButton, balance < 1000 && styles.withdrawButtonDisabled]}
                         onPress={() => {
                             if (balance >= 1000) setShowWithdrawModal(true);
-                            else Alert.alert('Solde insuffisant', 'Minimum de retrait : 10€');
+                            else Alert.alert('Solde insuffisant', 'Minimum de retrait : 10€ (1000 centimes)');
                         }}
                         disabled={balance < 1000}
                     >
                         <Ionicons name="arrow-up-circle" size={20} color="#fff" />
                         <Text style={styles.withdrawButtonText}>Retirer mes gains</Text>
                     </TouchableOpacity>
-                </View>
+                </LinearGradient>
 
                 {/* Bank Details Section */}
                 <View style={styles.section}>
@@ -434,11 +440,15 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     balanceCard: {
-        backgroundColor: '#4C7B4B',
         margin: 16,
-        padding: 24,
-        borderRadius: 20,
+        padding: 28,
+        borderRadius: 24,
         alignItems: 'center',
+        shadowColor: '#4C7B4B',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 10,
     },
     balanceLabel: {
         fontSize: 14,
@@ -483,7 +493,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: '#fff',
         padding: 16,
-        borderRadius: 16,
+        borderRadius: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
     bankIconContainer: {
         width: 48,
@@ -526,8 +541,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: '#fff',
         padding: 16,
-        borderRadius: 12,
-        marginBottom: 8,
+        borderRadius: 16,
+        marginBottom: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+        elevation: 1,
     },
     transactionIcon: {
         width: 40,
@@ -555,13 +575,18 @@ const styles = StyleSheet.create({
     },
     emptyContainer: {
         alignItems: 'center',
-        padding: 32,
+        padding: 40,
         backgroundColor: '#fff',
-        borderRadius: 16,
+        borderRadius: 20,
+        borderStyle: 'dashed',
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
     },
     emptyText: {
-        color: '#999',
-        marginTop: 12,
+        color: '#666',
+        marginTop: 16,
+        fontSize: 15,
+        textAlign: 'center',
     },
     modalOverlay: {
         flex: 1,
