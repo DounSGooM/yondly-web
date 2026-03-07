@@ -2,36 +2,41 @@ import os
 import random
 import string
 
-def calculate_platform_fee(amount_cents: int, user_level: str = 'Novice') -> dict:
+def calculate_platform_fee(amount_cents: int, user_level: str = 'Graine') -> dict:
     """
-    Calculate platform fee in EUR cents.
-    Rule: max(round(0.05 * amount_euros) + 0.49, 0.99) with cap at 9.99
+    Calculate platform fee in EUR cents based on Gamification levels.
     
     Level Benefits:
-    - Expert: 10% discount on fees
-    - Ambassadeur: 20% discount on fees
+    - Graine: 5.0% + 0.49€
+    - Pousse: 4.5% + 0.45€
+    - Arbre:  4.0% + 0.39€
+    - Forêt:  3.5% + 0.35€
     
     All values in cents for storage.
     """
     amount_euros = amount_cents / 100
     
-    # Calculate base fee: 5% + 0.49€
-    base_fee_euros = round(0.05 * amount_euros, 2) + 0.49
+    # Rates based on level
+    if user_level == 'Forêt':
+        percent = 0.035
+        fixed = 0.35
+    elif user_level == 'Arbre':
+        percent = 0.040
+        fixed = 0.39
+    elif user_level == 'Pousse':
+        percent = 0.045
+        fixed = 0.45
+    else: # Default: Graine or unknown
+        percent = 0.050
+        fixed = 0.49
+        
+    fee_euros = round(percent * amount_euros, 2) + fixed
     
-    # Apply minimum and maximum
-    fee_euros = max(base_fee_euros, 0.99)
+    # Apply minimum (to cover Stripe fees) and maximum (cap)
+    fee_euros = max(fee_euros, 0.50) # Must cover at least basic Stripe processing
     fee_euros = min(fee_euros, 9.99)
     
-    # Apply Level Discount
-    discount_multiplier = 1.0
-    if user_level == 'Expert':
-        discount_multiplier = 0.90 # 10% off
-    elif user_level == 'Ambassadeur':
-        discount_multiplier = 0.80 # 20% off
-        
-    fee_euros = round(fee_euros * discount_multiplier, 2)
-    
-    fee_cents = int(fee_euros * 100)
+    fee_cents = int(round(fee_euros * 100))
     payout_cents = amount_cents - fee_cents
     
     return {
@@ -40,7 +45,7 @@ def calculate_platform_fee(amount_cents: int, user_level: str = 'Novice') -> dic
         'payout_cents': payout_cents,
         'fee_euros': fee_euros,
         'payout_euros': payout_cents / 100,
-        'discount_applied': user_level if discount_multiplier < 1.0 else None
+        'discount_applied': user_level if user_level != 'Graine' else None
     }
 
 import hashlib
