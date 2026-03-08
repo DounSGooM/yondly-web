@@ -18,3 +18,6 @@ export const API_URL = FORCE_CLOUD ? PRODUCTION_API_URL :
 console.log('🔌 API Configured URL:', API_URL);
 console.log('📱 Environment:', __DEV__ ? 'Development' : 'Production');
 console.log('☁️ Using Cloud:', FORCE_CLOUD ? 'YES' : 'AUTO');
+
+// Stripe Configuration
+export const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_51M2fZlJaOgMZUcVV9NVs3L4yqz5QQeFsz6ySwl5MEkMeCnXxKnIS78Kk7QKCr6qPwGlj7vP85dvnZwz5Pf12tSM000bRfoA4ol';
