@@ -32,13 +32,13 @@ jobs:
         working-directory: frontend
         run: npm install --legacy-peer-deps
 
-      - name: Build APK
+      - name: Build IPA (iOS internal)
         working-directory: frontend
-        run: eas build --profile preview --platform android --non-interactive --no-wait
+        run: eas build --profile preview --platform ios --non-interactive --no-wait
 
       - name: Build summary
         run: |
-          echo "## 📱 EAS Preview Build" >> $GITHUB_STEP_SUMMARY
+          echo "## 📱 EAS Preview Build (iOS)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Build lancé sur EAS. Suivre l'avancement et télécharger l'APK sur :" >> $GITHUB_STEP_SUMMARY
+          echo "Build lancé sur EAS. Suivre l'avancement et installer l'IPA sur :" >> $GITHUB_STEP_SUMMARY
           echo "[expo.dev/accounts/douns/projects/yondly/builds](https://expo.dev/accounts/douns/projects/yondly/builds)" >> $GITHUB_STEP_SUMMARY
