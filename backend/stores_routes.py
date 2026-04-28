@@ -34,7 +34,7 @@ def _haversine(lon1, lat1, lon2, lat2) -> float:
 @router.post("/stores", response_model=Store)
 async def create_store(store_data: StoreCreate):
     store_id = str(uuid.uuid4())
-    store_dict = store_data.dict()
+    store_dict = store_data.model_dump()
     store_dict.update({"id": store_id, "followers_count": 0, "created_at": datetime.utcnow()})
     await db.stores.insert_one(store_dict)
     store_dict.pop("_id", None)
@@ -156,7 +156,7 @@ async def update_my_store(store_data: StoreUpdate, current_user: dict = Depends(
     store = await db.stores.find_one({"owner_id": current_user["id"]})
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
-    update_data = {k: v for k, v in store_data.dict().items() if v is not None}
+    update_data = {k: v for k, v in store_data.model_dump().items() if v is not None}
     if update_data:
         await db.stores.update_one({"owner_id": current_user["id"]}, {"$set": update_data})
     updated = await db.stores.find_one({"owner_id": current_user["id"]})
@@ -169,7 +169,7 @@ async def update_my_store(store_data: StoreUpdate, current_user: dict = Depends(
 
 @router.post("/partner-requests")
 async def create_partner_request(request_data: PartnerRequest):
-    req_dict = request_data.dict()
+    req_dict = request_data.model_dump()
     req_dict.update({"id": str(uuid.uuid4()), "status": "pending", "created_at": datetime.utcnow()})
     await db.partner_requests.insert_one(req_dict)
     logger.info(f"New partner request from {request_data.business_name} - {request_data.contact_email}")

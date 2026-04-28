@@ -243,7 +243,7 @@ def create_admin_routes(db, get_current_user_func):
     @router.post("/data-dictionary")
     async def create_data_dictionary_entry(entry: DataDictionaryEntry, current_user: dict = Depends(get_current_user_func)):
         """Create a new data dictionary entry"""
-        entry_dict = entry.dict()
+        entry_dict = entry.model_dump()
         entry_dict["id"] = str(uuid.uuid4())
         entry_dict["created_at"] = datetime.utcnow()
         entry_dict["updated_at"] = datetime.utcnow()
@@ -257,7 +257,7 @@ def create_admin_routes(db, get_current_user_func):
     @router.put("/data-dictionary/{entry_id}")
     async def update_data_dictionary_entry(entry_id: str, entry: DataDictionaryEntry, current_user: dict = Depends(get_current_user_func)):
         """Update a data dictionary entry"""
-        update_data = entry.dict()
+        update_data = entry.model_dump()
         update_data["updated_at"] = datetime.utcnow()
         
         result = await db.data_dictionary.update_one(
@@ -418,7 +418,7 @@ def create_admin_routes(db, get_current_user_func):
     @router.post("/export-definitions")
     async def create_export_definition(definition: ExportDefinition, current_user: dict = Depends(get_current_user_func)):
         """Create a new export definition"""
-        def_dict = definition.dict()
+        def_dict = definition.model_dump()
         def_dict["id"] = str(uuid.uuid4())
         def_dict["created_at"] = datetime.utcnow()
         def_dict["created_by"] = current_user["id"]
@@ -646,7 +646,7 @@ def create_admin_routes(db, get_current_user_func):
         
         # Trigger actual refund via Stripe if needed (mocked here)
         
-        await log_admin_action(db, current_user["id"], "RESOLVE_DISPUTE", "dispute", dispute_id, resolution.dict())
+        await log_admin_action(db, current_user["id"], "RESOLVE_DISPUTE", "dispute", dispute_id, resolution.model_dump())
         return {"message": "Dispute resolved"}
 
     # ============ SAFETY EVENTS ============

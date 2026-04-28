@@ -113,7 +113,7 @@ async def join_waitlist(entry: WaitlistEntry, background_tasks: BackgroundTasks)
     if await db.waitlist.find_one({"email": entry.email}):
         return {"message": "Already on the list"}
 
-    entry_dict = entry.dict()
+    entry_dict = entry.model_dump()
     entry_dict["id"] = str(uuid.uuid4())
     entry_dict["created_at"] = datetime.utcnow()
     await db.waitlist.insert_one(entry_dict)
@@ -199,7 +199,7 @@ async def delete_blog_post(post_id: str, x_admin_key: str = Header(None)):
 
 @router.post("/contact")
 async def contact_us(msg: ContactMessage, background_tasks: BackgroundTasks):
-    msg_dict = msg.dict()
+    msg_dict = msg.model_dump()
     msg_dict["id"] = str(uuid.uuid4())
     await db.contacts.insert_one(msg_dict)
     background_tasks.add_task(send_contact_notification, msg_dict)
@@ -209,7 +209,7 @@ async def contact_us(msg: ContactMessage, background_tasks: BackgroundTasks):
 
 @router.post("/partners")
 async def partner_request(app: PartnerApplication):
-    app_dict = app.dict()
+    app_dict = app.model_dump()
     app_dict["id"] = str(uuid.uuid4())
     await db.partners.insert_one(app_dict)
     return {"message": "Application received"}

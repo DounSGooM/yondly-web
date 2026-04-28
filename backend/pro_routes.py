@@ -45,7 +45,7 @@ def create_pro_routes(db, get_current_user_func):
             # Update
             await db.pro_profiles.update_one(
                 {"pro_id": current_user["id"]},
-                {"$set": {**data.dict(), "updated_at": now}}
+                {"$set": {**data.model_dump(), "updated_at": now}}
             )
             return {"message": "Profile updated"}
         else:
@@ -53,11 +53,11 @@ def create_pro_routes(db, get_current_user_func):
             profile = ProProfile(
                 id=str(uuid.uuid4()),
                 pro_id=current_user["id"],
-                **data.dict(),
+                **data.model_dump(),
                 created_at=now,
                 updated_at=now
             )
-            await db.pro_profiles.insert_one(profile.dict())
+            await db.pro_profiles.insert_one(profile.model_dump())
             return {"message": "Profile created", "id": profile.id}
     
     # ============ TRADER VERIFICATION ============
@@ -93,7 +93,7 @@ def create_pro_routes(db, get_current_user_func):
                 created_at=now,
                 updated_at=now
             )
-            await db.trader_verifications.insert_one(verif.dict())
+            await db.trader_verifications.insert_one(verif.model_dump())
         
         return {"message": "Verification submitted", "status": "PENDING"}
     
@@ -139,7 +139,7 @@ def create_pro_routes(db, get_current_user_func):
                 payouts_enabled=False,
                 updated_at=datetime.utcnow()
             )
-            await db.pro_payout_accounts.insert_one(payout.dict())
+            await db.pro_payout_accounts.insert_one(payout.model_dump())
         
         # Return mock onboarding URL
         onboarding_url = f"https://connect.stripe.com/setup/e/{account_id}"
@@ -178,12 +178,12 @@ def create_pro_routes(db, get_current_user_func):
         offer = OfferPro(
             id=str(uuid.uuid4()),
             pro_id=current_user["id"],
-            **data.dict(),
+            **data.model_dump(),
             status="DRAFT",
             created_at=now,
             updated_at=now
         )
-        await db.offers_pro.insert_one(offer.dict())
+        await db.offers_pro.insert_one(offer.model_dump())
         return {"id": offer.id, "status": "DRAFT"}
     
     @router.post("/offers/{offer_id}/antigaspi")
@@ -211,13 +211,13 @@ def create_pro_routes(db, get_current_user_func):
         antigaspi = OfferAntiGaspi(
             id=str(uuid.uuid4()),
             offer_id=offer_id,
-            **data.dict()
+            **data.model_dump()
         )
         
         # Upsert
         await db.offer_antigaspi.update_one(
             {"offer_id": offer_id},
-            {"$set": antigaspi.dict()},
+            {"$set": antigaspi.model_dump()},
             upsert=True
         )
         return {"message": "Anti-gaspi data saved"}
@@ -247,13 +247,13 @@ def create_pro_routes(db, get_current_user_func):
         rental = OfferRental(
             id=str(uuid.uuid4()),
             offer_id=offer_id,
-            **data.dict()
+            **data.model_dump()
         )
         
         # Upsert
         await db.offer_rentals.update_one(
             {"offer_id": offer_id},
-            {"$set": rental.dict()},
+            {"$set": rental.model_dump()},
             upsert=True
         )
         return {"message": "Rental data saved"}
@@ -317,7 +317,7 @@ def create_pro_routes(db, get_current_user_func):
             accepted_at=datetime.utcnow(),
             payload_json=data.payload_json
         )
-        await db.legal_acceptance_logs.insert_one(log.dict())
+        await db.legal_acceptance_logs.insert_one(log.model_dump())
         return {"id": log.id, "accepted_at": log.accepted_at}
     
     # ============ PLATFORM TRANSPARENCY ============
@@ -598,7 +598,7 @@ Yondly ne vend pas les produits : le professionnel reste responsable de son offr
                 "pdf_hash": contract["pdf_hash"]
             }
         )
-        await db.legal_acceptance_logs.insert_one(log.dict())
+        await db.legal_acceptance_logs.insert_one(log.model_dump())
         
         # Update contract
         await db.rental_contracts.update_one(

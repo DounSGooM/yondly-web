@@ -109,7 +109,7 @@ async def update_pro_profile(update_data: ProSellerUpdate, current_user: dict = 
     if not pro:
         raise HTTPException(status_code=404, detail="Aucun profil professionnel trouvé")
 
-    update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
+    update_dict = {k: v for k, v in update_data.model_dump().items() if v is not None}
     update_dict["updated_at"] = datetime.utcnow()
 
     await db.pro_sellers.update_one({"user_id": current_user["id"]}, {"$set": update_dict})

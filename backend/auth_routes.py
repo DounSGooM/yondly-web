@@ -120,7 +120,7 @@ async def register(user_data: UserRegister):
         "postcode": user_data.postcode,
         "citycode": user_data.citycode,
         "context": user_data.context,
-        "location": user_data.location.dict() if user_data.location else None,
+        "location": user_data.location.model_dump() if user_data.location else None,
         "co2_saved": 0.0,
         "beneficiary_id": generate_beneficiary_id(),
         "created_at": datetime.utcnow(),
@@ -418,7 +418,7 @@ async def get_user_impact(current_user: dict = Depends(get_current_user)):
 
 @router.put("/auth/profile")
 async def update_profile(update_data: UserUpdate, current_user: dict = Depends(get_current_user)):
-    update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
+    update_dict = {k: v for k, v in update_data.model_dump().items() if v is not None}
     if update_dict:
         await db.users.update_one({"id": current_user["id"]}, {"$set": update_dict})
 

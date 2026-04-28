@@ -81,7 +81,7 @@ async def create_beneficiary(
         linked_user_id=linked_user_id
     )
     
-    await db.beneficiaries.insert_one(beneficiary.dict())
+    await db.beneficiaries.insert_one(beneficiary.model_dump())
     
     return {"success": True, "beneficiary": beneficiary}
 
@@ -100,7 +100,7 @@ async def update_beneficiary(
     if not existing:
         raise HTTPException(status_code=404, detail="Bénéficiaire non trouvé")
         
-    update_data = {k: v for k, v in data.dict().items() if v is not None}
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     
     if update_data:
         await db.beneficiaries.update_one(
@@ -179,7 +179,7 @@ async def record_distribution(
         distributed_at=datetime.utcnow()
     )
     
-    await db.distributions.insert_one(distribution.dict())
+    await db.distributions.insert_one(distribution.model_dump())
     
     return {"success": True, "distribution": distribution}
 

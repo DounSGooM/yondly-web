@@ -89,7 +89,7 @@ async def create_item(item_data: ItemCreate, current_user: dict = Depends(get_cu
     if item_data.type == "donation" and item_data.urgency_hours:
         expires_at = datetime.utcnow() + timedelta(hours=item_data.urgency_hours)
 
-    item_dict = item_data.dict()
+    item_dict = item_data.model_dump()
     item_dict.update({
         "id": item_id,
         "owner_id": current_user["id"],
@@ -395,7 +395,7 @@ async def update_item(item_id: str, item_data: ItemCreate, current_user: dict = 
         "description": item_data.description,
         "category": item_data.category,
         "photos": item_data.photos,
-        "location": item_data.location.dict() if item_data.location else None,
+        "location": item_data.location.model_dump() if item_data.location else None,
         "radius_km": item_data.radius_km,
         "updated_at": datetime.utcnow(),
     }

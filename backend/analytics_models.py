@@ -4,7 +4,7 @@ Pydantic models for tracking events and territory statistics.
 RGPD-compliant: no personal data, only pseudonymized IDs.
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import List, Optional, Literal
 from datetime import datetime
 import hashlib
@@ -69,20 +69,21 @@ class TrackingEventCreate(BaseModel):
     timestamp: Optional[datetime] = None
     user_id: Optional[str] = None  # Optional: will be derived from auth if not provided
     
-    @validator("event_name")
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("event_name")
+    @classmethod
     def validate_event_name(cls, v):
         if v not in ALLOWED_EVENTS:
             raise ValueError(f"event_name must be one of: {', '.join(ALLOWED_EVENTS)}")
         return v
-    
-    @validator("territory_code")
+
+    @field_validator("territory_code")
+    @classmethod
     def validate_territory_code(cls, v):
         if not v or len(v) < 2:
             raise ValueError("territory_code must be at least 2 characters")
         return v
-    
-    class Config:
-        extra = "forbid"  # Reject any extra fields
 
 
 class StatsQuery(BaseModel):

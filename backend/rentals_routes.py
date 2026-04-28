@@ -409,7 +409,7 @@ async def create_inspection_in(
         raise HTTPException(status_code=400, detail="Invalid report type for entry")
 
     report.created_by = current_user["id"]
-    report_dict = report.dict()
+    report_dict = report.model_dump()
     await db.rentals.update_one(
         {"id": booking_id},
         {"$set": {"inspection_in": report_dict, "status": "active"}},
@@ -433,7 +433,7 @@ async def create_inspection_out(
         raise HTTPException(status_code=400, detail="Invalid report type for exit")
 
     report.created_by = current_user["id"]
-    report_dict = report.dict()
+    report_dict = report.model_dump()
     await db.rentals.update_one({"id": booking_id}, {"$set": {"inspection_out": report_dict}})
 
     return {"message": "Exit inspection saved (return must be confirmed separately)", "report": report_dict}

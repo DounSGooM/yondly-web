@@ -73,7 +73,7 @@ async def create_zone(zone: GeoZoneCreate):
             "displayName": zone.displayName,
             "type": zone.type,
             "isActive": zone.isActive,
-            "communes": [c.dict() for c in zone.communes],
+            "communes": [c.model_dump() for c in zone.communes],
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow(),
         }
@@ -99,7 +99,7 @@ async def update_zone(zone_id: str, zone: GeoZoneUpdate):
         if zone.isActive is not None:
             update_data["isActive"] = zone.isActive
         if zone.communes is not None:
-            update_data["communes"] = [c.dict() for c in zone.communes]
+            update_data["communes"] = [c.model_dump() for c in zone.communes]
 
         result = await db.zones.update_one({"_id": ObjectId(zone_id)}, {"$set": update_data})
         if result.modified_count == 0:
@@ -165,7 +165,7 @@ async def add_commune(zone_id: str, commune: Commune):
     try:
         result = await db.zones.update_one(
             {"_id": ObjectId(zone_id)},
-            {"$push": {"communes": commune.dict()}, "$set": {"updated_at": datetime.utcnow()}},
+            {"$push": {"communes": commune.model_dump()}, "$set": {"updated_at": datetime.utcnow()}},
         )
         if result.modified_count == 0:
             raise HTTPException(status_code=404, detail="Zone not found")
