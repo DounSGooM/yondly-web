@@ -34,7 +34,7 @@ async def get_beneficiaries(
     cursor = db.beneficiaries.find(
         {"association_id": current_user["id"]}
     ).sort("created_at", -1).skip(skip).limit(limit)
-    
+
     beneficiaries = await cursor.to_list(length=limit)
     return beneficiaries
 
@@ -49,10 +49,10 @@ async def create_beneficiary(
         "association_id": current_user["id"],
         "internal_ref": data.internal_ref
     })
-    
+
     if existing:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail=f"La référence {data.internal_ref} existe déjà."
         )
 
@@ -80,9 +80,9 @@ async def create_beneficiary(
         total_baskets=0,
         linked_user_id=linked_user_id
     )
-    
+
     await db.beneficiaries.insert_one(beneficiary.model_dump())
-    
+
     return {"success": True, "beneficiary": beneficiary}
 
 @router.put("/beneficiaries/{beneficiary_id}")
@@ -99,15 +99,15 @@ async def update_beneficiary(
     })
     if not existing:
         raise HTTPException(status_code=404, detail="Bénéficiaire non trouvé")
-        
+
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
-    
+
     if update_data:
         await db.beneficiaries.update_one(
             {"id": beneficiary_id},
             {"$set": update_data}
         )
-        
+
     return {"success": True}
 
 @router.delete("/beneficiaries/{beneficiary_id}")
@@ -120,10 +120,10 @@ async def archive_beneficiary(
         {"id": beneficiary_id, "association_id": current_user["id"]},
         {"$set": {"is_active": False}}
     )
-    
+
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Bénéficiaire non trouvé")
-        
+
     return {"success": True}
 
 # ============ DISTRIBUTIONS ============
@@ -137,7 +137,7 @@ async def get_distributions(
     cursor = db.distributions.find(
         {"association_id": current_user["id"]}
     ).sort("distributed_at", -1).limit(limit)
-    
+
     return await cursor.to_list(length=limit)
 
 @router.post("/distributions", response_model=dict)
@@ -146,7 +146,7 @@ async def record_distribution(
     current_user: dict = Depends(get_association_user)
 ):
     """Record a distribution (basket handed out)"""
-    
+
     beneficiary_initials = None
     if data.beneficiary_id:
         # Validate beneficiary and get data
@@ -156,9 +156,9 @@ async def record_distribution(
         })
         if not beneficiary:
             raise HTTPException(status_code=404, detail="Bénéficiaire non trouvé")
-            
+
         beneficiary_initials = beneficiary["initials"]
-        
+
         # Update stats
         await db.beneficiaries.update_one(
             {"id": data.beneficiary_id},
@@ -167,7 +167,7 @@ async def record_distribution(
                 "$set": {"last_distribution": datetime.utcnow()}
             }
         )
-    
+
     distribution = Distribution(
         id=uuid.uuid4().hex,
         association_id=current_user["id"],
@@ -178,21 +178,21 @@ async def record_distribution(
         store_name="Distribution Directe", # Could be linked to a specific pickup from store?
         distributed_at=datetime.utcnow()
     )
-    
+
     await db.distributions.insert_one(distribution.model_dump())
-    
+
     return {"success": True, "distribution": distribution}
 
 @router.get("/stats", response_model=AssociationStats)
 async def get_association_stats(current_user: dict = Depends(get_association_user)):
     """Get dashboard stats"""
-    
+
     # 1. Total beneficiaries
     total_beneficiaries = await db.beneficiaries.count_documents({
         "association_id": current_user["id"],
         "is_active": True
     })
-    
+
     # 2. Total distributions
     # Aggregate logic can be complex, keep it simple for now
     pipeline = [
@@ -202,14 +202,14 @@ async def get_association_stats(current_user: dict = Depends(get_association_use
     cursor = db.distributions.aggregate(pipeline)
     result = await cursor.to_list(length=1)
     total_distributed = result[0]["total_baskets"] if result else 0
-    
+
     # 3. Active collections (from stores)
     # Logic: Orders where is_association=True and status=reserved/ready?
     active_collections = await db.orders.count_documents({
         "buyer_id": current_user["id"],
         "status": {"$in": ["reserved", "paid", "ready"]}
     })
-    
+
     return AssociationStats(
         total_beneficiaries=total_beneficiaries,
         total_distributed_baskets=total_distributed,

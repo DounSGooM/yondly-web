@@ -13,7 +13,7 @@ API_URL = "http://localhost:8000/api"
 async def set_partner_true():
     email = "pro@loop.fr"
     password = "password123"
-    
+
     # 1. Try to register user via Requests (Sync)
     print(f" registering {email}...")
     try:
@@ -23,7 +23,7 @@ async def set_partner_true():
             "display_name": "Pro User",
             "phone": "0600000000"
         })
-        
+
         if response.status_code == 200:
             print("User registered successfully.")
         elif response.status_code == 400:
@@ -36,7 +36,7 @@ async def set_partner_true():
 
     # 2. Update DB
     print(f"Updating user {email} to be a partner...")
-    
+
     # Check if user exists
     user = await db.users.find_one({"email": email})
     if not user:

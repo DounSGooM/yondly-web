@@ -112,7 +112,7 @@ DEFAULT_DEREFERENCING_TEXT = """Une offre peut être suspendue ou supprimée si 
 def get_checkout_order_texts(pro: dict, offer: dict, order: dict, antigaspi: dict) -> dict:
     """Generate filled legal texts for anti-gaspi checkout"""
     from datetime import datetime
-    
+
     # Format helpers
     def format_date(dt):
         if isinstance(dt, str):
@@ -121,14 +121,14 @@ def get_checkout_order_texts(pro: dict, offer: dict, order: dict, antigaspi: dic
             except:
                 return dt
         return dt.strftime("%d/%m/%Y %H:%M") if dt else "Non renseignée"
-    
+
     def format_price(cents):
         return f"{cents/100:.2f}€"
-    
+
     # Build sections
     sections = []
     template = CHECKOUT_ORDER_TEMPLATE
-    
+
     for section in template["sections"]:
         text = section["template"]
         text = text.replace("{{pro.trade_name}}", pro.get("trade_name", pro.get("legal_name", "")))
@@ -139,16 +139,16 @@ def get_checkout_order_texts(pro: dict, offer: dict, order: dict, antigaspi: dic
         text = text.replace("{{offer.title}}", offer.get("title", ""))
         text = text.replace("{{order.qty}}", str(order.get("quantity", 1)))
         text = text.replace("{{total_price}}", format_price(offer.get("price_cents", 0)))
-        
+
         # Pickup slots
         if antigaspi.get("pickup_slots"):
             slot = antigaspi["pickup_slots"][0]
             text = text.replace("{{pickup_slot_start}}", format_date(slot.get("start_at")))
             text = text.replace("{{pickup_slot_end}}", format_date(slot.get("end_at")))
         text = text.replace("{{pickup_instructions}}", antigaspi.get("pickup_instructions", ""))
-        
+
         sections.append({"title": section["title"], "text": text})
-    
+
     # Food section if applicable
     food_info = None
     if antigaspi.get("is_food"):
@@ -156,22 +156,22 @@ def get_checkout_order_texts(pro: dict, offer: dict, order: dict, antigaspi: dic
         allergens = antigaspi.get("allergens_text") or "Non renseigné"
         date_type = antigaspi.get("date_type", "NONE")
         date_value = format_date(antigaspi.get("date_value")) if antigaspi.get("date_value") else "Non renseignée"
-        
+
         food_info = {
             "allergens": f"Allergènes : {allergens}",
             "date": f"Type de date : {date_type} — Date : {date_value}"
         }
-    
+
     # Retractation
     is_perishable = antigaspi.get("is_food") and antigaspi.get("date_type") == "DLC"
     retractation_text = template["retractation_perishable"] if is_perishable else template["retractation_general"]
-    
+
     # Mediation
     mediation_text = template["mediation_template"]
     mediation_text = mediation_text.replace("{{pro.mediator_name}}", pro.get("mediator_name", "Non renseigné"))
     mediation_text = mediation_text.replace("{{pro.mediator_url}}", pro.get("mediator_url", ""))
     mediation_text = mediation_text.replace("{{pro.mediator_contact}}", pro.get("mediator_contact", ""))
-    
+
     return {
         "version": template["version"],
         "platform_role": PLATFORM_ROLE_TEXT,
@@ -187,7 +187,7 @@ def get_checkout_order_texts(pro: dict, offer: dict, order: dict, antigaspi: dic
 def get_checkout_rental_texts(pro: dict, offer: dict, rental: dict, rental_data: dict) -> dict:
     """Generate filled legal texts for rental checkout"""
     from datetime import datetime, timedelta
-    
+
     def format_date(dt):
         if isinstance(dt, str):
             try:
@@ -195,12 +195,12 @@ def get_checkout_rental_texts(pro: dict, offer: dict, rental: dict, rental_data:
             except:
                 return dt
         return dt.strftime("%d/%m/%Y %H:%M") if dt else "Non renseignée"
-    
+
     def format_price(cents):
         return f"{cents/100:.2f}€"
-    
+
     template = CHECKOUT_RENTAL_TEMPLATE
-    
+
     # Build sections
     sections = []
     for section in template["sections"]:
@@ -216,9 +216,9 @@ def get_checkout_rental_texts(pro: dict, offer: dict, rental: dict, rental_data:
         text = text.replace("{{rental_price}}", format_price(offer.get("price_cents", 0)))
         text = text.replace("{{deposit_amount}}", format_price(rental_data.get("deposit_amount_cents", 0)))
         text = text.replace("{{late_fee_per_day}}", format_price(rental_data.get("late_fee_per_day_cents", 0)))
-        
+
         sections.append({"title": section["title"], "text": text})
-    
+
     # Check if start is within 14 days (requires immediate execution consent)
     start_at = rental.get("start_at")
     if isinstance(start_at, str):
@@ -226,15 +226,15 @@ def get_checkout_rental_texts(pro: dict, offer: dict, rental: dict, rental_data:
             start_at = datetime.fromisoformat(start_at.replace('Z', '+00:00'))
         except:
             start_at = datetime.utcnow() + timedelta(days=30)
-    
+
     requires_immediate_execution = start_at < datetime.utcnow() + timedelta(days=14) if start_at else False
-    
+
     # Mediation
     mediation_text = template["mediation_template"]
     mediation_text = mediation_text.replace("{{pro.mediator_name}}", pro.get("mediator_name", "Non renseigné"))
     mediation_text = mediation_text.replace("{{pro.mediator_url}}", pro.get("mediator_url", ""))
     mediation_text = mediation_text.replace("{{pro.mediator_contact}}", pro.get("mediator_contact", ""))
-    
+
     return {
         "version": template["version"],
         "platform_role": PLATFORM_ROLE_TEXT,

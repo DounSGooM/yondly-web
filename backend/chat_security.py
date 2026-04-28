@@ -3,7 +3,7 @@ from typing import Tuple, Optional
 
 # Keywords that suggest platform circumvention
 SUSPICIOUS_KEYWORDS = [
-    r'paypal', r'lydia', r'pumpkin', r'cash app', r'venmo', r'western union', r'mandat cash', 
+    r'paypal', r'lydia', r'pumpkin', r'cash app', r'venmo', r'western union', r'mandat cash',
     r'virement', r'rib', r'iban', r'paylib', r'espece', r'espèce', r'liquide'
 ]
 
@@ -31,7 +31,7 @@ def check_message_content(text: str) -> Tuple[bool, str, Optional[str]]:
         if re.search(keyword, text, re.IGNORECASE):
             is_suspicious = True
             reason = "PAYMENT_KEYWORD"
-            # We might not block strictly on keywords (context matters), 
+            # We might not block strictly on keywords (context matters),
             # but for this strict safety module, we flag it.
             # Masking keyword:
             text = re.sub(keyword, '[BLOCKED]', text, flags=re.IGNORECASE)
@@ -53,7 +53,7 @@ def check_message_content(text: str) -> Tuple[bool, str, Optional[str]]:
         is_suspicious = True
         reason = "EMAIL"
         text = re.sub(PATTERNS['email'], '[EMAIL_HIDDEN]', text)
-        
+
     # 5. Check URLs
     if re.search(PATTERNS['url'], text):
         # We might whitelist some internal URLs later
@@ -63,5 +63,5 @@ def check_message_content(text: str) -> Tuple[bool, str, Optional[str]]:
 
     if is_suspicious:
         return True, text, reason
-    
+
     return False, original_text, None

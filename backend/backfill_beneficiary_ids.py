@@ -25,29 +25,29 @@ def generate_beneficiary_id():
 async def backfill_beneficiary_ids():
     client = AsyncIOMotorClient(MONGO_URL)
     db = client[DB_NAME]
-    
+
     # Find all users without beneficiary_id
     users_without_id = await db.users.find({
         "beneficiary_id": {"$exists": False}
     }).to_list(None)
-    
+
     print(f"Found {len(users_without_id)} users without beneficiary_id")
-    
+
     updated = 0
     for user in users_without_id:
         new_id = generate_beneficiary_id()
-        
+
         # Make sure it's unique
         while await db.users.find_one({"beneficiary_id": new_id}):
             new_id = generate_beneficiary_id()
-        
+
         await db.users.update_one(
             {"id": user["id"]},
             {"$set": {"beneficiary_id": new_id}}
         )
         print(f"  Updated {user.get('display_name', user['email'])}: {new_id}")
         updated += 1
-    
+
     print(f"\n✅ Backfilled {updated} users with beneficiary IDs")
     client.close()
 

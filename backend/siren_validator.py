@@ -18,11 +18,11 @@ def validate_siren_format(siren: str) -> bool:
     for French SIREN numbers due to historical inconsistencies.
     """
     siren = siren.replace(" ", "")
-    
+
     # Just check it's exactly 9 digits
     if not re.match(r'^\d{9}$', siren):
         return False
-    
+
     return True
 
 
@@ -33,31 +33,31 @@ def validate_siret_format(siret: str) -> bool:
     auto-generated NIC (00001) may not always pass for all SIREN values.
     """
     siret = siret.replace(" ", "")
-    
+
     if not re.match(r'^\d{14}$', siret):
         return False
-    
+
     return True
 
 
 def validate_tva_format(tva: str) -> bool:
     """Validate French VAT number format (FR + 2 digits + 9 digits SIREN)"""
     tva = tva.replace(" ", "").upper()
-    
+
     if not re.match(r'^FR\d{11}$', tva):
         return False
-    
+
     # The 2 digits after FR are a key derived from SIREN
     siren = tva[4:]  # Last 9 digits
     key = tva[2:4]   # 2 digits after FR
-    
+
     # Validate SIREN part
     if not validate_siren_format(siren):
         return False
-    
+
     # Key calculation: (12 + 3 * (SIREN % 97)) % 97
     expected_key = (12 + 3 * (int(siren) % 97)) % 97
-    
+
     return int(key) == expected_key
 
 
@@ -84,7 +84,7 @@ async def validate_siren_with_insee(
         }
     """
     siren = siren.replace(" ", "")
-    
+
     # First validate format
     if not validate_siren_format(siren):
         return {
@@ -92,7 +92,7 @@ async def validate_siren_with_insee(
             "is_valid": False,
             "error_message": "Format SIREN invalide (doit contenir 9 chiffres)"
         }
-    
+
     # Use the FREE recherche-entreprises.api.gouv.fr API
     try:
         async with httpx.AsyncClient() as client:
@@ -100,41 +100,41 @@ async def validate_siren_with_insee(
                 f"https://recherche-entreprises.api.gouv.fr/search?q={siren}",
                 timeout=10.0
             )
-            
+
             if response.status_code != 200:
                 return {
                     "siren": siren,
                     "is_valid": True,  # Format valid
                     "error_message": f"Impossible de vérifier (erreur {response.status_code})"
                 }
-            
+
             data = response.json()
             results = data.get("results", [])
-            
+
             # Find the exact SIREN match
             company = None
             for r in results:
                 if r.get("siren") == siren:
                     company = r
                     break
-            
+
             if not company:
                 return {
                     "siren": siren,
                     "is_valid": False,
                     "error_message": "SIREN non trouvé dans la base Sirene"
                 }
-            
+
             # Get company name
             nom = company.get("nom_complet") or company.get("nom_raison_sociale", "")
-            
+
             # Get siege (headquarters) info
             siege = company.get("siege", {})
-            
+
             # Check if company is active
             etat = siege.get("etat_administratif", "A")
             is_active = etat == "A"
-            
+
             return {
                 "siren": siren,
                 "is_valid": is_active,
@@ -147,7 +147,7 @@ async def validate_siren_with_insee(
                 "creation_date": siege.get("date_creation"),
                 "error_message": None if is_active else "⚠️ Entreprise cessée/radiée"
             }
-            
+
     except httpx.TimeoutException:
         return {
             "siren": siren,

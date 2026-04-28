@@ -49,7 +49,7 @@ def init_analytics(mongo_db, jwt_secret: str, jwt_algorithm: str = "HS256"):
     db = mongo_db
     JWT_SECRET = jwt_secret
     JWT_ALGORITHM = jwt_algorithm
-    
+
     # Create indexes for efficient queries
     # Note: These are idempotent, safe to call multiple times
     import asyncio
@@ -60,7 +60,7 @@ async def _create_indexes():
     """Create MongoDB indexes for efficient analytics queries."""
     if db is None:
         return
-    
+
     try:
         # Index for territory-based queries
         await db.tracking_events.create_index([
@@ -91,7 +91,7 @@ async def get_optional_user_id(
     """
     if credentials is None:
         return None
-    
+
     try:
         token = credentials.credentials
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
@@ -141,10 +141,10 @@ async def track_event_internal(
     """
     if db is None:
         return None
-    
+
     if event_name not in ALLOWED_EVENTS:
         return None
-    
+
     try:
         event_id = str(uuid.uuid4())
         event_doc = {
@@ -181,7 +181,7 @@ async def track_event(
     """
     if db is None:
         raise HTTPException(status_code=503, detail="Analytics service not initialized")
-    
+
     # Check for sensitive fields in the raw request
     event_dict = event_data.dict(exclude_unset=True)
     sensitive_found = check_sensitive_fields(event_dict)
@@ -190,14 +190,14 @@ async def track_event(
             status_code=400,
             detail=f"Sensitive fields not allowed: {', '.join(sensitive_found)}"
         )
-    
+
     # Determine user_id: prefer auth token, fallback to provided, else anonymous
     user_id = auth_user_id
     if not user_id and event_data.user_id:
         user_id = hash_user_id(event_data.user_id)
     if not user_id:
         user_id = "anonymous"
-    
+
     # Create event document
     event_id = str(uuid.uuid4())
     event_doc = {
@@ -211,7 +211,7 @@ async def track_event(
         "estimated_value": event_data.estimated_value,
         "created_at": event_data.timestamp or datetime.utcnow()
     }
-    
+
     try:
         await db.tracking_events.insert_one(event_doc)
         return TrackingEventResponse(success=True, event_id=event_id)
@@ -236,7 +236,7 @@ async def get_territory_stats(
     """
     if db is None:
         raise HTTPException(status_code=503, detail="Analytics service not initialized")
-    
+
     # Build match stage
     match_stage = {
         "created_at": {"$gte": start_date, "$lte": end_date}
@@ -245,7 +245,7 @@ async def get_territory_stats(
         match_stage["territory_type"] = territory_type
     if territory_code:
         match_stage["territory_code"] = territory_code
-    
+
     # Aggregation pipeline
     pipeline = [
         {"$match": match_stage},
@@ -274,7 +274,7 @@ async def get_territory_stats(
         },
         {"$sort": {"_id.territory_code": 1, "_id.period": -1}}
     ]
-    
+
     try:
         results = []
         async for doc in db.tracking_events.aggregate(pipeline):
@@ -285,7 +285,7 @@ async def get_territory_stats(
                 from collections import Counter
                 category_counts = Counter(categories)
                 top_category = category_counts.most_common(1)[0][0] if category_counts else None
-            
+
             stats = TerritoryStats(
                 territory_code=doc["_id"]["territory_code"],
                 territory_type=doc["_id"]["territory_type"],
@@ -298,13 +298,13 @@ async def get_territory_stats(
                 estimated_value_total=round(doc["estimated_value_total"], 2)
             )
             results.append(stats)
-        
+
         return StatsResponse(
             success=True,
             data=results,
             period={"start_date": start_date.isoformat(), "end_date": end_date.isoformat()}
         )
-    
+
     except Exception as e:
         print(f"Analytics aggregation error: {e}")
         raise HTTPException(status_code=500, detail="Failed to aggregate statistics")

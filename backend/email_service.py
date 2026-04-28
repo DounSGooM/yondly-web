@@ -39,7 +39,7 @@ def send_email(to_email: str, subject: str, html_content: str):
                 server.starttls()
                 server.login(smtp_user, smtp_password)
                 server.send_message(msg)
-        
+
         logger.info(f"Email sent successfully to {to_email}")
         return True
 
@@ -56,7 +56,7 @@ def send_contact_notification(contact_data: dict):
         return
 
     subject = f"Nouveau message de {contact_data.get('name')} - Yondly"
-    
+
     html_content = f"""
     <html>
         <body>
@@ -72,7 +72,7 @@ def send_contact_notification(contact_data: dict):
         </body>
     </html>
     """
-    
+
     send_email(admin_email, subject, html_content)
 
 def send_waitlist_admin_notification(entry_data: dict):
@@ -84,7 +84,7 @@ def send_waitlist_admin_notification(entry_data: dict):
         return
 
     subject = f"Nouvelle inscription Waitlist : {entry_data.get('email')}"
-    
+
     html_content = f"""
     <html>
         <body>
@@ -98,7 +98,7 @@ def send_waitlist_admin_notification(entry_data: dict):
         </body>
     </html>
     """
-    
+
     send_email(admin_email, subject, html_content)
 
 def send_waitlist_confirmation(entry_data: dict):
@@ -107,9 +107,9 @@ def send_waitlist_confirmation(entry_data: dict):
     """
     user_email = entry_data.get('email')
     city = entry_data.get('city', '')
-    
+
     subject = "Bienvenue sur la liste d'attente Yondly ! 🌱"
-    
+
     html_content = f"""
     <html>
         <body>
@@ -124,7 +124,7 @@ def send_waitlist_confirmation(entry_data: dict):
         </body>
     </html>
     """
-    
+
     send_email(user_email, subject, html_content)
 
 def send_auto_reply(contact_data: dict):
@@ -133,9 +133,9 @@ def send_auto_reply(contact_data: dict):
     """
     user_email = contact_data.get('email')
     user_name = contact_data.get('name')
-    
+
     subject = "Nous avons bien reçu votre message - Yondly"
-    
+
     html_content = f"""
     <html>
         <body>
@@ -150,7 +150,7 @@ def send_auto_reply(contact_data: dict):
         </body>
     </html>
     """
-    
+
     send_email(user_email, subject, html_content)
 
 def send_verification_email(to_email: str, code: str):
@@ -158,7 +158,7 @@ def send_verification_email(to_email: str, code: str):
     Sends a 6-digit verification code to the user's email.
     """
     subject = "Votre code de vérification Yondly"
-    
+
     html_content = f"""
     <html>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5; padding: 20px;">
@@ -182,7 +182,7 @@ def send_verification_email(to_email: str, code: str):
         </body>
     </html>
     """
-    
+
     return send_email(to_email, subject, html_content)
 
 def send_password_reset_email(to_email: str, code: str):
@@ -190,7 +190,7 @@ def send_password_reset_email(to_email: str, code: str):
     Sends a 6-digit password reset code to the user's email.
     """
     subject = "Réinitialisation de votre mot de passe Yondly"
-    
+
     html_content = f"""
     <html>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5; padding: 20px;">
@@ -214,5 +214,5 @@ def send_password_reset_email(to_email: str, code: str):
         </body>
     </html>
     """
-    
+
     return send_email(to_email, subject, html_content)

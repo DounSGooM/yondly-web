@@ -32,13 +32,13 @@ def reverse_geocode(lat: float, lng: float) -> Optional[Dict]:
             'addressdetails': 1,
             'zoom': 18,  # Street level
         }
-        
+
         response = requests.get(NOMINATIM_URL, params=params, headers=HEADERS, timeout=5)
-        
+
         if response.status_code == 200:
             data = response.json()
             address = data.get('address', {})
-            
+
             # Extract relevant components
             return {
                 'street': address.get('road') or address.get('pedestrian') or address.get('path'),
@@ -53,7 +53,7 @@ def reverse_geocode(lat: float, lng: float) -> Optional[Dict]:
             }
     except Exception as e:
         print(f"Reverse geocoding error: {e}")
-    
+
     return None
 
 def calculate_distance(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -62,19 +62,19 @@ def calculate_distance(lat1: float, lng1: float, lat2: float, lng2: float) -> fl
     Returns distance in kilometers.
     """
     R = 6371  # Earth's radius in km
-    
+
     lat1_rad = math.radians(lat1)
     lat2_rad = math.radians(lat2)
     delta_lat = math.radians(lat2 - lat1)
     delta_lng = math.radians(lng2 - lng1)
-    
+
     a = (math.sin(delta_lat / 2) ** 2 +
          math.cos(lat1_rad) * math.cos(lat2_rad) *
          math.sin(delta_lng / 2) ** 2)
-    
+
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     distance = R * c
-    
+
     return round(distance, 2)
 
 def calculate_proximity_score(
@@ -99,28 +99,28 @@ def calculate_proximity_score(
             return 20, 'far'
         else:
             return 10, 'very_far'
-    
+
     # Same street (highest priority)
-    if (user_address.get('street') and 
+    if (user_address.get('street') and
         user_address.get('street') == item_address.get('street') and
         user_address.get('city') == item_address.get('city')):
         return 100, 'same_street'
-    
+
     # Same neighborhood
-    if (user_address.get('neighborhood') and 
+    if (user_address.get('neighborhood') and
         user_address.get('neighborhood') == item_address.get('neighborhood')):
         return 75, 'same_neighborhood'
-    
+
     # Same city
-    if (user_address.get('city') and 
+    if (user_address.get('city') and
         user_address.get('city') == item_address.get('city')):
         return 50, 'same_city'
-    
+
     # Same county/region
-    if (user_address.get('county') and 
+    if (user_address.get('county') and
         user_address.get('county') == item_address.get('county')):
         return 25, 'same_region'
-    
+
     # Fallback to distance
     if distance_km < 1:
         return 60, 'nearby'
@@ -135,18 +135,18 @@ def format_address_short(address: Dict) -> str:
     """Format address for display (short version)."""
     if not address:
         return "Adresse inconnue"
-    
+
     parts = []
-    
+
     if address.get('street'):
         if address.get('house_number'):
             parts.append(f"{address['house_number']} {address['street']}")
         else:
             parts.append(address['street'])
-    
+
     if address.get('city'):
         parts.append(address['city'])
-    
+
     return ', '.join(parts) if parts else address.get('display_name', 'Adresse inconnue')
 
 def format_proximity_label(level: str, distance_km: float) -> str:
@@ -161,5 +161,5 @@ def format_proximity_label(level: str, distance_km: float) -> str:
         'far': f'📏 {distance_km} km',
         'very_far': f'📏 {distance_km} km',
     }
-    
+
     return labels.get(level, f'{distance_km} km')

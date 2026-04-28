@@ -62,11 +62,11 @@ class User(BaseModel):
     association_name: Optional[str] = None
     association_verified: bool = False
     beneficiary_id: Optional[str] = None
-    
+
     # Gamification
     free_boosts_available: int = 0
     last_boost_reset: Optional[datetime] = None
-    
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class UserUpdate(BaseModel):
@@ -122,7 +122,7 @@ class Item(BaseModel):
     locked_offer_id: Optional[str] = None
     locked_until: Optional[datetime] = None
     co2_estimate: Optional[Dict[str, Any]] = None
-    
+
     # Gamification
     boosted_until: Optional[datetime] = None
     views_count: int = 0
@@ -241,31 +241,31 @@ class ProSellerCreate(BaseModel):
     business_name: str                    # Raison sociale
     trade_name: Optional[str] = None      # Nom commercial (si différent)
     legal_form: Literal[
-        'auto_entrepreneur', 'ei', 'eirl', 'eurl', 
+        'auto_entrepreneur', 'ei', 'eirl', 'eurl',
         'sarl', 'sas', 'sasu', 'sa', 'snc', 'association', 'other'
     ]
     siren: str                            # 9 digits
     siret: Optional[str] = None           # 14 digits (SIREN + NIC)
     rcs_number: Optional[str] = None      # RCS or RM number
     tva_number: Optional[str] = None      # VAT number (FR + 11 digits)
-    
+
     # Registered address (siège social)
     address_line1: str
     address_line2: Optional[str] = None
     city: str
     postcode: str
     country: str = "FR"
-    
+
     # Legal representative contact
     contact_first_name: str
     contact_last_name: str
     contact_email: str
     contact_phone: str
-    
+
     # Required documents for verification (DSA compliance)
     kbis_document_url: str                # Kbis or equivalent - REQUIRED
     identity_document_url: str            # ID card or passport - REQUIRED
-    
+
     # Services offered
     services: List[str] = []  # 'sale', 'rent', 'anti_waste'
 
@@ -273,7 +273,7 @@ class ProSeller(BaseModel):
     """Professional seller entity (DSA Art. 30 compliant)"""
     id: str
     user_id: str                          # Link to User
-    
+
     # Business identity (DSA mandatory fields)
     business_name: str                    # Raison sociale
     trade_name: Optional[str] = None      # Nom commercial
@@ -282,47 +282,47 @@ class ProSeller(BaseModel):
     siret: Optional[str] = None           # 14 digits
     rcs_number: Optional[str] = None      # RCS ou RM
     tva_number: Optional[str] = None      # TVA intracommunautaire
-    
+
     # Registered address
     address_line1: str
     address_line2: Optional[str] = None
     city: str
     postcode: str
     country: str = "FR"
-    
+
     # Legal representative
     contact_first_name: str
     contact_last_name: str
     contact_email: str
     contact_phone: str
-    
+
     # Services & Stripe
     services: List[str] = []
     stripe_account_id: Optional[str] = None
     payout_enabled: bool = False
-    
+
     # Verification status (DSA compliance)
     status: Literal['pending', 'verified', 'rejected', 'suspended'] = 'pending'
     verification_notes: Optional[str] = None
     rejection_reason: Optional[str] = None
     verified_at: Optional[datetime] = None
     verified_by: Optional[str] = None     # Admin user ID
-    
+
     # Documents (optional but recommended)
     kbis_document_url: Optional[str] = None
     identity_document_url: Optional[str] = None
-    
+
     # SIREN validation result
     siren_validated: bool = False
     siren_validation_date: Optional[datetime] = None
     siren_validation_data: Optional[Dict[str, Any]] = None  # INSEE API response
-    
+
     # Audit trail & retention (DSA Art. 30.4 - 6 months after relationship ends)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     deactivated_at: Optional[datetime] = None
     retention_until: Optional[datetime] = None  # created_at + 6 months after deactivation
-    
+
     # Stats
     total_sales: int = 0
     total_revenue_cents: int = 0
@@ -541,12 +541,12 @@ class Deal(BaseModel):
     category: Literal['Food', 'Flowers', 'Other']
     status: Literal['active', 'sold', 'expired'] = 'active'
     expires_at: datetime
-    
+
     # Suspended Baskets (Paniers Suspendus)
     allow_suspension: bool = False
     suspended_quantity: int = 0
     suspended_available: int = 0
-    
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     store: Optional[Store] = None  # For response population
 

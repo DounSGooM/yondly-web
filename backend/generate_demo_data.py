@@ -47,7 +47,7 @@ STREETS = [
     "Place de la Mairie", "Rue des Écoles", "Rue de la Liberté", "Rue Pierre Curie"
 ]
 
-PRENOMS = ["Marie", "Thomas", "Camille", "Lucas", "Emma", "Hugo", "Chloé", "Nathan", "Léa", "Antoine", 
+PRENOMS = ["Marie", "Thomas", "Camille", "Lucas", "Emma", "Hugo", "Chloé", "Nathan", "Léa", "Antoine",
            "Julie", "Pierre", "Claire", "Nicolas", "Sophie", "Paul", "Laura", "Maxime", "Sarah", "Alexandre"]
 NOMS = ["Martin", "Bernard", "Dubois", "Thomas", "Robert", "Richard", "Petit", "Durand", "Leroy", "Moreau",
         "Simon", "Laurent", "Lefebvre", "Michel", "Garcia", "David", "Bertrand", "Roux", "Vincent", "Fournier"]
@@ -70,7 +70,7 @@ def generate_user(index: int) -> dict:
     prenom = random.choice(PRENOMS)
     nom = random.choice(NOMS)
     days_ago = random.randint(1, 180)  # Users created over 6 months
-    
+
     return {
         "email": f"{prenom.lower()}.{nom.lower()}{index}@example.com",
         "display_name": f"{prenom} {nom[0]}.",
@@ -89,17 +89,17 @@ def generate_item(user_id, commune_name: str, commune_data: dict) -> dict:
     category_name = weighted_choice(CATEGORIES)
     category = CATEGORIES[category_name]
     item_type = random.choices(["donation", "sale", "rent", "antigaspi"], weights=[25, 50, 15, 10])[0]
-    
+
     title = random.choice(category["items"])
     if item_type == "antigaspi":
         title = random.choice(["Panier légumes", "Panier fruits", "Panier mixte", "Panier surprise", "Pain du jour"])
-    
+
     quartier = random.choice(commune_data["quartiers"])
     street = random.choice(STREETS)
-    
+
     days_ago = random.randint(0, 60)
     status = random.choices(["available", "sold", "reserved"], weights=[50, 40, 10])[0]
-    
+
     item = {
         "title": title + (" en bon état" if random.random() < 0.3 else ""),
         "description": f"Article en très bon état, disponible à {commune_name}. Prix négociable.",
@@ -118,7 +118,7 @@ def generate_item(user_id, commune_name: str, commune_data: dict) -> dict:
         "is_demo": True,
         "created_at": datetime.now(timezone.utc) - timedelta(days=days_ago, hours=random.randint(0, 23))
     }
-    
+
     # Price based on type
     if item_type == "donation":
         item["price"] = 0
@@ -129,14 +129,14 @@ def generate_item(user_id, commune_name: str, commune_data: dict) -> dict:
         item["rental_period"] = random.choice(["day", "weekend", "week"])
     else:
         item["price"] = round(random.uniform(*category["price_range"]), 2)
-    
+
     return item
 
 
 def generate_order(item: dict, buyer_id, seller_id) -> dict:
     """Generate a completed order."""
     days_ago = random.randint(0, 30)
-    
+
     return {
         "item_id": item["_id"],
         "buyer_id": buyer_id,
@@ -159,7 +159,7 @@ def generate_message(sender_id, receiver_id, item_id) -> dict:
         "Merci pour l'annonce !",
         "C'est noté, à bientôt !",
     ]
-    
+
     return {
         "sender_id": sender_id,
         "receiver_id": receiver_id,
@@ -181,7 +181,7 @@ def generate_review(reviewer_id, reviewed_id, order_id) -> dict:
         "Bon échange, merci !",
         "Super, rien à redire.",
     ]
-    
+
     return {
         "reviewer_id": reviewer_id,
         "reviewed_id": reviewed_id,
@@ -198,7 +198,7 @@ async def generate_demo_data():
     print(f"🔗 Connecting to MongoDB: {DB_NAME}")
     client = AsyncIOMotorClient(MONGO_URL)
     db = client[DB_NAME]
-    
+
     # Clear existing demo data
     print("\n🗑️  Clearing previous demo data...")
     await db.users.delete_many({"is_demo": True})
@@ -207,7 +207,7 @@ async def generate_demo_data():
     await db.messages.delete_many({"is_simulation": True})
     await db.reviews.delete_many({"is_simulation": True})
     print("  ✅ Previous demo data cleared")
-    
+
     # Generate users
     print("\n👥 Generating users...")
     NUM_USERS = 200
@@ -217,7 +217,7 @@ async def generate_demo_data():
         result = await db.users.insert_one(user)
         users.append({"_id": result.inserted_id, **user})
     print(f"  ✅ Created {len(users)} demo users")
-    
+
     # Generate items distributed by commune weight
     print("\n📦 Generating items...")
     NUM_ITEMS = 800
@@ -229,17 +229,17 @@ async def generate_demo_data():
         item = generate_item(user["_id"], commune_name, commune_data)
         result = await db.items.insert_one(item)
         items.append({"_id": result.inserted_id, **item})
-    
+
     # Count by commune
     commune_counts = {}
     for item in items:
         c = item["location"]["city"]
         commune_counts[c] = commune_counts.get(c, 0) + 1
-    
+
     for c, count in sorted(commune_counts.items(), key=lambda x: -x[1]):
         print(f"  📍 {c}: {count} items")
     print(f"  ✅ Total: {len(items)} items")
-    
+
     # Generate orders
     print("\n🛒 Generating orders...")
     sold_items = [i for i in items if i["status"] in ["sold", "completed"]]
@@ -250,7 +250,7 @@ async def generate_demo_data():
         result = await db.orders.insert_one(order)
         orders.append({"_id": result.inserted_id, **order})
     print(f"  ✅ Created {len(orders)} orders")
-    
+
     # Generate messages
     print("\n💬 Generating messages...")
     num_messages = 0
@@ -262,7 +262,7 @@ async def generate_demo_data():
         await db.messages.insert_one(msg)
         num_messages += 1
     print(f"  ✅ Created {num_messages} messages")
-    
+
     # Generate reviews
     print("\n⭐ Generating reviews...")
     completed_orders = [o for o in orders if o["status"] == "completed"]
@@ -272,29 +272,29 @@ async def generate_demo_data():
         await db.reviews.insert_one(review)
         num_reviews += 1
     print(f"  ✅ Created {num_reviews} reviews")
-    
+
     # Add favorites to users
     print("\n❤️  Adding favorites...")
     for user in users[:50]:
         fav_items = random.sample([i["_id"] for i in items], min(random.randint(2, 10), len(items)))
         await db.users.update_one({"_id": user["_id"]}, {"$set": {"favorites": fav_items}})
     print("  ✅ Added favorites to 50 users")
-    
+
     # Summary
     print("\n" + "="*60)
     print("📊 DEMO DATA SUMMARY")
     print("="*60)
-    
+
     # Calculate KPI previews
     total_items = len(items)
     donations = sum(1 for i in items if i["type"] == "donation")
     sales = sum(1 for i in items if i["type"] == "sale")
     rentals = sum(1 for i in items if i["type"] == "rent")
     antigaspi = sum(1 for i in items if i["type"] == "antigaspi")
-    
+
     completed = sum(1 for o in orders if o["status"] == "completed")
     co2_saved = completed * 3.75
-    
+
     print(f"""
 👥 UTILISATEURS
    Total: {len(users)}
@@ -318,10 +318,10 @@ async def generate_demo_data():
 
 📍 VILLES ACTIVES: {len(commune_counts)}
 """)
-    
+
     print("✅ Demo data generation complete!")
     print("🔄 Refresh http://localhost:8000/admin/kpis.html to see the data")
-    
+
     client.close()
 
 

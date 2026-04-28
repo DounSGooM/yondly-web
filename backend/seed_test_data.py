@@ -66,13 +66,13 @@ def create_user(email, display_name, password="test1234", **kwargs):
         "association_verified": kwargs.get("association_verified", False),
         "created_at": datetime.utcnow()
     }
-    
+
     # Check if user already exists
     existing = db.users.find_one({"email": email})
     if existing:
         print(f"⚠️  User {email} already exists, skipping...")
         return existing["_id"]
-    
+
     db.users.insert_one(user)
     print(f"✅ Created user: {display_name} ({email})")
     return user_id
@@ -103,13 +103,13 @@ def create_store(owner_id, name, address, **kwargs):
         "followers_count": 0,
         "created_at": datetime.utcnow()
     }
-    
+
     # Check if store already exists
     existing = db.stores.find_one({"name": name, "owner_id": owner_id})
     if existing:
         print(f"⚠️  Store {name} already exists, skipping...")
         return existing["_id"]
-    
+
     db.stores.insert_one(store)
     print(f"✅ Created store: {name}")
     return store_id
@@ -119,7 +119,7 @@ def create_deal(store_id, owner_id, title, **kwargs):
     deal_id = str(uuid.uuid4())
     original_price = kwargs.get("original_price", 12.00)
     deal_price = kwargs.get("deal_price", 4.99)
-    
+
     deal = {
         "_id": deal_id,
         "store_id": store_id,
@@ -143,17 +143,17 @@ def create_deal(store_id, owner_id, title, **kwargs):
         "photos": kwargs.get("photos", []),
         "created_at": datetime.utcnow()
     }
-    
+
     db.deals.insert_one(deal)
     print(f"✅ Created deal: {title} - {deal_price}€ (was {original_price}€)")
     return deal_id
 
 def main():
     print("\n🌱 Yondly Test Data Seeding\n" + "="*40)
-    
+
     # ============ PRO PROFILE + STORE + DEALS ============
     print("\n📦 Creating Pro Profile with Store...")
-    
+
     pro_user_id = create_user(
         email="boulangerie.martin@test.com",
         display_name="Boulangerie Martin",
@@ -163,13 +163,13 @@ def main():
         city="Poitiers",
         location={"lat": 46.5833, "lng": 0.3333}
     )
-    
+
     # Also mark as pro seller
     db.users.update_one(
         {"_id": pro_user_id},
         {"$set": {"is_pro": True, "pro_verified": True}}
     )
-    
+
     store_id = create_store(
         owner_id=pro_user_id,
         name="Boulangerie Martin",
@@ -179,10 +179,10 @@ def main():
         services=["anti_waste"],
         location={"lat": 46.5833, "lng": 0.3333}
     )
-    
+
     # Create 5 anti-gaspi deals
     print("\n🥐 Creating 5 Anti-Gaspi Deals...")
-    
+
     deals = [
         {
             "title": "Panier Surprise Sucré",
@@ -243,13 +243,13 @@ def main():
             "suspended_available": 1,
         },
     ]
-    
+
     for deal_data in deals:
         create_deal(store_id, pro_user_id, **deal_data)
-    
+
     # ============ REGULAR USERS (PARTICULIERS) ============
     print("\n👤 Creating 3 Regular User Profiles...")
-    
+
     users = [
         {
             "email": "marie.dupont@test.com",
@@ -274,13 +274,13 @@ def main():
             "location": {"lat": 46.6580, "lng": 0.3670}
         },
     ]
-    
+
     for user_data in users:
         create_user(**user_data)
-    
+
     # ============ ASSOCIATION PROFILE ============
     print("\n🏛️  Creating Association Profile...")
-    
+
     asso_user_id = create_user(
         email="secours.populaire.poitiers@test.com",
         display_name="Secours Populaire Poitiers",
@@ -291,7 +291,7 @@ def main():
         city="Poitiers",
         location={"lat": 46.5870, "lng": 0.3390}
     )
-    
+
     # ============ SUMMARY ============
     print("\n" + "="*40)
     print("✅ Test Data Created Successfully!")

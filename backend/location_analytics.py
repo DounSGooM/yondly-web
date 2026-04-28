@@ -27,13 +27,13 @@ async def get_analytics_by_city(db, zone_id: Optional[str] = None) -> List[Dict]
             }},
             {"$match": {"_id": {"$ne": None}}}
         ]
-        
+
         items_by_city = {}
         async for doc in db.items.aggregate(items_pipeline):
             city = doc["_id"]
             if city:
                 items_by_city[city] = doc
-        
+
         # Aggregate users by city (from their items/transactions)
         users_pipeline = [
             {"$match": {"location.city": {"$exists": True, "$ne": None}}},
@@ -42,13 +42,13 @@ async def get_analytics_by_city(db, zone_id: Optional[str] = None) -> List[Dict]
                 "unique_sellers": {"$addToSet": "$seller_id"}
             }}
         ]
-        
+
         users_by_city = {}
         async for doc in db.items.aggregate(users_pipeline):
             city = doc["_id"]
             if city:
                 users_by_city[city] = len(doc.get("unique_sellers", []))
-        
+
         # Aggregate orders/transactions by city
         orders_pipeline = [
             {"$match": {"status": "completed"}},
@@ -67,21 +67,21 @@ async def get_analytics_by_city(db, zone_id: Optional[str] = None) -> List[Dict]
             }},
             {"$match": {"_id": {"$ne": None}}}
         ]
-        
+
         orders_by_city = {}
         async for doc in db.orders.aggregate(orders_pipeline):
             city = doc["_id"]
             if city:
                 orders_by_city[city] = doc
-        
+
         # Combine all data
         all_cities = set(items_by_city.keys()) | set(users_by_city.keys()) | set(orders_by_city.keys())
-        
+
         results = []
         for city in sorted(all_cities):
             items = items_by_city.get(city, {})
             orders = orders_by_city.get(city, {})
-            
+
             results.append({
                 "city": city,
                 "users_count": users_by_city.get(city, 0),
@@ -94,9 +94,9 @@ async def get_analytics_by_city(db, zone_id: Optional[str] = None) -> List[Dict]
                 "co2_saved_kg": round(orders.get("co2_saved", 0), 2),
                 "total_revenue": round(orders.get("total_revenue", 0), 2),
             })
-        
+
         return results
-        
+
     except Exception as e:
         logging.error(f"Analytics by city error: {e}")
         return []
@@ -119,7 +119,7 @@ async def get_analytics_by_neighborhood(db, city: str) -> List[Dict]:
                 "unique_sellers": {"$addToSet": "$seller_id"}
             }}
         ]
-        
+
         results = []
         async for doc in db.items.aggregate(pipeline):
             results.append({
@@ -129,9 +129,9 @@ async def get_analytics_by_neighborhood(db, city: str) -> List[Dict]:
                 "sales": doc.get("sales", 0),
                 "users_count": len(doc.get("unique_sellers", []))
             })
-        
+
         return sorted(results, key=lambda x: x["items_count"], reverse=True)
-        
+
     except Exception as e:
         logging.error(f"Analytics by neighborhood error: {e}")
         return []
@@ -145,7 +145,7 @@ async def get_analytics_by_street(db, city: str, neighborhood: Optional[str] = N
         match_query = {"location.city": city}
         if neighborhood:
             match_query["location.neighborhood"] = neighborhood
-        
+
         pipeline = [
             {"$match": match_query},
             {"$group": {
@@ -156,7 +156,7 @@ async def get_analytics_by_street(db, city: str, neighborhood: Optional[str] = N
             {"$sort": {"items_count": -1}},
             {"$limit": 50}
         ]
-        
+
         results = []
         async for doc in db.items.aggregate(pipeline):
             street = doc["_id"]
@@ -166,9 +166,9 @@ async def get_analytics_by_street(db, city: str, neighborhood: Optional[str] = N
                     "items_count": doc.get("items_count", 0),
                     "users_count": len(doc.get("unique_sellers", []))
                 })
-        
+
         return results
-        
+
     except Exception as e:
         logging.error(f"Analytics by street error: {e}")
         return []
@@ -183,9 +183,9 @@ async def get_zone_summary(db, zone_name: str) -> Dict:
         zone = await db.zones.find_one({"name": zone_name})
         if not zone:
             return {"error": "Zone not found"}
-        
+
         active_communes = [c["name"] for c in zone.get("communes", []) if c.get("isActive")]
-        
+
         # Aggregate across all active communes
         pipeline = [
             {"$match": {"location.city": {"$in": active_communes}}},
@@ -198,17 +198,17 @@ async def get_zone_summary(db, zone_name: str) -> Dict:
                 "total_value": {"$sum": {"$ifNull": ["$price", 0]}}
             }}
         ]
-        
+
         result = None
         async for doc in db.items.aggregate(pipeline):
             result = doc
-        
+
         if not result:
             result = {"total_items": 0, "total_donations": 0, "total_sales": 0, "unique_sellers": [], "total_value": 0}
-        
+
         # Get order stats
         orders_count = await db.orders.count_documents({"status": "completed"})
-        
+
         return {
             "zone_name": zone_name,
             "display_name": zone.get("displayName", zone_name),
@@ -223,7 +223,7 @@ async def get_zone_summary(db, zone_name: str) -> Dict:
             "co2_saved_kg": round(orders_count * 3.75, 2),
             "total_value": round(result.get("total_value", 0), 2)
         }
-        
+
     except Exception as e:
         logging.error(f"Zone summary error: {e}")
         return {"error": str(e)}
@@ -235,11 +235,11 @@ async def get_time_series_analytics(db, city: Optional[str] = None, days: int = 
     """
     try:
         start_date = datetime.utcnow() - timedelta(days=days)
-        
+
         match_query = {"created_at": {"$gte": start_date}}
         if city:
             match_query["location.city"] = city
-        
+
         pipeline = [
             {"$match": match_query},
             {"$group": {
@@ -252,7 +252,7 @@ async def get_time_series_analytics(db, city: Optional[str] = None, days: int = 
             }},
             {"$sort": {"_id": 1}}
         ]
-        
+
         results = []
         async for doc in db.items.aggregate(pipeline):
             results.append({
@@ -263,9 +263,9 @@ async def get_time_series_analytics(db, city: Optional[str] = None, days: int = 
                 "rentals": doc.get("rentals", 0),
                 "baskets": doc.get("baskets", 0),
             })
-        
+
         return results
-        
+
     except Exception as e:
         logging.error(f"Time series analytics error: {e}")
         return []

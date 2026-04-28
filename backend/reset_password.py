@@ -19,7 +19,7 @@ def hash_password(password: str) -> str:
 async def reset_password():
     email = "pro@loop.fr"
     new_password = "password123"
-    
+
     hashed_pwd = hash_password(new_password)
     print(f"Resetting password for {email}...")
 

@@ -17,13 +17,13 @@ async def create_admin():
     print("Connecting to MongoDB...")
     client = AsyncIOMotorClient(MONGO_URL)
     db = client[DB_NAME]
-    
+
     email = "admin@yondly.com"
     password = "admin123"
-    
+
     # Check if exists
     user = await db.users.find_one({"email": email})
-    
+
     admin_data = {
         "email": email,
         "password_hash": hash_password(password),
@@ -35,7 +35,7 @@ async def create_admin():
         "risk_score": 0,
         "verified": True
     }
-    
+
     if user:
         print(f"User {email} found. Updating password...")
         await db.users.update_one(

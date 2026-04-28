@@ -38,10 +38,10 @@ def generate_rental_contract(
     """
     if not REPORTLAB_AVAILABLE:
         raise ImportError("reportlab is required for PDF generation. Install with: pip install reportlab")
-    
+
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
-    
+
     # Create PDF buffer
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -52,10 +52,10 @@ def generate_rental_contract(
         topMargin=2*cm,
         bottomMargin=2*cm
     )
-    
+
     # Styles
     styles = getSampleStyleSheet()
-    
+
     title_style = ParagraphStyle(
         'ContractTitle',
         parent=styles['Heading1'],
@@ -64,7 +64,7 @@ def generate_rental_contract(
         alignment=TA_CENTER,
         textColor=HexColor('#1f2937')
     )
-    
+
     heading_style = ParagraphStyle(
         'SectionHeading',
         parent=styles['Heading2'],
@@ -74,7 +74,7 @@ def generate_rental_contract(
         textColor=HexColor('#4C7B4B'),
         fontName='Helvetica-Bold'
     )
-    
+
     body_style = ParagraphStyle(
         'ContractBody',
         parent=styles['Normal'],
@@ -83,7 +83,7 @@ def generate_rental_contract(
         spaceAfter=6,
         leading=14
     )
-    
+
     small_style = ParagraphStyle(
         'SmallText',
         parent=styles['Normal'],
@@ -91,7 +91,7 @@ def generate_rental_contract(
         textColor=HexColor('#6b7280'),
         spaceAfter=4
     )
-    
+
     # Format helpers
     def format_date(dt):
         if isinstance(dt, str):
@@ -100,22 +100,22 @@ def generate_rental_contract(
             except:
                 return dt
         return dt.strftime("%d/%m/%Y à %H:%M") if dt else "Non renseignée"
-    
+
     def format_price(cents):
         return f"{cents/100:.2f}€" if cents else "0.00€"
-    
+
     # Build document content
     content = []
-    
+
     # Title
     content.append(Paragraph("CONTRAT DE LOCATION", title_style))
     content.append(Paragraph(f"Référence : {rental_id}", small_style))
     content.append(Paragraph(f"Date de génération : {datetime.now().strftime('%d/%m/%Y %H:%M')}", small_style))
     content.append(Spacer(1, 20))
-    
+
     # ============ ARTICLE 1: PARTIES ============
     content.append(Paragraph("ARTICLE 1 – LES PARTIES", heading_style))
-    
+
     # Lessor (PRO)
     content.append(Paragraph("<b>LE LOUEUR (Professionnel)</b>", body_style))
     lessor_info = f"""
@@ -127,7 +127,7 @@ def generate_rental_contract(
     """
     content.append(Paragraph(lessor_info, body_style))
     content.append(Spacer(1, 10))
-    
+
     # Renter
     content.append(Paragraph("<b>LE LOCATAIRE</b>", body_style))
     renter_info = f"""
@@ -137,7 +137,7 @@ def generate_rental_contract(
     """
     content.append(Paragraph(renter_info, body_style))
     content.append(Spacer(1, 10))
-    
+
     # Platform
     content.append(Paragraph("<b>LA PLATEFORME (Mise en relation uniquement)</b>", body_style))
     platform_info = """
@@ -145,9 +145,9 @@ def generate_rental_contract(
     Yondly n'est pas partie au contrat de location. Yondly fournit uniquement le service de mise en relation et de paiement sécurisé.
     """
     content.append(Paragraph(platform_info, body_style))
-    
+
     content.append(HRFlowable(width="100%", thickness=0.5, color=HexColor('#e5e5e5'), spaceBefore=15, spaceAfter=15))
-    
+
     # ============ ARTICLE 2: OBJET ============
     content.append(Paragraph("ARTICLE 2 – OBJET DE LA LOCATION", heading_style))
     object_info = f"""
@@ -156,7 +156,7 @@ def generate_rental_contract(
     <b>Catégorie :</b> {offer_data.get('category', 'N/A')}
     """
     content.append(Paragraph(object_info, body_style))
-    
+
     # ============ ARTICLE 3: DURÉE ============
     content.append(Paragraph("ARTICLE 3 – DURÉE DE LA LOCATION", heading_style))
     duration_info = f"""
@@ -166,7 +166,7 @@ def generate_rental_contract(
     <b>Durée maximale :</b> {rental_specific.get('max_duration_hours', 168)} heures
     """
     content.append(Paragraph(duration_info, body_style))
-    
+
     # ============ ARTICLE 4: PRIX ============
     content.append(Paragraph("ARTICLE 4 – PRIX ET PAIEMENT", heading_style))
     price_info = f"""
@@ -185,7 +185,7 @@ def generate_rental_contract(
     <b>Prolongation :</b> Toute prolongation doit faire l'objet d'un accord par messagerie et d'un paiement avant la fin de la période initiale.
     """
     content.append(Paragraph(cancellation_info, body_style))
-    
+
     # ============ ARTICLE 6: DÉPÔT DE GARANTIE ============
     content.append(Paragraph("ARTICLE 6 – DÉPÔT DE GARANTIE", heading_style))
     deposit_info = f"""
@@ -195,7 +195,7 @@ def generate_rental_contract(
     <b>Retenue :</b> En cas de dégradation, perte ou vol du bien, le loueur peut retenir tout ou partie du dépôt, avec justification écrite et preuves. Le locataire dispose de 48h pour contester après envoi des preuves.
     """
     content.append(Paragraph(deposit_info, body_style))
-    
+
     # ============ ARTICLE 7: REMISE ET RETOUR ============
     content.append(Paragraph("ARTICLE 7 – REMISE ET RETOUR DU BIEN", heading_style))
     handover_info = """
@@ -204,7 +204,7 @@ def generate_rental_contract(
     <b>État des lieux de retour :</b> Un état des lieux photographique comparatif est réalisé lors du retour. Toute différence sera documentée.
     """
     content.append(Paragraph(handover_info, body_style))
-    
+
     # ============ ARTICLE 8: OBLIGATIONS DU LOCATAIRE ============
     content.append(Paragraph("ARTICLE 8 – OBLIGATIONS DU LOCATAIRE", heading_style))
     renter_obligations = f"""
@@ -218,7 +218,7 @@ def generate_rental_contract(
     {rental_specific.get('usage_rules', 'Aucune règle spécifique')}
     """
     content.append(Paragraph(renter_obligations, body_style))
-    
+
     # ============ ARTICLE 9: OBLIGATIONS DU LOUEUR ============
     content.append(Paragraph("ARTICLE 9 – OBLIGATIONS DU LOUEUR", heading_style))
     lessor_obligations = """
@@ -229,7 +229,7 @@ def generate_rental_contract(
     • Restituer le dépôt de garantie selon les conditions prévues
     """
     content.append(Paragraph(lessor_obligations, body_style))
-    
+
     # ============ ARTICLE 10: RESPONSABILITÉ ============
     content.append(Paragraph("ARTICLE 10 – RESPONSABILITÉ EN CAS DE DÉGRADATION, PERTE OU VOL", heading_style))
     responsibility_info = """
@@ -243,10 +243,10 @@ def generate_rental_contract(
     Le dépôt de garantie sera conservé. Le loueur pourra exiger le remboursement de la valeur de remplacement (sur présentation d'un devis/facture) si elle excède le dépôt.
     """
     content.append(Paragraph(responsibility_info, body_style))
-    
+
     # ============ ARTICLE 11: LITIGES ============
     content.append(Paragraph("ARTICLE 11 – LITIGES ET MÉDIATION", heading_style))
-    
+
     mediator_name = pro_data.get('mediator_name')
     if not mediator_name or mediator_name == 'Non renseigné' or mediator_name.strip() == '':
         mediator_name = '<i>[À compléter par le loueur professionnel]</i>'
@@ -267,7 +267,7 @@ def generate_rental_contract(
     À défaut de résolution amiable ou par médiation, le litige sera porté devant les tribunaux compétents.
     """
     content.append(Paragraph(dispute_info, body_style))
-    
+
     # ============ ARTICLE 12: SIGNATURE ÉLECTRONIQUE ============
     content.append(Paragraph("ARTICLE 12 – ACCEPTATION ÉLECTRONIQUE", heading_style))
     signature_info = f"""
@@ -279,7 +279,7 @@ def generate_rental_contract(
     <b>Référence d'acceptation :</b> {rental_data.get('acceptance_log_id', rental_id)}
     """
     content.append(Paragraph(signature_info, body_style))
-    
+
     # Footer
     content.append(Spacer(1, 30))
     content.append(HRFlowable(width="100%", thickness=1, color=HexColor('#4C7B4B'), spaceBefore=10, spaceAfter=10))
@@ -287,23 +287,23 @@ def generate_rental_contract(
         "Document généré automatiquement par Yondly. Ce contrat engage les parties dès son acceptation électronique.",
         small_style
     ))
-    
+
     # Build PDF
     doc.build(content)
-    
+
     # Get PDF bytes and calculate hash
     pdf_bytes = buffer.getvalue()
     pdf_hash = hashlib.sha256(pdf_bytes).hexdigest()
-    
+
     # Save to file
     filename = f"rental_contract_{rental_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
     filepath = os.path.join(output_dir, filename)
-    
+
     with open(filepath, 'wb') as f:
         f.write(pdf_bytes)
-    
+
     buffer.close()
-    
+
     return filepath, pdf_hash
 
 

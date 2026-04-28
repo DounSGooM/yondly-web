@@ -8,7 +8,7 @@ DB_NAME = os.getenv("DB_NAME", "loop")
 async def test():
     client = AsyncIOMotorClient(MONGO_URL)
     db = client[DB_NAME]
-    
+
     user = await db.users.find_one({"email": "thomas.bernard@test.com"})
     if user:
         print(f"User found: email_verified={user.get('email_verified')}")

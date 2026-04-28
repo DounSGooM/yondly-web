@@ -15,7 +15,7 @@ def calculate_platform_fee(amount_cents: int, user_level: str = 'Graine') -> dic
     All values in cents for storage.
     """
     amount_euros = amount_cents / 100
-    
+
     # Rates based on level
     if user_level == 'Forêt':
         percent = 0.035
@@ -29,16 +29,16 @@ def calculate_platform_fee(amount_cents: int, user_level: str = 'Graine') -> dic
     else: # Default: Graine or unknown
         percent = 0.050
         fixed = 0.49
-        
+
     fee_euros = round(percent * amount_euros, 2) + fixed
-    
+
     # Apply minimum (to cover Stripe fees) and maximum (cap)
     fee_euros = max(fee_euros, 0.50) # Must cover at least basic Stripe processing
     fee_euros = min(fee_euros, 9.99)
-    
+
     fee_cents = int(round(fee_euros * 100))
     payout_cents = amount_cents - fee_cents
-    
+
     return {
         'amount_cents': amount_cents,
         'platform_fee_cents': fee_cents,

@@ -7,7 +7,8 @@ import uuid
 import random
 from datetime import datetime, timedelta
 
-import sys, os
+import sys
+import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from database import db
 from auth_utils import hash_password
@@ -191,7 +192,7 @@ PASSWORD = "Test1234!"
 
 async def seed():
     print("🌱 Seeding Poitiers data...")
-    
+
     # ── Clean previous seed data ──
     print("🧹 Cleaning previous seed data...")
     await db.users.delete_many({"email": {"$regex": "@test.yondly.app$"}})
@@ -200,10 +201,10 @@ async def seed():
     await db.pro_profiles.delete_many({"_seed": True})
     await db.stores.delete_many({"_seed": True})
     await db.deals.delete_many({"_seed": True})
-    
+
     user_ids = []
     pro_user_ids = []
-    
+
     # ── Create Client Users ──
     print("👤 Creating 8 client users...")
     for c in FAKE_CLIENTS:
@@ -219,7 +220,7 @@ async def seed():
             "role": "USER",
             "is_verified": True,
             "email_verified": True,
-            "bio": f"Habitant(e) de Poitiers, utilise Yondly au quotidien !",
+            "bio": "Habitant(e) de Poitiers, utilise Yondly au quotidien !",
             "city": "Poitiers",
             "postal_code": "86000",
             "location": poitiers_location(),
@@ -228,7 +229,7 @@ async def seed():
             "_seed": True,
         })
         print(f"   ✅ {c['display']} ({c['email']})")
-    
+
     # ── Create PRO Users ──
     print("🏪 Creating 4 PRO users...")
     for p in FAKE_PROS:
@@ -252,7 +253,7 @@ async def seed():
             "updated_at": datetime.utcnow(),
             "_seed": True,
         })
-        
+
         # Add verification
         verif_id = f"verif_{uuid.uuid4().hex}"
         await db.trader_verifications.insert_one({
@@ -274,7 +275,7 @@ async def seed():
             "verified_at": datetime.utcnow() - timedelta(days=28),
             "_seed": True,
         })
-        
+
         # Add pro profile
         await db.pro_profiles.insert_one({
             "id": f"pro_{uuid.uuid4().hex}",
@@ -286,8 +287,8 @@ async def seed():
             "created_at": datetime.utcnow() - timedelta(days=28),
             "_seed": True,
         })
-        
-        # Add Store for Anti-gaspi 
+
+        # Add Store for Anti-gaspi
         store_id = f"store_{uuid.uuid4().hex}"
         loc = poitiers_location()
         await db.stores.insert_one({
@@ -302,7 +303,7 @@ async def seed():
             "category": "Alimentation",
             "_seed": True
         })
-        
+
         # Add Anti-gaspi Deal for some stores (BioBoutique gets food deals)
         if "BioBoutique" in p["biz"]:
             await db.deals.insert_one({
@@ -336,27 +337,27 @@ async def seed():
                 "_seed": True
             })
             print(f"   🍏 {p['display']} a publié 2 offres anti-gaspi")
-        
+
         print(f"   ✅ {p['display']} ({p['email']}) – vérifié ✓")
-    
+
     all_user_ids = user_ids + pro_user_ids
-    
+
     # ── Create Items ──
     print(f"📦 Creating items across {len(CATEGORIES)} categories...")
     item_count = 0
     photo_idx = 0
-    
+
     for cat, items in FAKE_ITEMS.items():
         for (title, desc, item_type, price, condition, tags, photos) in items:
             item_id = f"item_{uuid.uuid4().hex}"
             owner_id = random.choice(all_user_ids)
-            
+
             # Only set expiration for specific types (like food donations)
             # Sales usually don't expire automatically
             expires_at = None
             if item_type == "donation" and "Food" in cat:
                 expires_at = datetime.utcnow() + timedelta(days=2)
-                
+
             item_doc = {
                 "id": item_id,
                 "type": item_type,
@@ -379,19 +380,19 @@ async def seed():
                 "expires_at": expires_at,
                 "_seed": True,
             }
-            
+
             await db.items.insert_one(item_doc)
             item_count += 1
-        
+
         print(f"   📂 {cat}: {len(items)} annonces")
-    
-    print(f"\n🎉 Seed terminé !")
+
+    print("\n🎉 Seed terminé !")
     print(f"   👤 {len(FAKE_CLIENTS)} clients créés")
     print(f"   🏪 {len(FAKE_PROS)} pros créés (vérifiés)")
     print(f"   📦 {item_count} annonces créées dans {len(CATEGORIES)} catégories")
-    print(f"   📍 Tout est localisé à Poitiers (86000)")
+    print("   📍 Tout est localisé à Poitiers (86000)")
     print(f"\n   🔑 Mot de passe universel : {PASSWORD}")
-    print(f"   📧 Emails : *@test.yondly.app")
+    print("   📧 Emails : *@test.yondly.app")
 
 if __name__ == "__main__":
     asyncio.run(seed())

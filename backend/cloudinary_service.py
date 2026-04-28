@@ -49,20 +49,20 @@ def upload_image(
         else:
             # Raw base64, add prefix
             upload_data = f"data:image/jpeg;base64,{image_data}"
-        
+
         # Generate public_id if not provided
         if not public_id:
             public_id = f"{folder}/{uuid.uuid4().hex[:12]}"
-        
+
         # Default transformation for optimization
         default_transformation = {
             "quality": "auto:good",
             "fetch_format": "auto"
         }
-        
+
         if transformation:
             default_transformation.update(transformation)
-        
+
         # Upload to Cloudinary
         result = cloudinary.uploader.upload(
             upload_data,
@@ -72,7 +72,7 @@ def upload_image(
             resource_type="image",
             transformation=default_transformation
         )
-        
+
         return {
             "success": True,
             "url": result.get("secure_url"),
@@ -82,7 +82,7 @@ def upload_image(
             "format": result.get("format"),
             "bytes": result.get("bytes")
         }
-        
+
     except Exception as e:
         return {
             "success": False,
@@ -150,9 +150,9 @@ def upload_document(image_data: str, doc_type: str, user_id: str) -> dict:
             upload_data = image_data
         else:
             upload_data = f"data:image/jpeg;base64,{image_data}"
-        
+
         public_id = f"{doc_type}_{user_id}_{uuid.uuid4().hex[:6]}"
-        
+
         # Upload as AUTHENTICATED (private) - requires signed URL to access
         result = cloudinary.uploader.upload(
             upload_data,
@@ -164,7 +164,7 @@ def upload_document(image_data: str, doc_type: str, user_id: str) -> dict:
             access_mode="authenticated",
             transformation={"quality": "auto:best"}
         )
-        
+
         # Generate a signed URL that expires in 24 hours (for admin viewing)
         signed_url = cloudinary.utils.cloudinary_url(
             result.get("public_id"),
@@ -172,7 +172,7 @@ def upload_document(image_data: str, doc_type: str, user_id: str) -> dict:
             type="authenticated",
             secure=True
         )[0]
-        
+
         return {
             "success": True,
             "url": signed_url,  # Signed URL (expires)
@@ -180,7 +180,7 @@ def upload_document(image_data: str, doc_type: str, user_id: str) -> dict:
             "is_private": True,
             "note": "Document stocké de manière sécurisée (accès restreint)"
         }
-        
+
     except Exception as e:
         return {
             "success": False,
@@ -196,7 +196,7 @@ def get_signed_document_url(public_id: str, expires_in_hours: int = 24) -> str:
     """
     import time
     expiration_timestamp = int(time.time()) + (expires_in_hours * 3600)
-    
+
     url, _ = cloudinary.utils.cloudinary_url(
         public_id,
         sign_url=True,

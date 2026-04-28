@@ -18,11 +18,11 @@ async def ensure_admin():
     try:
         client = AsyncIOMotorClient(MONGO_URL, serverSelectionTimeoutMS=5000)
         db = client[DB_NAME]
-        
+
         email = "admin@yondly.com"
         password = "admin123"
         hashed = pwd_context.hash(password)
-        
+
         user = await db.users.find_one({"email": email})
         if user:
             print(f"User {email} exists. Updating password.")

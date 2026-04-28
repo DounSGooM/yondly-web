@@ -77,7 +77,7 @@ for store_data in stores_data:
     if existing:
         print(f"⚠️  {store_data['name']} already exists")
         continue
-    
+
     # Create user for store
     user_id = str(uuid.uuid4())
     user = {
@@ -96,7 +96,7 @@ for store_data in stores_data:
         'created_at': datetime.utcnow()
     }
     db.users.insert_one(user)
-    
+
     # Create store
     store_id = str(uuid.uuid4())
     store = {
@@ -123,7 +123,7 @@ for store_data in stores_data:
     }
     db.stores.insert_one(store)
     print(f"✅ {store_data['name']} ({store_data['category']})")
-    
+
     # Create deals for this store
     for deal in store_data['deals']:
         deal_id = str(uuid.uuid4())
@@ -160,6 +160,6 @@ deals_count = db.deals.count_documents({'status': 'active'})
 print(f"\n{'='*50}")
 print(f"📊 Total magasins: {stores_count}")
 print(f"🧺 Total paniers anti-gaspi: {deals_count}")
-print(f"\n📋 Comptes Pro (mot de passe: test1234):")
+print("\n📋 Comptes Pro (mot de passe: test1234):")
 for s in stores_data:
     print(f"   {s['email']}")

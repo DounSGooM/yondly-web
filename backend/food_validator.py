@@ -45,18 +45,18 @@ PACKAGED_KEYWORDS = {
 
 class FoodValidator:
     """Validates food donation images using Google Cloud Vision API."""
-    
+
     def __init__(self):
         """Initialize the Vision API client."""
         try:
             # Check for API Key first (simpler setup)
             api_key = os.environ.get('GOOGLE_CLOUD_VISION_API_KEY')
-            
+
             if api_key:
                 # Use API Key authentication
                 from google.cloud.vision_v1 import ImageAnnotatorClient
                 from google.api_core.client_options import ClientOptions
-                
+
                 client_options = ClientOptions(api_key=api_key)
                 self.client = ImageAnnotatorClient(client_options=client_options)
                 logger.info("Google Cloud Vision client initialized with API Key")
@@ -64,12 +64,12 @@ class FoodValidator:
                 # Fallback to service account (GOOGLE_APPLICATION_CREDENTIALS)
                 self.client = vision.ImageAnnotatorClient()
                 logger.info("Google Cloud Vision client initialized with Service Account")
-                
+
         except Exception as e:
             logger.warning(f"Failed to initialize Vision client: {e}")
             logger.warning("Food validation will be disabled (all items will be accepted)")
             self.client = None
-    
+
     async def validate_food_image(self, image_url: str) -> Dict:
         """
         Validate a food image URL.
@@ -93,42 +93,42 @@ class FoodValidator:
                 "confidence": 0.0,
                 "detected_items": []
             }
-        
+
         try:
             # Analyze image
             image = types.Image()
             image.source.image_uri = image_url
-            
+
             # Run label detection and object localization
             response = await asyncio.to_thread(
                 self.client.label_detection,
                 image=image
             )
-            
+
             labels = [label.description.lower() for label in response.label_annotations]
-            
+
             # Also get web detection for more context
             web_response = await asyncio.to_thread(
                 self.client.web_detection,
                 image=image
             )
-            
+
             web_labels = []
             if web_response.web_detection.web_entities:
                 web_labels = [
-                    entity.description.lower() 
-                    for entity in web_response.web_detection.web_entities 
+                    entity.description.lower()
+                    for entity in web_response.web_detection.web_entities
                     if entity.description
                 ]
-            
+
             all_labels = list(set(labels + web_labels))
-            
+
             # Validate based on detected labels
             validation_result = self._validate_labels(all_labels)
             validation_result["detected_items"] = all_labels[:10]  # Limit to 10 items
-            
+
             return validation_result
-            
+
         except Exception as e:
             logger.error(f"Error validating image {image_url}: {e}")
             # On error, reject to be safe
@@ -138,7 +138,7 @@ class FoodValidator:
                 "confidence": 0.0,
                 "detected_items": []
             }
-    
+
     def _validate_labels(self, labels: List[str]) -> Dict:
         """
         Validate detected labels against allowed/forbidden categories.
@@ -150,7 +150,7 @@ class FoodValidator:
             dict with is_valid, reason, and confidence
         """
         labels_set = set(labels)
-        
+
         # Check for forbidden keywords (strict check)
         forbidden_found = labels_set.intersection(FORBIDDEN_KEYWORDS)
         if forbidden_found:
@@ -163,14 +163,14 @@ class FoodValidator:
                              f"Seuls les produits secs et non périssables sont acceptés.",
                     "confidence": 0.8
                 }
-        
+
         # Check for packaged items (good sign)
         packaged_found = labels_set.intersection(PACKAGED_KEYWORDS)
         has_packaging = len(packaged_found) > 0
-        
+
         # Check for allowed categories
         allowed_found = labels_set.intersection(ALLOWED_CATEGORIES)
-        
+
         if has_packaging:
             # If clearly packaged, be more permissive
             return {

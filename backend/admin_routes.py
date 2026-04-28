@@ -227,11 +227,11 @@ async def log_admin_action(db, admin_id: str, action: str, target_type: str, tar
 
 def create_admin_routes(db, get_current_user_func):
     """Factory function to create admin routes with database dependency"""
-    
+
     router = APIRouter(prefix="/api/admin", tags=["admin-enhanced"])
-    
+
     # ============ DATA DICTIONARY ============
-    
+
     @router.get("/data-dictionary")
     async def get_data_dictionary(current_user: dict = Depends(get_current_user_func)):
         """Get all data dictionary entries"""
@@ -239,7 +239,7 @@ def create_admin_routes(db, get_current_user_func):
         for e in entries:
             e.pop("_id", None)
         return entries
-    
+
     @router.post("/data-dictionary")
     async def create_data_dictionary_entry(entry: DataDictionaryEntry, current_user: dict = Depends(get_current_user_func)):
         """Create a new data dictionary entry"""
@@ -247,59 +247,59 @@ def create_admin_routes(db, get_current_user_func):
         entry_dict["id"] = str(uuid.uuid4())
         entry_dict["created_at"] = datetime.utcnow()
         entry_dict["updated_at"] = datetime.utcnow()
-        
+
         await db.data_dictionary.insert_one(entry_dict)
         await log_admin_action(db, current_user["id"], "CREATE", "data_dictionary", entry_dict["id"])
-        
+
         entry_dict.pop("_id", None)
         return entry_dict
-    
+
     @router.put("/data-dictionary/{entry_id}")
     async def update_data_dictionary_entry(entry_id: str, entry: DataDictionaryEntry, current_user: dict = Depends(get_current_user_func)):
         """Update a data dictionary entry"""
         update_data = entry.model_dump()
         update_data["updated_at"] = datetime.utcnow()
-        
+
         result = await db.data_dictionary.update_one(
             {"id": entry_id},
             {"$set": update_data}
         )
-        
+
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="Entry not found")
-        
+
         await log_admin_action(db, current_user["id"], "UPDATE", "data_dictionary", entry_id)
         return {"message": "Updated successfully"}
-    
+
     @router.delete("/data-dictionary/{entry_id}")
     async def delete_data_dictionary_entry(entry_id: str, current_user: dict = Depends(get_current_user_func)):
         """Delete a data dictionary entry"""
         result = await db.data_dictionary.delete_one({"id": entry_id})
-        
+
         if result.deleted_count == 0:
             raise HTTPException(status_code=404, detail="Entry not found")
-        
+
         await log_admin_action(db, current_user["id"], "DELETE", "data_dictionary", entry_id)
         return {"message": "Deleted successfully"}
-    
+
     @router.post("/data-dictionary/seed")
     async def seed_data_dictionary(current_user: dict = Depends(get_current_user_func)):
         """Seed initial data dictionary entries"""
         count = await db.data_dictionary.count_documents({})
         if count > 0:
             return {"message": "Data dictionary already seeded", "count": count}
-        
+
         for entry in INITIAL_DATA_DICTIONARY:
             entry["id"] = str(uuid.uuid4())
             entry["created_at"] = datetime.utcnow()
             entry["updated_at"] = datetime.utcnow()
             await db.data_dictionary.insert_one(entry)
-        
+
         await log_admin_action(db, current_user["id"], "SEED", "data_dictionary")
         return {"message": "Seeded successfully", "count": len(INITIAL_DATA_DICTIONARY)}
-    
+
     # ============ EVENT EXPLORER ============
-    
+
     @router.get("/events")
     async def get_events(
         event_type: str = None,
@@ -311,7 +311,7 @@ def create_admin_routes(db, get_current_user_func):
     ):
         """Get events without PII for analysis"""
         query = {}
-        
+
         if event_type:
             query["event_type"] = event_type
         if admin_area_id:
@@ -322,10 +322,10 @@ def create_admin_routes(db, get_current_user_func):
                 query["timestamp"]["$gte"] = datetime.fromisoformat(date_from)
             if date_to:
                 query["timestamp"]["$lte"] = datetime.fromisoformat(date_to)
-        
+
         # Aggregate events from various sources (orders, items, rentals)
         events = []
-        
+
         # Get recent orders as events
         orders = await db.orders.find().sort("created_at", -1).limit(limit).to_list(limit)
         for o in orders:
@@ -340,7 +340,7 @@ def create_admin_routes(db, get_current_user_func):
                     "amount_class": get_price_class(o.get("amount_cents", 0))
                 }
             })
-        
+
         # Get recent items as events
         items = await db.items.find().sort("created_at", -1).limit(limit).to_list(limit)
         for i in items:
@@ -355,12 +355,12 @@ def create_admin_routes(db, get_current_user_func):
                     "price_class": get_price_class(i.get("price_cents", 0))
                 }
             })
-        
+
         # Sort by timestamp
         events.sort(key=lambda x: x.get("timestamp") or datetime.min, reverse=True)
-        
+
         return events[:limit]
-    
+
     @router.get("/events/funnel")
     async def get_events_funnel(
         date_from: str = None,
@@ -370,13 +370,13 @@ def create_admin_routes(db, get_current_user_func):
         """Get funnel data: LISTING_CREATED → RESERVED → COMPLETED"""
         # Count items
         listings_count = await db.items.count_documents({})
-        
+
         # Count orders (reserved)
         orders_count = await db.orders.count_documents({})
-        
+
         # Count completed orders
         completed_count = await db.orders.count_documents({"payment_status": "completed"})
-        
+
         return {
             "funnel": [
                 {"step": "Annonces créées", "count": listings_count},
@@ -389,7 +389,7 @@ def create_admin_routes(db, get_current_user_func):
                 "overall": round((completed_count / max(listings_count, 1)) * 100, 1)
             }
         }
-    
+
     @router.get("/events/types")
     async def get_event_types(current_user: dict = Depends(get_current_user_func)):
         """Get available event types"""
@@ -404,9 +404,9 @@ def create_admin_routes(db, get_current_user_func):
             {"id": "basket_sold", "name": "Panier vendu"},
             {"id": "user_signup", "name": "Inscription utilisateur"}
         ]
-    
+
     # ============ EXPORT DEFINITIONS ============
-    
+
     @router.get("/export-definitions")
     async def get_export_definitions(current_user: dict = Depends(get_current_user_func)):
         """Get all saved export definitions"""
@@ -414,7 +414,7 @@ def create_admin_routes(db, get_current_user_func):
         for d in defs:
             d.pop("_id", None)
         return defs
-    
+
     @router.post("/export-definitions")
     async def create_export_definition(definition: ExportDefinition, current_user: dict = Depends(get_current_user_func)):
         """Create a new export definition"""
@@ -423,20 +423,20 @@ def create_admin_routes(db, get_current_user_func):
         def_dict["created_at"] = datetime.utcnow()
         def_dict["created_by"] = current_user["id"]
         def_dict["version"] = 1
-        
+
         await db.export_definitions.insert_one(def_dict)
         await log_admin_action(db, current_user["id"], "CREATE", "export_definition", def_dict["id"])
-        
+
         def_dict.pop("_id", None)
         return def_dict
-    
+
     @router.get("/export-definitions/metrics")
     async def get_available_metrics(current_user: dict = Depends(get_current_user_func)):
         """Get available metrics for export"""
         return AVAILABLE_METRICS
-    
+
     # ============ EXPORT RUNS ============
-    
+
     @router.get("/exports")
     async def get_export_runs(current_user: dict = Depends(get_current_user_func)):
         """Get all export runs"""
@@ -444,7 +444,7 @@ def create_admin_routes(db, get_current_user_func):
         for r in runs:
             r.pop("_id", None)
         return runs
-    
+
     @router.post("/exports/generate")
     async def generate_export(
         export_def_id: str,
@@ -457,7 +457,7 @@ def create_admin_routes(db, get_current_user_func):
         definition = await db.export_definitions.find_one({"id": export_def_id})
         if not definition:
             raise HTTPException(status_code=404, detail="Export definition not found")
-        
+
         # Create export run
         run = {
             "id": str(uuid.uuid4()),
@@ -472,23 +472,23 @@ def create_admin_routes(db, get_current_user_func):
             "row_count": 0,
             "k_min_applied": definition.get("k_min_threshold", 30)
         }
-        
+
         await db.export_runs.insert_one(run)
-        
+
         # Generate aggregated data
         k_min = definition.get("k_min_threshold", 30)
         geo_level = definition.get("geo_level", "VILLE")
-        
+
         # Aggregate data by zone
         aggregated_data = await aggregate_data_for_export(
-            db, 
-            period_start, 
-            period_end, 
-            geo_level, 
+            db,
+            period_start,
+            period_end,
+            geo_level,
             definition.get("metrics", []),
             k_min
         )
-        
+
         # Update run with results
         await db.export_runs.update_one(
             {"id": run["id"]},
@@ -499,36 +499,36 @@ def create_admin_routes(db, get_current_user_func):
                 "completed_at": datetime.utcnow()
             }}
         )
-        
+
         await log_admin_action(db, current_user["id"], "GENERATE_EXPORT", "export_run", run["id"])
-        
+
         run["status"] = "completed"
         run["row_count"] = len(aggregated_data)
         run.pop("_id", None)
         return run
-    
+
     @router.get("/exports/{run_id}/preview")
     async def preview_export(run_id: str, current_user: dict = Depends(get_current_user_func)):
         """Preview export data"""
         run = await db.export_runs.find_one({"id": run_id})
         if not run:
             raise HTTPException(status_code=404, detail="Export run not found")
-        
+
         return {
             "preview": run.get("data", [])[:10],
             "total_rows": len(run.get("data", [])),
             "columns": list(run.get("data", [{}])[0].keys()) if run.get("data") else []
         }
-    
+
     @router.get("/exports/{run_id}/download")
     async def download_export(run_id: str, format: str = "json", current_user: dict = Depends(get_current_user_func)):
         """Download export data"""
         run = await db.export_runs.find_one({"id": run_id})
         if not run:
             raise HTTPException(status_code=404, detail="Export run not found")
-        
+
         data = run.get("data", [])
-        
+
         if format == "csv":
             import csv
             import io
@@ -541,9 +541,9 @@ def create_admin_routes(db, get_current_user_func):
             return {"format": "csv", "content": csv_content, "filename": f"export_{run_id}.csv"}
         else:
             return {"format": "json", "content": data, "filename": f"export_{run_id}.json"}
-    
+
     # ============ AUDIT LOGS ============
-    
+
     @router.get("/audit-logs")
     async def get_audit_logs(
         admin_id: str = None,
@@ -557,17 +557,17 @@ def create_admin_routes(db, get_current_user_func):
             query["admin_id"] = admin_id
         if action:
             query["action"] = action
-        
+
         logs = await db.audit_logs.find(query).sort("created_at", -1).limit(limit).to_list(limit)
-        
+
         # Enrich with admin names
         for log in logs:
             log.pop("_id", None)
             admin = await db.users.find_one({"id": log.get("admin_id")})
             log["admin_name"] = admin.get("display_name", "Unknown") if admin else "Unknown"
-        
+
         return logs
-    
+
     # ============ USERS & TRUST ============
 
     @router.get("/users")
@@ -589,7 +589,7 @@ def create_admin_routes(db, get_current_user_func):
 
     @router.put("/users/{user_id}/trust")
     async def update_user_trust(
-        user_id: str, 
+        user_id: str,
         update: TrustUpdate,
         current_user: dict = Depends(get_current_user_func)
     ):
@@ -597,7 +597,7 @@ def create_admin_routes(db, get_current_user_func):
         await db.users.update_one(
             {"id": user_id},
             {"$set": {
-                "trust_level": update.trust_level, 
+                "trust_level": update.trust_level,
                 "risk_score": 0 if update.trust_level == "verified" else 50
             }}
         )
@@ -612,7 +612,7 @@ def create_admin_routes(db, get_current_user_func):
         query = {}
         if status:
             query["status"] = status
-        
+
         disputes = await db.disputes.find(query).sort("created_at", -1).to_list(100)
         for d in disputes:
             d.pop("_id", None)
@@ -620,7 +620,7 @@ def create_admin_routes(db, get_current_user_func):
 
     @router.post("/disputes/{dispute_id}/resolve")
     async def resolve_dispute(
-        dispute_id: str, 
+        dispute_id: str,
         resolution: DisputeResolution,
         current_user: dict = Depends(get_current_user_func)
     ):
@@ -628,7 +628,7 @@ def create_admin_routes(db, get_current_user_func):
         dispute = await db.disputes.find_one({"id": dispute_id})
         if not dispute:
             raise HTTPException(status_code=404, detail="Dispute not found")
-            
+
         update_data = {
             "status": "resolved_buyer" if "refund" in resolution.resolution else "resolved_seller",
             "resolution": resolution.resolution,
@@ -636,16 +636,16 @@ def create_admin_routes(db, get_current_user_func):
             "resolved_at": datetime.utcnow(),
             "resolved_by": current_user["id"]
         }
-        
+
         if resolution.refund_percentage:
             update_data["refund_amount_cents"] = int(dispute.get("amount_cents", 0) * (resolution.refund_percentage / 100))
         elif resolution.resolution == "refund_full":
             update_data["refund_amount_cents"] = dispute.get("amount_cents", 0)
-            
+
         await db.disputes.update_one({"id": dispute_id}, {"$set": update_data})
-        
+
         # Trigger actual refund via Stripe if needed (mocked here)
-        
+
         await log_admin_action(db, current_user["id"], "RESOLVE_DISPUTE", "dispute", dispute_id, resolution.model_dump())
         return {"message": "Dispute resolved"}
 
@@ -667,7 +667,7 @@ def create_admin_routes(db, get_current_user_func):
         query = {}
         if status:
             query["status"] = status
-        
+
         verifications = await db.trader_verifications.find(query).sort("created_at", -1).to_list(100)
         results = []
         for v in verifications:
@@ -680,7 +680,7 @@ def create_admin_routes(db, get_current_user_func):
                 "trade_name": pro.get("trade_name") if pro else None
             }
             results.append(v)
-        
+
         return results
 
     @router.post("/pro/verifications/{verification_id}/approve")
@@ -692,10 +692,10 @@ def create_admin_routes(db, get_current_user_func):
         verif = await db.trader_verifications.find_one({"id": verification_id})
         if not verif:
             raise HTTPException(status_code=404, detail="Verification not found")
-        
+
         if verif.get("status") == "APPROVED":
             return {"message": "Already approved"}
-        
+
         now = datetime.utcnow()
         await db.trader_verifications.update_one(
             {"id": verification_id},
@@ -706,7 +706,7 @@ def create_admin_routes(db, get_current_user_func):
                 "updated_at": now
             }}
         )
-        
+
         await log_admin_action(db, current_user["id"], "APPROVE_PRO", "verification", verification_id)
         return {"message": "Verification approved", "status": "APPROVED"}
 
@@ -720,7 +720,7 @@ def create_admin_routes(db, get_current_user_func):
         verif = await db.trader_verifications.find_one({"id": verification_id})
         if not verif:
             raise HTTPException(status_code=404, detail="Verification not found")
-        
+
         now = datetime.utcnow()
         await db.trader_verifications.update_one(
             {"id": verification_id},
@@ -732,7 +732,7 @@ def create_admin_routes(db, get_current_user_func):
                 "updated_at": now
             }}
         )
-        
+
         await log_admin_action(db, current_user["id"], "REJECT_PRO", "verification", verification_id, {"reason": reason})
         return {"message": "Verification rejected", "status": "REJECTED"}
 
@@ -744,7 +744,7 @@ def create_admin_routes(db, get_current_user_func):
         query = {}
         if status:
             query["status"] = status
-        
+
         offers = await db.offers_pro.find(query).sort("created_at", -1).to_list(200)
         results = []
         for o in offers:
@@ -756,7 +756,7 @@ def create_admin_routes(db, get_current_user_func):
                 "siret": pro.get("siret") if pro else "N/A",
             }
             results.append(o)
-        
+
         return results
 
     @router.post("/pro/offers/{offer_id}/suspend")
@@ -769,7 +769,7 @@ def create_admin_routes(db, get_current_user_func):
         offer = await db.offers_pro.find_one({"id": offer_id})
         if not offer:
             raise HTTPException(status_code=404, detail="Offer not found")
-        
+
         now = datetime.utcnow()
         await db.offers_pro.update_one(
             {"id": offer_id},
@@ -781,7 +781,7 @@ def create_admin_routes(db, get_current_user_func):
                 "updated_at": now
             }}
         )
-        
+
         await log_admin_action(db, current_user["id"], "SUSPEND_OFFER", "offer_pro", offer_id, {"reason": reason})
         return {"message": "Offer suspended", "status": "SUSPENDED"}
 
@@ -794,10 +794,10 @@ def create_admin_routes(db, get_current_user_func):
         offer = await db.offers_pro.find_one({"id": offer_id})
         if not offer:
             raise HTTPException(status_code=404, detail="Offer not found")
-        
+
         if offer.get("status") != "SUSPENDED":
             return {"message": "Offer is not suspended", "status": offer.get("status")}
-        
+
         now = datetime.utcnow()
         await db.offers_pro.update_one(
             {"id": offer_id},
@@ -809,7 +809,7 @@ def create_admin_routes(db, get_current_user_func):
             },
             "$unset": {"suspension_reason": "", "suspended_at": "", "suspended_by": ""}}
         )
-        
+
         await log_admin_action(db, current_user["id"], "UNSUSPEND_OFFER", "offer_pro", offer_id)
         return {"message": "Offer unsuspended", "status": "PUBLISHED"}
 
@@ -823,16 +823,16 @@ def create_admin_routes(db, get_current_user_func):
         offer = await db.offers_pro.find_one({"id": offer_id})
         if not offer:
             raise HTTPException(status_code=404, detail="Offer not found")
-        
+
         # Archive before delete
         offer["deleted_reason"] = reason
         offer["deleted_at"] = datetime.utcnow()
         offer["deleted_by"] = current_user["id"]
         await db.offers_pro_archive.insert_one(offer)
-        
+
         # Delete from main collection
         await db.offers_pro.delete_one({"id": offer_id})
-        
+
         await log_admin_action(db, current_user["id"], "DELETE_OFFER", "offer_pro", offer_id, {"reason": reason})
         return {"message": "Offer deleted and archived"}
 
@@ -845,7 +845,7 @@ def create_admin_routes(db, get_current_user_func):
         if config:
             config.pop("_id", None)
             return config
-        
+
         # Return defaults
         return {
             "ranking_text": """Trier / classer les offres :
@@ -874,7 +874,7 @@ Yondly ne vend pas les produits : le professionnel reste responsable.""",
     ):
         """Update transparency configuration"""
         now = datetime.utcnow()
-        
+
         existing = await db.platform_transparency.find_one({})
         if existing:
             await db.platform_transparency.update_one(
@@ -895,7 +895,7 @@ Yondly ne vend pas les produits : le professionnel reste responsable.""",
                 "updated_at": now,
                 "updated_by": current_user["id"]
             })
-        
+
         await log_admin_action(db, current_user["id"], "UPDATE_TRANSPARENCY", "platform_transparency")
         return {"message": "Transparency config updated"}
 
@@ -909,20 +909,20 @@ Yondly ne vend pas les produits : le professionnel reste responsable.""",
         pending_verifications = await db.trader_verifications.count_documents({"status": "PENDING"})
         approved_pros = await db.trader_verifications.count_documents({"status": "APPROVED"})
         rejected_pros = await db.trader_verifications.count_documents({"status": "REJECTED"})
-        
+
         # Count offers by status
         total_offers = await db.offers_pro.count_documents({})
         published_offers = await db.offers_pro.count_documents({"status": "PUBLISHED"})
         suspended_offers = await db.offers_pro.count_documents({"status": "SUSPENDED"})
-        
+
         # Count transactions
         antigaspi_orders = await db.orders_pro.count_documents({})
         rentals = await db.rentals.count_documents({})
-        
+
         # Count disputes
         open_disputes = await db.disputes.count_documents({"status": "OPEN"})
         mediation_disputes = await db.disputes.count_documents({"status": "MEDIATION"})
-        
+
         return {
             "pros": {
                 "total": total_pros,
@@ -963,10 +963,10 @@ Yondly ne vend pas les produits : le professionnel reste responsable.""",
         """Generate DAC7 export for a given year"""
         import os
         from dac7_exporter import generate_dac7_from_db
-        
+
         output_dir = os.path.join(os.path.dirname(__file__), "dac7_exports")
         result = await generate_dac7_from_db(db, year, output_dir)
-        
+
         await log_admin_action(db, current_user["id"], "GENERATE_DAC7", "dac7_export", result["job_id"], {"year": year})
         return result
 
@@ -1004,19 +1004,19 @@ def get_price_class(price_cents: int) -> str:
 
 async def aggregate_data_for_export(db, period_start: str, period_end: str, geo_level: str, metrics: list, k_min: int):
     """Aggregate data for export with privacy protection"""
-    
+
     # Get all transactions in period
     start_date = datetime.fromisoformat(period_start) if period_start else datetime.min
     end_date = datetime.fromisoformat(period_end) if period_end else datetime.utcnow()
-    
+
     # Aggregate by zone (simplified - in production would use proper geo matching)
     zones = {}
-    
+
     # Count orders by city
     orders = await db.orders.find({
         "created_at": {"$gte": start_date, "$lte": end_date}
     }).to_list(10000)
-    
+
     for order in orders:
         zone = order.get("seller_city", "Unknown")
         if zone not in zones:
@@ -1031,7 +1031,7 @@ async def aggregate_data_for_export(db, period_start: str, period_end: str, geo_
                 "baskets_count": 0,
                 "co2_saved_kg": 0
             }
-        
+
         zones[zone]["total_transactions"] += 1
         item_type = order.get("item_type", "sale")
         if item_type == "sale":
@@ -1042,7 +1042,7 @@ async def aggregate_data_for_export(db, period_start: str, period_end: str, geo_
             zones[zone]["rentals_count"] += 1
         elif item_type == "antigaspi":
             zones[zone]["baskets_count"] += 1
-    
+
     # Apply k_min threshold
     result = []
     for zone, data in zones.items():
@@ -1063,14 +1063,14 @@ async def aggregate_data_for_export(db, period_start: str, period_end: str, geo_
                 "_note": f"Données masquées (seuil k_min={k_min} non atteint)"
             }
             result.append(masked)
-    
+
     return result
 
 # ============ ADMIN DISPUTE SETTLEMENT ============
 
 async def create_admin_settlement_routes(db, get_current_user_func):
     """Create admin routes for dispute settlement management"""
-    
+
     @admin_routes.get("/disputes/{dispute_id}/detail")
     async def get_dispute_detail(
         dispute_id: str,
@@ -1080,26 +1080,26 @@ async def create_admin_settlement_routes(db, get_current_user_func):
         dispute = await db.disputes.find_one({"id": dispute_id})
         if not dispute:
             raise HTTPException(status_code=404, detail="Dispute not found")
-        
+
         dispute.pop("_id", None)
-        
+
         # Get settlement offers
         offers = await db.settlement_offers.find({"dispute_id": dispute_id}).sort("created_at", -1).to_list(50)
         for o in offers:
             o.pop("_id", None)
             author = await db.users.find_one({"id": o.get("created_by_user_id")})
             o["created_by_name"] = author.get("display_name", "Admin") if author else "Admin"
-        
+
         # Get evidence
         evidence = await db.dispute_evidence.find({"dispute_id": dispute_id}).to_list(100)
         for e in evidence:
             e.pop("_id", None)
-        
+
         # Get parties info
         opener = await db.users.find_one({"id": dispute.get("opened_by")})
         other = await db.users.find_one({"id": dispute.get("other_party_id")})
         pro = await db.pro_profiles.find_one({"pro_id": dispute.get("pro_id")})
-        
+
         return {
             "dispute": dispute,
             "settlement_offers": offers,
@@ -1120,7 +1120,7 @@ async def create_admin_settlement_routes(db, get_current_user_func):
                 "mediator_url": pro.get("mediator_url") if pro else None
             } if pro else None
         }
-    
+
     @admin_routes.post("/disputes/{dispute_id}/settlement-offer")
     async def admin_create_settlement_offer(
         dispute_id: str,
@@ -1137,13 +1137,13 @@ async def create_admin_settlement_routes(db, get_current_user_func):
         dispute = await db.disputes.find_one({"id": dispute_id})
         if not dispute:
             raise HTTPException(status_code=404, detail="Dispute not found")
-        
+
         if dispute.get("stage") in ["RESOLVED", "ESCALATED_TO_MEDIATOR", "CLOSED_NO_AGREEMENT"]:
             raise HTTPException(status_code=400, detail="Dispute is closed")
-        
+
         from datetime import timedelta
         now = datetime.utcnow()
-        
+
         offer = {
             "id": str(uuid.uuid4()),
             "dispute_id": dispute_id,
@@ -1156,16 +1156,16 @@ async def create_admin_settlement_routes(db, get_current_user_func):
             "expires_at": now + timedelta(days=7),
             "created_at": now
         }
-        
+
         await db.settlement_offers.insert_one(offer)
-        
+
         # Update dispute stage
         await db.disputes.update_one(
             {"id": dispute_id},
             {"$set": {"stage": "NEGOTIATION", "updated_at": now},
              "$push": {"settlement_offers": offer["id"]}}
         )
-        
+
         # Add system message
         await db.disputes.update_one(
             {"id": dispute_id},
@@ -1177,14 +1177,14 @@ async def create_admin_settlement_routes(db, get_current_user_func):
                 "created_at": now
             }}}
         )
-        
+
         offer.pop("_id", None)
         return {
             "message": "Proposition admin créée",
             "offer": offer,
             "disclaimer": "Yondly facilite la résolution amiable mais n'est pas médiateur."
         }
-    
+
     @admin_routes.post("/disputes/{dispute_id}/force-escalate")
     async def admin_force_escalate(
         dispute_id: str,
@@ -1194,12 +1194,12 @@ async def create_admin_settlement_routes(db, get_current_user_func):
         dispute = await db.disputes.find_one({"id": dispute_id})
         if not dispute:
             raise HTTPException(status_code=404, detail="Dispute not found")
-        
+
         if dispute.get("stage") == "ESCALATED_TO_MEDIATOR":
             raise HTTPException(status_code=400, detail="Already escalated")
-        
+
         now = datetime.utcnow()
-        
+
         await db.disputes.update_one(
             {"id": dispute_id},
             {"$set": {
@@ -1209,9 +1209,9 @@ async def create_admin_settlement_routes(db, get_current_user_func):
                 "updated_at": now
             }}
         )
-        
+
         return {"message": "Litige escaladé vers le médiateur", "stage": "ESCALATED_TO_MEDIATOR"}
-    
+
     @admin_routes.post("/disputes/{dispute_id}/close-no-agreement")
     async def admin_close_no_agreement(
         dispute_id: str,
@@ -1222,9 +1222,9 @@ async def create_admin_settlement_routes(db, get_current_user_func):
         dispute = await db.disputes.find_one({"id": dispute_id})
         if not dispute:
             raise HTTPException(status_code=404, detail="Dispute not found")
-        
+
         now = datetime.utcnow()
-        
+
         await db.disputes.update_one(
             {"id": dispute_id},
             {"$set": {
@@ -1234,5 +1234,5 @@ async def create_admin_settlement_routes(db, get_current_user_func):
                 "updated_at": now
             }}
         )
-        
+
         return {"message": "Litige fermé sans accord", "stage": "CLOSED_NO_AGREEMENT"}
