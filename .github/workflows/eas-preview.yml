@@ -1,0 +1,44 @@
+name: EAS Preview Build
+
+on:
+  push:
+    branches:
+      - main
+      - claude/**
+    paths:
+      - "frontend/**"
+
+jobs:
+  build:
+    name: Build Android APK (preview)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install --legacy-peer-deps
+
+      - name: Build APK
+        working-directory: frontend
+        run: eas build --profile preview --platform android --non-interactive --no-wait
+
+      - name: Build summary
+        run: |
+          echo "## 📱 EAS Preview Build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Build lancé sur EAS. Suivre l'avancement et télécharger l'APK sur :" >> $GITHUB_STEP_SUMMARY
+          echo "[expo.dev/accounts/douns/projects/yondly/builds](https://expo.dev/accounts/douns/projects/yondly/builds)" >> $GITHUB_STEP_SUMMARY
