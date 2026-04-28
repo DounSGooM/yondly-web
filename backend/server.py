@@ -56,6 +56,9 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"Failed to initialize analytics: {e}")
 
+    from db_indexes import create_indexes
+    await create_indexes(db)
+
 
 # ── Legal pages ───────────────────────────────────────────────────────────────
 
