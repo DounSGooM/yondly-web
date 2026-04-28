@@ -5,13 +5,9 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
-  ActivityIndicator,
   RefreshControl,
-  TextInput,
   ScrollView,
   Alert,
-  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +18,7 @@ import InteractiveMap from '../../src/components/InteractiveMap';
 import ItemGridCard from '../../src/components/ItemGridCard';
 import MarketHeader from '../../src/components/MarketHeader';
 import FilterModal, { FilterState } from '../../src/components/FilterModal';
+import SkeletonGrid from '../../src/components/SkeletonCard';
 import * as Location from 'expo-location';
 
 import { API_URL } from '../../src/config/api';
@@ -236,8 +233,20 @@ export default function MarketScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#4C7B4B" />
+      <View style={styles.container}>
+        <MarketHeader
+          location="Poitiers"
+          onLocationPress={() => {}}
+          onNotificationPress={() => {}}
+          onMessagePress={() => {}}
+          onViewToggle={() => {}}
+          viewModeIcon="list-outline"
+          notificationCount={0}
+          searchQuery=""
+          onSearchChange={() => {}}
+          onFilterPress={() => {}}
+        />
+        <SkeletonGrid count={6} layout={viewMode === 'list' ? 'list' : 'grid'} />
       </View>
     );
   }
@@ -365,7 +374,30 @@ export default function MarketScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Aucun article trouvé</Text>
+              <Text style={styles.emptyEmoji}>🔍</Text>
+              <Text style={styles.emptyTitle}>Aucun article trouvé</Text>
+              <Text style={styles.emptySubtitle}>
+                {searchQuery
+                  ? `Aucun résultat pour "${searchQuery}"`
+                  : selectedCategory !== 'Tous'
+                  ? `Rien dans la catégorie "${selectedCategory}" pour l'instant`
+                  : 'Soyez le premier à publier une annonce !'}
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyButton}
+                onPress={() => {
+                  if (searchQuery || selectedCategory !== 'Tous') {
+                    setSearchQuery('');
+                    setSelectedCategory('Tous');
+                  } else {
+                    router.push('/post/market' as any);
+                  }
+                }}
+              >
+                <Text style={styles.emptyButtonText}>
+                  {searchQuery || selectedCategory !== 'Tous' ? 'Réinitialiser la recherche' : 'Publier une annonce'}
+                </Text>
+              </TouchableOpacity>
             </View>
           }
           refreshControl={
@@ -636,12 +668,36 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 100,
+    paddingTop: 80,
+    paddingHorizontal: 32,
   },
-  emptyText: {
-    marginTop: 16,
-    fontSize: 18,
-    fontWeight: 'bold',
+  emptyEmoji: {
+    fontSize: 56,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 14,
     color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  emptyButton: {
+    backgroundColor: '#4C7B4B',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+  emptyButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 15,
   },
 });

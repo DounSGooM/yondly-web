@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -11,6 +12,7 @@ interface ScreenHeaderProps {
 
 export default function ScreenHeader({ title, onBack, rightAction }: ScreenHeaderProps) {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
 
     const handleBack = () => {
         if (onBack) {
@@ -18,15 +20,14 @@ export default function ScreenHeader({ title, onBack, rightAction }: ScreenHeade
         } else {
             try {
                 router.back();
-            } catch (e) {
-                // Fallback if back navigation fails
+            } catch {
                 router.push('/(tabs)/market');
             }
         }
     };
 
     return (
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
             <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                 <Ionicons name="arrow-back" size={24} color="#333" />
             </TouchableOpacity>
@@ -48,7 +49,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingTop: 50, // Safe area top (adjust if needed, assumes standard StatusBar height)
         paddingBottom: 12,
         backgroundColor: '#fff',
         borderBottomWidth: 1,

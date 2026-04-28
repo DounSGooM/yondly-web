@@ -1,4 +1,7 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { Pressable } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors as Colors, Typography, Spacing, BorderRadius, Shadows } from '../theme';
@@ -22,6 +25,14 @@ const QUICK_CO2_ESTIMATES: Record<string, number> = {
 
 export default function ItemGridCard({ item, layout = 'grid' }: ItemGridCardProps) {
   const router = useRouter();
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.96, { damping: 15, stiffness: 300 });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+  const handlePressOut = () => { scale.value = withSpring(1, { damping: 15, stiffness: 300 }); };
 
   const getUrgencyColor = (hours: number) => {
     if (hours <= 6) return Colors.error;
@@ -60,10 +71,12 @@ export default function ItemGridCard({ item, layout = 'grid' }: ItemGridCardProp
   };
 
   return (
-    <TouchableOpacity
-      style={[styles.card, layout === 'list' && styles.cardList]}
+    <Animated.View style={[styles.card, layout === 'list' && styles.cardList, animatedStyle]}>
+    <Pressable
+      style={{ flex: 1 }}
       onPress={() => router.push(`/item-detail?id=${item.id}` as any)}
-      activeOpacity={0.8}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
     >
       {/* Image Container */}
       <View style={[styles.imageContainer, layout === 'list' && styles.imageContainerList]}>
@@ -151,7 +164,8 @@ export default function ItemGridCard({ item, layout = 'grid' }: ItemGridCardProp
           </View>
         )}
       </View>
-    </TouchableOpacity>
+    </Pressable>
+    </Animated.View>
   );
 }
 
