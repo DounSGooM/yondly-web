@@ -68,7 +68,7 @@ class TrackingEventCreate(BaseModel):
     estimated_value: Optional[float] = None
     timestamp: Optional[datetime] = None
     user_id: Optional[str] = None  # Optional: will be derived from auth if not provided
-    
+
     model_config = ConfigDict(extra="forbid")
 
     @field_validator("event_name")

@@ -1,0 +1,49 @@
+[tool.ruff]
+line-length = 120
+# One-off scripts and legacy files not worth linting
+exclude = [
+    "fix_pwd.py",
+    "check_rent.py",
+    "check_photos.py",
+    "add_photos.py",
+    "api/",
+    "__pycache__",
+    ".git",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    # Intentional late imports in conftest.py (DB must be patched first)
+    "E402",
+    # Widespread in existing code — needs a dedicated cleanup pass
+    "F401",  # unused-import
+    "F403",  # star-import
+    "F405",  # may-be-undefined (follows F403)
+    "F811",  # redefined-while-unused
+    "F841",  # unused-variable
+    "E722",  # bare-except
+    # Whitespace in docstrings and long lines — existing style, clean separately
+    "W291",  # trailing-whitespace
+    "W293",  # blank-line-with-whitespace
+    "E501",  # line-too-long
+]
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "tests/*",
+    "fix_pwd.py",
+    "check_*.py",
+    "add_photos.py",
+    "migrations/*",
+]
+
+[tool.coverage.report]
+# Matches current baseline; prevents regression without blocking new work
+fail_under = 30
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
