@@ -50,34 +50,6 @@ def init_analytics(mongo_db, jwt_secret: str, jwt_algorithm: str = "HS256"):
     JWT_SECRET = jwt_secret
     JWT_ALGORITHM = jwt_algorithm
 
-    # Create indexes for efficient queries
-    # Note: These are idempotent, safe to call multiple times
-    import asyncio
-    asyncio.create_task(_create_indexes())
-
-
-async def _create_indexes():
-    """Create MongoDB indexes for efficient analytics queries."""
-    if db is None:
-        return
-
-    try:
-        # Index for territory-based queries
-        await db.tracking_events.create_index([
-            ("territory_code", 1),
-            ("territory_type", 1)
-        ])
-        # Index for date-based queries
-        await db.tracking_events.create_index("created_at")
-        # Index for event type queries
-        await db.tracking_events.create_index("event_name")
-        # Compound index for common query patterns
-        await db.tracking_events.create_index([
-            ("territory_code", 1),
-            ("created_at", -1)
-        ])
-    except Exception as e:
-        print(f"Warning: Could not create analytics indexes: {e}")
 
 
 # ============ HELPER FUNCTIONS ============

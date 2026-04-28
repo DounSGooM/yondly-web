@@ -1,7 +1,9 @@
 """
 MongoDB index definitions.
 Called once at startup — Motor's create_index is idempotent.
+All indexes created concurrently via asyncio.gather for fast startup.
 """
+import asyncio
 import logging
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, TEXT
@@ -18,102 +20,112 @@ async def create_indexes(db: AsyncIOMotorDatabase) -> None:
 
 
 async def _create_indexes(db: AsyncIOMotorDatabase) -> None:
-    # ── users ──────────────────────────────────────────────────────────────────
-    await db.users.create_index([("id", ASCENDING)], unique=True)
-    await db.users.create_index([("email", ASCENDING)], unique=True)
+    await asyncio.gather(
+        # ── users ──────────────────────────────────────────────────────────────
+        db.users.create_index([("id", ASCENDING)], unique=True),
+        db.users.create_index([("email", ASCENDING)], unique=True),
 
-    # ── items ──────────────────────────────────────────────────────────────────
-    await db.items.create_index([("id", ASCENDING)], unique=True)
-    # my-items list: owner + status + recency
-    await db.items.create_index([
-        ("owner_id", ASCENDING),
-        ("status", ASCENDING),
-        ("created_at", DESCENDING),
-    ])
-    # public browse: status + type + category + price
-    await db.items.create_index([
-        ("status", ASCENDING),
-        ("type", ASCENDING),
-        ("category", ASCENDING),
-        ("price_cents", ASCENDING),
-    ])
-    # sort by recency on browse
-    await db.items.create_index([("status", ASCENDING), ("created_at", DESCENDING)])
-    # full-text search on title + description
-    await db.items.create_index([("title", TEXT), ("description", TEXT)])
+        # ── items ──────────────────────────────────────────────────────────────
+        db.items.create_index([("id", ASCENDING)], unique=True),
+        # my-items list: owner + status + recency
+        db.items.create_index([
+            ("owner_id", ASCENDING),
+            ("status", ASCENDING),
+            ("created_at", DESCENDING),
+        ]),
+        # public browse: status + type + category + price
+        db.items.create_index([
+            ("status", ASCENDING),
+            ("type", ASCENDING),
+            ("category", ASCENDING),
+            ("price_cents", ASCENDING),
+        ]),
+        # browse sorted by recency without type/category filter
+        db.items.create_index([("status", ASCENDING), ("created_at", DESCENDING)]),
+        # full-text search on title + description
+        db.items.create_index([("title", TEXT), ("description", TEXT)]),
 
-    # ── orders ─────────────────────────────────────────────────────────────────
-    await db.orders.create_index([("id", ASCENDING)], unique=True)
-    await db.orders.create_index([("buyer_id", ASCENDING), ("created_at", DESCENDING)])
-    await db.orders.create_index([("seller_id", ASCENDING), ("created_at", DESCENDING)])
-    await db.orders.create_index([("status", ASCENDING), ("payment_status", ASCENDING)])
-    # handoff code lookup (used at delivery)
-    await db.orders.create_index([("handoff.code", ASCENDING)])
-    # stripe webhook reconciliation
-    await db.orders.create_index([("payment_intent_id", ASCENDING)])
+        # ── orders ─────────────────────────────────────────────────────────────
+        db.orders.create_index([("id", ASCENDING)], unique=True),
+        db.orders.create_index([("buyer_id", ASCENDING), ("created_at", DESCENDING)]),
+        db.orders.create_index([("seller_id", ASCENDING), ("created_at", DESCENDING)]),
+        db.orders.create_index([("status", ASCENDING), ("payment_status", ASCENDING)]),
+        db.orders.create_index([("handoff.code", ASCENDING)]),
+        db.orders.create_index([("payment_intent_id", ASCENDING)]),
 
-    # ── offers ─────────────────────────────────────────────────────────────────
-    await db.offers.create_index([("id", ASCENDING)], unique=True)
-    await db.offers.create_index([("item_id", ASCENDING), ("created_at", DESCENDING)])
-    await db.offers.create_index([("buyer_id", ASCENDING), ("status", ASCENDING)])
-    # 24 h duplicate check
-    await db.offers.create_index([("item_id", ASCENDING), ("buyer_id", ASCENDING), ("created_at", DESCENDING)])
+        # ── offers ─────────────────────────────────────────────────────────────
+        db.offers.create_index([("id", ASCENDING)], unique=True),
+        db.offers.create_index([("item_id", ASCENDING), ("created_at", DESCENDING)]),
+        db.offers.create_index([("buyer_id", ASCENDING), ("status", ASCENDING)]),
+        # 24 h duplicate check
+        db.offers.create_index([
+            ("item_id", ASCENDING),
+            ("buyer_id", ASCENDING),
+            ("created_at", DESCENDING),
+        ]),
 
-    # ── rentals ────────────────────────────────────────────────────────────────
-    await db.rentals.create_index([("id", ASCENDING)], unique=True)
-    await db.rentals.create_index([("renter_id", ASCENDING), ("created_at", DESCENDING)])
-    await db.rentals.create_index([("owner_id", ASCENDING), ("created_at", DESCENDING)])
-    # availability check: item + status + dates
-    await db.rentals.create_index([
-        ("item_id", ASCENDING),
-        ("status", ASCENDING),
-        ("start_date", ASCENDING),
-        ("end_date", ASCENDING),
-    ])
+        # ── rentals ────────────────────────────────────────────────────────────
+        db.rentals.create_index([("id", ASCENDING)], unique=True),
+        db.rentals.create_index([("renter_id", ASCENDING), ("created_at", DESCENDING)]),
+        db.rentals.create_index([("owner_id", ASCENDING), ("created_at", DESCENDING)]),
+        # availability check: item + status + dates
+        db.rentals.create_index([
+            ("item_id", ASCENDING),
+            ("status", ASCENDING),
+            ("start_date", ASCENDING),
+            ("end_date", ASCENDING),
+        ]),
 
-    # ── disputes ───────────────────────────────────────────────────────────────
-    await db.disputes.create_index([("id", ASCENDING)], unique=True)
-    await db.disputes.create_index([("order_id", ASCENDING)])
-    await db.disputes.create_index([("rental_id", ASCENDING)])
-    await db.disputes.create_index([("respondent_id", ASCENDING), ("status", ASCENDING)])
+        # ── disputes ───────────────────────────────────────────────────────────
+        db.disputes.create_index([("id", ASCENDING)], unique=True),
+        db.disputes.create_index([("order_id", ASCENDING)]),
+        db.disputes.create_index([("rental_id", ASCENDING)]),
+        db.disputes.create_index([("respondent_id", ASCENDING), ("status", ASCENDING)]),
 
-    # ── messages ───────────────────────────────────────────────────────────────
-    await db.messages.create_index([("id", ASCENDING)], unique=True)
-    await db.messages.create_index([("item_id", ASCENDING), ("created_at", ASCENDING)])
-    await db.messages.create_index([("from_id", ASCENDING), ("created_at", DESCENDING)])
-    await db.messages.create_index([("to_id", ASCENDING), ("created_at", DESCENDING)])
+        # ── messages ───────────────────────────────────────────────────────────
+        db.messages.create_index([("id", ASCENDING)], unique=True),
+        db.messages.create_index([("item_id", ASCENDING), ("created_at", ASCENDING)]),
+        db.messages.create_index([("from_id", ASCENDING), ("created_at", DESCENDING)]),
+        db.messages.create_index([("to_id", ASCENDING), ("created_at", DESCENDING)]),
 
-    # ── notifications ──────────────────────────────────────────────────────────
-    await db.notifications.create_index([("user_id", ASCENDING), ("created_at", DESCENDING)])
-    await db.notifications.create_index([("user_id", ASCENDING), ("read", ASCENDING)])
+        # ── notifications ──────────────────────────────────────────────────────
+        db.notifications.create_index([("user_id", ASCENDING), ("created_at", DESCENDING)]),
+        db.notifications.create_index([("user_id", ASCENDING), ("read", ASCENDING)]),
 
-    # ── ratings ────────────────────────────────────────────────────────────────
-    await db.ratings.create_index([("reviewed_id", ASCENDING)])
-    await db.ratings.create_index([("order_id", ASCENDING)], unique=True, sparse=True)
+        # ── ratings ────────────────────────────────────────────────────────────
+        db.ratings.create_index([("reviewed_id", ASCENDING)]),
+        db.ratings.create_index([("order_id", ASCENDING)], unique=True, sparse=True),
 
-    # ── auth tokens (short-lived, auto-expire via TTL) ─────────────────────────
-    await db.email_verifications.create_index([("email", ASCENDING), ("code", ASCENDING)])
-    await db.email_verifications.create_index([("expires_at", ASCENDING)], expireAfterSeconds=0)
-    await db.password_resets.create_index([("email", ASCENDING), ("code", ASCENDING)])
-    await db.password_resets.create_index([("expires_at", ASCENDING)], expireAfterSeconds=0)
+        # ── auth tokens (TTL: MongoDB auto-deletes expired documents) ───────────
+        db.email_verifications.create_index([("email", ASCENDING), ("code", ASCENDING)]),
+        db.email_verifications.create_index([("expires_at", ASCENDING)], expireAfterSeconds=0),
+        db.password_resets.create_index([("email", ASCENDING), ("code", ASCENDING)]),
+        db.password_resets.create_index([("expires_at", ASCENDING)], expireAfterSeconds=0),
 
-    # ── saved searches ─────────────────────────────────────────────────────────
-    await db.saved_searches.create_index([("user_id", ASCENDING)])
+        # ── saved searches ─────────────────────────────────────────────────────
+        db.saved_searches.create_index([("user_id", ASCENDING)]),
 
-    # ── zones ──────────────────────────────────────────────────────────────────
-    await db.zones.create_index([("id", ASCENDING)], unique=True)
-    await db.zones.create_index([("active", ASCENDING)])
+        # ── zones ──────────────────────────────────────────────────────────────
+        db.zones.create_index([("id", ASCENDING)], unique=True),
+        db.zones.create_index([("active", ASCENDING)]),
 
-    # ── pro sellers ────────────────────────────────────────────────────────────
-    await db.pro_sellers.create_index([("id", ASCENDING)], unique=True)
-    await db.pro_sellers.create_index([("user_id", ASCENDING)], unique=True)
-    await db.pro_sellers.create_index([("siren", ASCENDING)], sparse=True)
-    await db.pro_sellers.create_index([("status", ASCENDING)])
+        # ── pro sellers ────────────────────────────────────────────────────────
+        db.pro_sellers.create_index([("id", ASCENDING)], unique=True),
+        db.pro_sellers.create_index([("user_id", ASCENDING)], unique=True),
+        db.pro_sellers.create_index([("siren", ASCENDING)], sparse=True),
+        db.pro_sellers.create_index([("status", ASCENDING)]),
 
-    # ── stores ─────────────────────────────────────────────────────────────────
-    await db.stores.create_index([("id", ASCENDING)], unique=True)
-    await db.stores.create_index([("owner_id", ASCENDING)])
-    await db.stores.create_index([("slug", ASCENDING)], unique=True, sparse=True)
+        # ── stores ─────────────────────────────────────────────────────────────
+        db.stores.create_index([("id", ASCENDING)], unique=True),
+        db.stores.create_index([("owner_id", ASCENDING)]),
+        db.stores.create_index([("slug", ASCENDING)], unique=True, sparse=True),
 
-    # ── sponsors ───────────────────────────────────────────────────────────────
-    await db.sponsors.create_index([("active", ASCENDING), ("display_count", ASCENDING)])
+        # ── sponsors ───────────────────────────────────────────────────────────
+        db.sponsors.create_index([("active", ASCENDING), ("display_count", ASCENDING)]),
+
+        # ── tracking events (analytics) ────────────────────────────────────────
+        db.tracking_events.create_index([("territory_code", ASCENDING), ("territory_type", ASCENDING)]),
+        db.tracking_events.create_index([("territory_code", ASCENDING), ("created_at", DESCENDING)]),
+        db.tracking_events.create_index([("event_name", ASCENDING)]),
+        db.tracking_events.create_index([("created_at", DESCENDING)]),
+    )
