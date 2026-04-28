@@ -2,6 +2,8 @@
 Test fixtures. Module-level DB patch runs before route modules are imported,
 so every `from database import db` in a route file gets the mock.
 """
+import sys
+import types
 import uuid
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -10,6 +12,35 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from mongomock_motor import AsyncMongoMockClient
+
+# ── 0. Stub uninstallable / external-only packages ────────────────────────────
+def _stub(name: str, **attrs):
+    mod = types.ModuleType(name)
+    for k, v in attrs.items():
+        setattr(mod, k, v)
+    sys.modules[name] = mod
+    return mod
+
+# sib_api_v3_sdk (Brevo) — can't build wheel in this env
+_sib = _stub("sib_api_v3_sdk")
+_sib.Configuration = MagicMock
+_sib.ApiClient = MagicMock
+_sib.TransactionalEmailsApi = MagicMock
+_sib.ContactsApi = MagicMock
+_sib.SendSmtpEmail = MagicMock
+_sib.CreateContact = MagicMock
+_sib_api = _stub("sib_api_v3_sdk.api")
+_sib_models = _stub("sib_api_v3_sdk.models", CreateContact=MagicMock, SendSmtpEmail=MagicMock)
+_sib_rest = _stub("sib_api_v3_sdk.rest")
+_sib_rest.ApiException = type("ApiException", (Exception,), {})
+
+# dateutil (used by pro_seller_routes for DSA retention date)
+try:
+    import dateutil.relativedelta  # noqa: F401
+except ImportError:
+    _dateutil = _stub("dateutil")
+    _stub("dateutil.relativedelta", relativedelta=MagicMock)
+    _dateutil.relativedelta = sys.modules["dateutil.relativedelta"]
 
 # ── 1. Patch DB before any route module is imported ───────────────────────────
 import database  # noqa: E402 – must come before server import
@@ -70,7 +101,7 @@ async def user(request):
     uid = str(uuid.uuid4())
     doc = {
         "id": uid,
-        "email": f"user_{uid[:8]}@test.local",
+        "email": f"user_{uid[:8]}@example.com",
         "password_hash": hash_password("Test1234!"),
         "display_name": "Test User",
         "level": "Graine",
@@ -92,7 +123,7 @@ async def other_user():
     uid = str(uuid.uuid4())
     doc = {
         "id": uid,
-        "email": f"other_{uid[:8]}@test.local",
+        "email": f"other_{uid[:8]}@example.com",
         "password_hash": hash_password("Test1234!"),
         "display_name": "Other User",
         "level": "Graine",
@@ -158,8 +189,9 @@ async def active_item(other_user):
         "description": "A test item",
         "price_cents": 1500,
         "category": "Électronique",
-        "type": "sell",
+        "type": "sale",
         "status": "active",
+        "allow_offers": True,
         "photos": [],
         "city": "Paris",
         "postcode": "75001",

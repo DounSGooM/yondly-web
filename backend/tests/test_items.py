@@ -9,7 +9,7 @@ async def test_create_sell_item(client):
         "description": "Good condition",
         "price_cents": 5000,
         "category": "Sport",
-        "type": "sell",
+        "type": "sale",
         "photos": [],
         "city": "Paris",
         "postcode": "75001",
@@ -30,7 +30,7 @@ async def test_create_item_requires_auth(anon_client):
         "description": "x",
         "price_cents": 100,
         "category": "Sport",
-        "type": "sell",
+        "type": "sale",
         "photos": [],
         "city": "Paris",
         "postcode": "75001",
@@ -57,7 +57,7 @@ async def test_list_my_items(client, user, active_item):
         "description": "Mine",
         "price_cents": 1000,
         "category": "Maison",
-        "type": "sell",
+        "type": "sale",
         "photos": [],
         "city": "Lyon",
         "postcode": "69001",
@@ -94,20 +94,36 @@ async def test_update_own_item(client, user):
         "description": "Original desc",
         "price_cents": 2000,
         "category": "Maison",
-        "type": "sell",
+        "type": "sale",
         "photos": [],
         "city": "Paris",
         "postcode": "75001",
         "citycode": "75056",
     })
+    assert create.status_code == 200
     item_id = create.json()["id"]
 
-    resp = await client.put(f"/api/items/{item_id}", json={"title": "Updated"})
+    # PUT requires the full ItemCreate payload
+    resp = await client.put(f"/api/items/{item_id}", json={
+        "title": "Updated Title",
+        "description": "Updated desc",
+        "price_cents": 1800,
+        "category": "Maison",
+        "type": "sale",
+        "photos": [],
+    })
     assert resp.status_code == 200
 
 
 async def test_cannot_update_other_users_item(client, active_item):
-    resp = await client.put(f"/api/items/{active_item['id']}", json={"title": "Hijacked"})
+    resp = await client.put(f"/api/items/{active_item['id']}", json={
+        "title": "Hijacked",
+        "description": "x",
+        "price_cents": 100,
+        "category": "Divers",
+        "type": "sale",
+        "photos": [],
+    })
     assert resp.status_code == 403
 
 
@@ -119,7 +135,7 @@ async def test_delete_own_item(client):
         "description": "Bye",
         "price_cents": 100,
         "category": "Divers",
-        "type": "sell",
+        "type": "sale",
         "photos": [],
         "city": "Paris",
         "postcode": "75001",
@@ -143,12 +159,13 @@ async def test_toggle_item_status(client):
         "description": "Toggle",
         "price_cents": 500,
         "category": "Divers",
-        "type": "sell",
+        "type": "sale",
         "photos": [],
         "city": "Paris",
         "postcode": "75001",
         "citycode": "75056",
     })
     item_id = create.json()["id"]
-    resp = await client.put(f"/api/items/{item_id}/status", json={"status": "inactive"})
+    # status is a query param; valid values: active, reserved, completed, expired
+    resp = await client.put(f"/api/items/{item_id}/status?status=completed")
     assert resp.status_code == 200

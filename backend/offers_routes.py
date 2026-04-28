@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 
 from models import OfferCreate
 from database import db
@@ -72,22 +73,6 @@ async def create_offer(offer_data: OfferCreate, current_user: dict = Depends(get
     return offer_dict
 
 
-@router.get("/offers/{offer_id}")
-async def get_offer(offer_id: str, current_user: dict = Depends(get_current_user)):
-    offer = await db.offers.find_one({"id": offer_id})
-    if not offer:
-        raise HTTPException(status_code=404, detail="Offer not found")
-
-    item = await db.items.find_one({"id": offer["item_id"]})
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-    if offer["buyer_id"] != current_user["id"] and item["owner_id"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    offer.pop("_id", None)
-    return offer
-
-
 @router.get("/offers/item/{item_id}")
 async def get_item_offers(item_id: str, current_user: dict = Depends(get_current_user)):
     item = await db.items.find_one({"id": item_id})
@@ -107,6 +92,22 @@ async def get_item_offers(item_id: str, current_user: dict = Depends(get_current
             buyer.pop("_id", None)
             offer["buyer"] = buyer
     return offers
+
+
+@router.get("/offers/{offer_id}")
+async def get_offer(offer_id: str, current_user: dict = Depends(get_current_user)):
+    offer = await db.offers.find_one({"id": offer_id})
+    if not offer:
+        raise HTTPException(status_code=404, detail="Offer not found")
+
+    item = await db.items.find_one({"id": offer["item_id"]})
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if offer["buyer_id"] != current_user["id"] and item["owner_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    offer.pop("_id", None)
+    return offer
 
 
 @router.put("/offers/{offer_id}/accept")
@@ -149,6 +150,7 @@ async def accept_offer(offer_id: str, current_user: dict = Depends(get_current_u
 
     return {
         "message": "Offer accepted",
+        "status": "accepted",
         "expires_at": expires_at.isoformat(),
         "locked_until": expires_at.isoformat(),
         "offer_amount": final_amount,
@@ -166,11 +168,16 @@ async def decline_offer(offer_id: str, current_user: dict = Depends(get_current_
         raise HTTPException(status_code=403, detail="Not authorized")
 
     await db.offers.update_one({"id": offer_id}, {"$set": {"status": "declined"}})
-    return {"message": "Offer declined"}
+    return {"message": "Offer declined", "status": "declined"}
+
+
+class _CounterBody(BaseModel):
+    counter_amount_cents: int
 
 
 @router.put("/offers/{offer_id}/counter")
-async def counter_offer(offer_id: str, counter_amount_cents: int, current_user: dict = Depends(get_current_user)):
+async def counter_offer(offer_id: str, body: _CounterBody, current_user: dict = Depends(get_current_user)):
+    counter_amount_cents = body.counter_amount_cents
     offer = await db.offers.find_one({"id": offer_id})
     if not offer:
         raise HTTPException(status_code=404, detail="Offer not found")
@@ -209,4 +216,4 @@ async def counter_offer(offer_id: str, counter_amount_cents: int, current_user: 
         data={"item_id": item["id"], "offer_id": offer_id, "amount_cents": counter_amount_cents, "message_id": message_id},
     )
 
-    return {"message": "Counter offer sent", "counter_amount_cents": counter_amount_cents}
+    return {"message": "Counter offer sent", "status": "countered", "counter_offer_amount_cents": counter_amount_cents}

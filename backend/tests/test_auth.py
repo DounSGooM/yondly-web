@@ -5,9 +5,10 @@ import pytest
 
 async def test_register_creates_user(anon_client):
     resp = await anon_client.post("/api/auth/register", json={
-        "email": "new@test.local",
+        "email": "new@example.com",
         "password": "Secure123!",
         "display_name": "New User",
+        "phone": "+33612345678",
         "postcode": "75001",
         "citycode": "75056",
     })
@@ -35,7 +36,7 @@ async def test_login_valid_credentials(anon_client, user):
         "password": "Test1234!",
     })
     assert resp.status_code == 200
-    assert "token" in resp.json()
+    assert "access_token" in resp.json()
 
 
 async def test_login_wrong_password(anon_client, user):
@@ -48,7 +49,7 @@ async def test_login_wrong_password(anon_client, user):
 
 async def test_login_unknown_email(anon_client):
     resp = await anon_client.post("/api/auth/login", json={
-        "email": "nobody@test.local",
+        "email": "nobody@example.com",
         "password": "Test1234!",
     })
     assert resp.status_code == 401

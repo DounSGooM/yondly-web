@@ -43,9 +43,9 @@ async def test_duplicate_offer_within_24h(client, active_item):
 
 # ── List offers ───────────────────────────────────────────────────────────────
 
-async def test_get_offers_for_item(anon_client, client, active_item):
+async def test_get_offers_for_item(client, active_item):
     await client.post("/api/offers", json={"item_id": active_item["id"], "amount_cents": 1000})
-    resp = await anon_client.get(f"/api/offers/item/{active_item['id']}")
+    resp = await client.get(f"/api/offers/item/{active_item['id']}")
     assert resp.status_code == 200
     assert len(resp.json()) == 1
 

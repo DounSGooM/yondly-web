@@ -395,7 +395,7 @@ async def update_item(item_id: str, item_data: ItemCreate, current_user: dict = 
         "description": item_data.description,
         "category": item_data.category,
         "photos": item_data.photos,
-        "location": item_data.location.dict(),
+        "location": item_data.location.dict() if item_data.location else None,
         "radius_km": item_data.radius_km,
         "updated_at": datetime.utcnow(),
     }
