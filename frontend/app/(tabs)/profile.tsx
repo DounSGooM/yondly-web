@@ -7,6 +7,7 @@ import {
   ScrollView,
   Alert,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
@@ -89,7 +90,7 @@ function CO2PreviewCard({ onPress, onLevelLoaded }: { onPress: () => void; onLev
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, logout, refreshUser } = useAuthStore();
+  const { user, logout, refreshUser, isLoading } = useAuthStore();
 
   // Hooks must be called unconditionally before any returns
   const [stats, setStats] = useState<{ total_transactions: number; people_helped: number } | null>(null);
@@ -149,10 +150,18 @@ export default function ProfileScreen() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#4C7B4B" />
+      </View>
+    );
+  }
+
   if (!user) {
     return (
-      <View style={styles.container}>
-        <Text>Loading...</Text>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: '#666', fontSize: 16 }}>Connecte-toi pour voir ton profil</Text>
       </View>
     );
   }
