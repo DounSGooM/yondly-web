@@ -18,8 +18,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app code
 COPY . .
 
-# Cloud Run sets PORT=8080
-ENV PORT=8080
-EXPOSE 8080
+# PORT is set by the hosting platform (Railway, Cloud Run, etc.)
+ENV PORT=8000
+EXPOSE $PORT
 
 CMD ["python", "server.py"]
