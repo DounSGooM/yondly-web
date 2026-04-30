@@ -56,6 +56,9 @@ origins = [
     "https://www.yondly.app",
     "https://loop-frontend-951855414282.europe-west1.run.app"
 ]
+_extra = os.environ.get("ALLOWED_ORIGINS", "")
+if _extra:
+    origins += [o.strip() for o in _extra.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -64,6 +67,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
 @app.on_event("startup")
 async def startup_event():
