@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
+# motor removed — using Supabase via database.py
 import os
 import logging
 from pathlib import Path
@@ -27,8 +27,8 @@ from risk_engine import update_user_trust_level
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-from database import db, client, mongo_url
+# Supabase connection (MongoDB-compatible API)
+from database import db, client
 
 # JWT Configuration
 from auth_utils import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
@@ -4952,14 +4952,6 @@ async def delete_user(user_id: str):
     try:
         result = await db.users.delete_one({"id": user_id})
         if result.deleted_count == 0:
-             # Try determining if it was an _id instead of id
-            try:
-                from bson import ObjectId
-                result = await db.users.delete_one({"_id": ObjectId(user_id)})
-            except:
-                pass
-        
-        if result.deleted_count == 0:
             raise HTTPException(status_code=404, detail="User not found")
             
         return {"message": "User deleted successfully"}
@@ -4987,17 +4979,6 @@ async def admin_update_user_level(
         {"id": user_id},
         {"$set": {"level": level_data.level, "is_level_manual": True}}
     )
-    
-    # If no match, try ObjectId
-    if result.matched_count == 0:
-        try:
-            from bson import ObjectId
-            result = await db.users.update_one(
-                {"_id": ObjectId(user_id)},
-                {"$set": {"level": level_data.level, "is_level_manual": True}}
-            )
-        except:
-            pass
     
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
@@ -5031,19 +5012,8 @@ async def admin_verify_association(user_id: str, current_user: dict = Depends(ge
     )
     
     if result.matched_count == 0:
-        # Try ObjectId
-        try:
-            from bson import ObjectId
-            result = await db.users.update_one(
-                {"_id": ObjectId(user_id), "is_association": True},
-                {"$set": {"association_verified": True}}
-            )
-        except:
-            pass
-    
-    if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Association not found")
-    
+
     return {"message": "Association vérifiée avec succès"}
 
 @api_router.put("/admin/associations/{user_id}/unverify")
@@ -5058,18 +5028,8 @@ async def admin_unverify_association(user_id: str, current_user: dict = Depends(
     )
     
     if result.matched_count == 0:
-        try:
-            from bson import ObjectId
-            result = await db.users.update_one(
-                {"_id": ObjectId(user_id), "is_association": True},
-                {"$set": {"association_verified": False}}
-            )
-        except:
-            pass
-    
-    if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Association not found")
-    
+
     return {"message": "Vérification révoquée"}
 
 # ============ ASSOCIATION: BENEFICIARIES ============
@@ -5397,7 +5357,6 @@ async def create_zone(zone: GeoZoneCreate):
 async def update_zone(zone_id: str, zone: GeoZoneUpdate):
     """Update a geo-zone (admin only)"""
     try:
-        from bson import ObjectId
         update_data = {"updated_at": datetime.utcnow()}
         if zone.name is not None:
             update_data["name"] = zone.name
@@ -5409,9 +5368,9 @@ async def update_zone(zone_id: str, zone: GeoZoneUpdate):
             update_data["isActive"] = zone.isActive
         if zone.communes is not None:
             update_data["communes"] = [c.dict() for c in zone.communes]
-        
+
         result = await db.zones.update_one(
-            {"_id": ObjectId(zone_id)},
+            {"id": zone_id},
             {"$set": update_data}
         )
         if result.modified_count == 0:
@@ -5425,9 +5384,8 @@ async def update_zone(zone_id: str, zone: GeoZoneUpdate):
 async def toggle_zone(zone_id: str, data: CommuneToggle):
     """Toggle a zone's active status (admin only)"""
     try:
-        from bson import ObjectId
         result = await db.zones.update_one(
-            {"_id": ObjectId(zone_id)},
+            {"id": zone_id},
             {"$set": {"isActive": data.isActive, "updated_at": datetime.utcnow()}}
         )
         if result.modified_count == 0:
@@ -5441,14 +5399,21 @@ async def toggle_zone(zone_id: str, data: CommuneToggle):
 async def toggle_commune(zone_id: str, commune_name: str, data: CommuneToggle):
     """Toggle a commune's active status within a zone (admin only)"""
     try:
-        from bson import ObjectId
-        # Update the specific commune's isActive status
+        zone = await db.zones.find_one({"id": zone_id})
+        if not zone:
+            raise HTTPException(status_code=404, detail="Zone not found")
+        communes = zone.get("communes", [])
+        updated = False
+        for c in communes:
+            if c.get("name") == commune_name:
+                c["isActive"] = data.isActive
+                updated = True
+        if not updated:
+            raise HTTPException(status_code=404, detail="Commune not found")
         result = await db.zones.update_one(
-            {"_id": ObjectId(zone_id), "communes.name": commune_name},
-            {"$set": {"communes.$.isActive": data.isActive, "updated_at": datetime.utcnow()}}
+            {"id": zone_id},
+            {"$set": {"communes": communes, "updated_at": datetime.utcnow()}}
         )
-        if result.modified_count == 0:
-            raise HTTPException(status_code=404, detail="Zone or commune not found")
         return {"success": True, "commune": commune_name, "isActive": data.isActive}
     except Exception as e:
         logging.error(f"Toggle commune error: {e}")
@@ -5458,8 +5423,7 @@ async def toggle_commune(zone_id: str, commune_name: str, data: CommuneToggle):
 async def delete_zone(zone_id: str):
     """Delete a geo-zone (admin only)"""
     try:
-        from bson import ObjectId
-        result = await db.zones.delete_one({"_id": ObjectId(zone_id)})
+        result = await db.zones.delete_one({"id": zone_id})
         if result.deleted_count == 0:
             raise HTTPException(status_code=404, detail="Zone not found")
         return {"success": True, "deleted": zone_id}
@@ -5471,9 +5435,8 @@ async def delete_zone(zone_id: str):
 async def add_commune(zone_id: str, commune: Commune):
     """Add a commune to a zone (admin only)"""
     try:
-        from bson import ObjectId
         result = await db.zones.update_one(
-            {"_id": ObjectId(zone_id)},
+            {"id": zone_id},
             {
                 "$push": {"communes": commune.dict()},
                 "$set": {"updated_at": datetime.utcnow()}
@@ -6633,18 +6596,7 @@ async def get_admin_pro_detail(pro_id: str, current_user: dict = Depends(get_cur
         
     pro = await db.users.find_one({"id": pro_id})
     if not pro:
-        try:
-            from bson import ObjectId
-            pro = await db.users.find_one({"_id": ObjectId(pro_id)})
-        except Exception:
-            pass
-            
-    if not pro:
         raise HTTPException(status_code=404, detail="Pro not found")
-        
-    # Standardize result ID for consistency
-    if "id" not in pro:
-        pro["id"] = str(pro["_id"])
         
     # Get recent orders
     # Need to be careful if orders store seller_id as UUID or ObjectId string
