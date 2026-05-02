@@ -270,9 +270,8 @@ class SupabaseCollection:
         update_data = _serialize(update_data)
 
         def _execute():
-            q = supabase.table(self._table).update(update_data)
+            q = supabase.table(self._table).update(update_data).select("*")
             q = _apply_filter(q, filter_dict)
-            q = q.select("*")
             return q.execute()
 
         resp = await asyncio.to_thread(_execute)
@@ -307,9 +306,8 @@ class SupabaseCollection:
 
     async def delete_one(self, filter_dict: dict) -> SupabaseResult:
         def _execute():
-            q = supabase.table(self._table).delete()
+            q = supabase.table(self._table).delete().select("*")
             q = _apply_filter(q, filter_dict)
-            q = q.select("*")
             return q.execute()
 
         resp = await asyncio.to_thread(_execute)
