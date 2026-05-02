@@ -5590,6 +5590,105 @@ async def create_zone_from_epci(data: dict):
         logging.error(f"Create zone from EPCI error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@api_router.post("/admin/zones/import-all-france")
+async def import_all_france_zones(background_tasks: BackgroundTasks, admin_key: str = Header(None)):
+    """
+    Import all French EPCIs from geo.api.gouv.fr as inactive zones.
+    Long-running — runs in background. Skips existing zones.
+    """
+    if admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Invalid admin key")
+
+    async def _do_import():
+        imported = 0
+        skipped = 0
+        errors = 0
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Fetch all EPCIs (~1200 in France)
+                resp = await client.get(
+                    "https://geo.api.gouv.fr/epcis",
+                    params={"fields": "nom,code,population,type", "limit": 3000}
+                )
+                if resp.status_code != 200:
+                    logging.error(f"Failed to fetch EPCIs: {resp.status_code}")
+                    return
+                epcis = resp.json()
+                logging.info(f"[import-all-france] Found {len(epcis)} EPCIs to import")
+
+                for epci in epcis:
+                    try:
+                        code = epci["code"]
+                        name_slug = epci["nom"].lower().replace(" ", "_").replace("'", "").replace("-", "_")
+
+                        # Skip if already exists
+                        existing = await db.zones.find_one({"name": name_slug})
+                        if existing:
+                            skipped += 1
+                            continue
+
+                        # Fetch communes for this EPCI
+                        c_resp = await client.get(
+                            f"https://geo.api.gouv.fr/epcis/{code}/communes",
+                            params={"fields": "nom,code,population,codesPostaux"}
+                        )
+                        communes = []
+                        if c_resp.status_code == 200:
+                            communes = [
+                                {
+                                    "name": c["nom"],
+                                    "code": c["code"],
+                                    "population": c.get("population", 0),
+                                    "postalCodes": c.get("codesPostaux", []),
+                                    "isActive": True
+                                }
+                                for c in c_resp.json()
+                            ]
+
+                        # Map EPCI type to our type enum
+                        epci_type = epci.get("type", "")
+                        if "métropole" in epci_type.lower() or "metropole" in epci_type.lower():
+                            zone_type = "metropole"
+                        elif "urbaine" in epci_type.lower():
+                            zone_type = "communaute_urbaine"
+                        elif "agglomération" in epci_type.lower() or "agglomeration" in epci_type.lower():
+                            zone_type = "agglomeration"
+                        else:
+                            zone_type = "communaute_communes"
+
+                        zone_doc = {
+                            "name": name_slug,
+                            "display_name": epci["nom"],
+                            "type": zone_type,
+                            "epci_code": code,
+                            "is_active": False,
+                            "communes": communes,
+                            "created_at": datetime.utcnow(),
+                            "updated_at": datetime.utcnow()
+                        }
+                        await db.zones.insert_one(zone_doc)
+                        imported += 1
+
+                        # Small delay to avoid rate limiting
+                        if imported % 50 == 0:
+                            logging.info(f"[import-all-france] Progress: {imported} imported, {skipped} skipped")
+                            await asyncio.sleep(0.5)
+
+                    except Exception as e:
+                        logging.error(f"[import-all-france] Error on EPCI {epci.get('code')}: {e}")
+                        errors += 1
+
+        except Exception as e:
+            logging.error(f"[import-all-france] Fatal error: {e}")
+
+        logging.info(f"[import-all-france] Done: {imported} imported, {skipped} skipped, {errors} errors")
+
+    background_tasks.add_task(_do_import)
+    return {
+        "message": "Import lancé en arrière-plan. Consultez les logs Railway pour suivre la progression.",
+        "note": "~1200 EPCIs à importer, durée estimée : 5-10 minutes."
+    }
+
 # ============ LOCATION ANALYTICS API ============
 
 from location_analytics import (
