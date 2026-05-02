@@ -6,7 +6,6 @@ RGPD-compliant: only aggregated data returned, no individual user data exposed.
 
 from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime, timedelta
 from typing import Optional, List
 import os
@@ -57,27 +56,8 @@ def init_analytics(mongo_db, jwt_secret: str, jwt_algorithm: str = "HS256"):
 
 
 async def _create_indexes():
-    """Create MongoDB indexes for efficient analytics queries."""
-    if db is None:
-        return
-    
-    try:
-        # Index for territory-based queries
-        await db.tracking_events.create_index([
-            ("territory_code", 1),
-            ("territory_type", 1)
-        ])
-        # Index for date-based queries
-        await db.tracking_events.create_index("created_at")
-        # Index for event type queries
-        await db.tracking_events.create_index("event_name")
-        # Compound index for common query patterns
-        await db.tracking_events.create_index([
-            ("territory_code", 1),
-            ("created_at", -1)
-        ])
-    except Exception as e:
-        print(f"Warning: Could not create analytics indexes: {e}")
+    """No-op: indexes are managed at the SQL schema level in Supabase."""
+    pass
 
 
 # ============ HELPER FUNCTIONS ============

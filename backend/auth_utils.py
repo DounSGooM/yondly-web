@@ -4,7 +4,7 @@ import bcrypt
 from datetime import datetime, timedelta
 from fastapi import HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from database import db
+from database import db  # SupabaseDB — MongoDB-compatible async API
 
 # JWT Configuration
 JWT_SECRET = os.environ.get('JWT_SECRET', 'loop_jwt_secret_change_in_production')
