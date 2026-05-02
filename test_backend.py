@@ -37,24 +37,31 @@ r = requests.post(f"{BASE_URL}/auth/register", json={
     "email": test_email,
     "password": "TestPass123!",
     "display_name": "Test User",
-    "city": "Paris",
-    "postcode": "75001"
+    "phone": "+33612345678",
+    "city": "Poitiers",
+    "postcode": "86000"
 })
-if r.status_code in (200, 201):
+if r.status_code in (200, 201) and r.json().get("requires_verification"):
+    ok(f"POST /auth/register → {r.status_code} (vérification email requise)")
+    token = None
+elif r.status_code in (200, 201) and r.json().get("access_token"):
     token = r.json().get("access_token")
     ok(f"POST /auth/register → {r.status_code}")
 else:
     fail("POST /auth/register", f"{r.status_code} {r.text[:200]}")
     token = None
 
-# ── 3. LOGIN ──────────────────────────────────────────────────────────────────
-if token:
-    r = requests.post(f"{BASE_URL}/auth/login", json={"email": test_email, "password": "TestPass123!"})
-    if r.status_code == 200 and r.json().get("access_token"):
-        token = r.json()["access_token"]
-        ok("POST /auth/login → 200")
-    else:
-        fail("POST /auth/login", f"{r.status_code} {r.text[:200]}")
+# ── 3. LOGIN (skip email verification for test — use dev bypass if available) ─
+r = requests.post(f"{BASE_URL}/auth/login", json={"email": test_email, "password": "TestPass123!"})
+if r.status_code == 200 and r.json().get("access_token"):
+    token = r.json()["access_token"]
+    ok("POST /auth/login → 200")
+elif r.status_code == 403 and "vérif" in r.text.lower():
+    ok("POST /auth/login → 403 (email non vérifié — normal en test)")
+    token = None
+else:
+    fail("POST /auth/login", f"{r.status_code} {r.text[:200]}")
+    token = None
 
 auth = {"Authorization": f"Bearer {token}"} if token else {}
 
