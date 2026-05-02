@@ -157,8 +157,13 @@ class SupabaseCursor:
         self._skip_val: int = 0
 
     def sort(self, field, direction=1):
-        self._sort_field = field
-        self._sort_desc = direction == -1
+        # Accept Motor-style list of (field, direction) tuples
+        if isinstance(field, list) and field:
+            self._sort_field = field[0][0]
+            self._sort_desc = field[0][1] == -1
+        else:
+            self._sort_field = field
+            self._sort_desc = direction == -1
         return self
 
     def limit(self, n: int):
