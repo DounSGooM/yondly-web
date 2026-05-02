@@ -428,7 +428,7 @@ async def check_zone_coverage(postcode=None, citycode=None, location=None):
     """
     try:
         # 1. Fetch active zones
-        zones = await db.zones.find({"isActive": True}).to_list(100)
+        zones = await db.zones.find({"is_active": True}).to_list(100)
         
         allowed_insee = set()
         allowed_postcodes = set()
@@ -5302,9 +5302,9 @@ async def get_all_zones():
         return [{
             "id": str(z.get("id", "")),
             "name": z.get("name", ""),
-            "displayName": z.get("displayName", ""),
+            "displayName": z.get("display_name", ""),
             "type": z.get("type", "agglomeration"),
-            "isActive": z.get("isActive", False),
+            "isActive": z.get("is_active", False),
             "communes": z.get("communes", []),
             "created_at": z.get("created_at"),
             "updated_at": z.get("updated_at")
@@ -5317,7 +5317,7 @@ async def get_all_zones():
 async def get_active_zones():
     """Get only active zones with active communes (for geo-restriction check)"""
     try:
-        zones = await db.zones.find({"isActive": True}).to_list(100)
+        zones = await db.zones.find({"is_active": True}).to_list(100)
         result = []
         for z in zones:
             active_communes = [c for c in z.get("communes", []) if c.get("isActive", False)]
@@ -5325,7 +5325,7 @@ async def get_active_zones():
                 result.append({
                     "id": str(z.get("id", "")),
                     "name": z.get("name", ""),
-                    "displayName": z.get("displayName", ""),
+                    "displayName": z.get("display_name", ""),
                     "type": z.get("type", "agglomeration"),
                     "communes": active_communes
                 })
@@ -5340,9 +5340,9 @@ async def create_zone(zone: GeoZoneCreate):
     try:
         zone_doc = {
             "name": zone.name,
-            "displayName": zone.displayName,
+            "display_name": zone.displayName,
             "type": zone.type,
-            "isActive": zone.isActive,
+            "is_active": zone.isActive,
             "communes": [c.dict() for c in zone.communes],
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
@@ -5363,11 +5363,11 @@ async def update_zone(zone_id: str, zone: GeoZoneUpdate):
         if zone.name is not None:
             update_data["name"] = zone.name
         if zone.displayName is not None:
-            update_data["displayName"] = zone.displayName
+            update_data["display_name"] = zone.displayName
         if zone.type is not None:
             update_data["type"] = zone.type
         if zone.isActive is not None:
-            update_data["isActive"] = zone.isActive
+            update_data["is_active"] = zone.isActive
         if zone.communes is not None:
             update_data["communes"] = [c.dict() for c in zone.communes]
 
@@ -5388,7 +5388,7 @@ async def toggle_zone(zone_id: str, data: CommuneToggle):
     try:
         result = await db.zones.update_one(
             {"id": zone_id},
-            {"$set": {"isActive": data.isActive, "updated_at": datetime.utcnow()}}
+            {"$set": {"is_active": data.isActive, "updated_at": datetime.utcnow()}}
         )
         if result.modified_count == 0:
             raise HTTPException(status_code=404, detail="Zone not found")
@@ -5556,10 +5556,10 @@ async def create_zone_from_epci(data: dict):
         # Create zone document
         zone_doc = {
             "name": epci["nom"].lower().replace(" ", "_").replace("'", ""),
-            "displayName": epci["nom"],
+            "display_name": epci["nom"],
             "type": zone_type,
             "epci_code": epci_code,
-            "isActive": True,
+            "is_active": True,
             "communes": [
                 {
                     "name": c["nom"],
@@ -5630,7 +5630,7 @@ async def analytics_dashboard():
     """Get complete dashboard data for collectivities"""
     try:
         # Get all zones
-        zones = await db.zones.find({"isActive": True}).to_list(100)
+        zones = await db.zones.find({"is_active": True}).to_list(100)
         
         # Get global stats
         total_users = await db.users.count_documents({})
@@ -5651,7 +5651,7 @@ async def analytics_dashboard():
             "zones": [{
                 "id": str(z.get("id", "")),
                 "name": z.get("name", ""),
-                "displayName": z.get("displayName", ""),
+                "displayName": z.get("display_name", ""),
                 "communes_count": len(z.get("communes", [])),
                 "active_communes": len([c for c in z.get("communes", []) if c.get("isActive")])
             } for z in zones],
