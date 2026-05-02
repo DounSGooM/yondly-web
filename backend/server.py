@@ -554,11 +554,12 @@ async def register(user_data: UserRegister):
         "postcode": user_data.postcode,
         "citycode": user_data.citycode,
         "context": user_data.context,
-        "location": user_data.location.dict() if user_data.location else None,
+        "lat": user_data.location.lat if user_data.location else None,
+        "lng": user_data.location.lng if user_data.location else None,
         "co2_saved": 0.0,
-        "beneficiary_id": generate_beneficiary_id(),  # Unique ID for beneficiary linking
+        "beneficiary_id": generate_beneficiary_id(),
         "created_at": datetime.utcnow(),
-        "email_verified": False
+        "verified_email": False
     }
     
     await db.users.insert_one(user_dict)
@@ -621,7 +622,7 @@ async def verify_email(data: VerifyEmailRequest):
     # Mark email as verified
     await db.users.update_one(
         {"email": data.email},
-        {"$set": {"email_verified": True}}
+        {"$set": {"verified_email": True}}
     )
     
     # Clean up verification codes
@@ -650,7 +651,7 @@ async def resend_code(data: ResendCodeRequest):
     if not user:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable")
     
-    if user.get("email_verified"):
+    if user.get("verified_email"):
         raise HTTPException(status_code=400, detail="Email déjà vérifié")
     
     # Clean old codes
@@ -763,7 +764,7 @@ async def login(credentials: UserLogin):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     
     # Check email verification (skip for social login accounts)
-    if not user.get("email_verified", True) and not user.get("auth_provider"):
+    if not user.get("verified_email", True) and not user.get("auth_provider"):
         # Resend verification code
         import random
         code = f"{random.randint(100000, 999999)}"
@@ -880,7 +881,8 @@ async def social_login(data: SocialLoginRequest):
             "postcode": None,
             "citycode": None,
             "context": None,
-            "location": None,
+            "lat": None,
+            "lng": None,
             "co2_saved": 0.0,
             "beneficiary_id": generate_beneficiary_id(),
             "auth_provider": data.provider,
