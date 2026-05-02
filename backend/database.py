@@ -272,6 +272,7 @@ class SupabaseCollection:
         def _execute():
             q = supabase.table(self._table).update(update_data)
             q = _apply_filter(q, filter_dict)
+            q = q.select("*")
             return q.execute()
 
         resp = await asyncio.to_thread(_execute)
@@ -308,6 +309,7 @@ class SupabaseCollection:
         def _execute():
             q = supabase.table(self._table).delete()
             q = _apply_filter(q, filter_dict)
+            q = q.select("*")
             return q.execute()
 
         resp = await asyncio.to_thread(_execute)
