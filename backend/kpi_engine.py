@@ -4,7 +4,6 @@ Provides all metrics needed for collectivities, communes, and associations.
 """
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
-from bson import ObjectId
 import logging
 
 
