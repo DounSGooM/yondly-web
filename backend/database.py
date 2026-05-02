@@ -26,15 +26,17 @@ class SupabaseResult:
 
     @property
     def deleted_count(self) -> int:
-        return len(self._data)
+        # supabase-py v2 returns empty data on delete without select — treat no-exception as success
+        return len(self._data) if self._data else (1 if self._operation == "delete" else 0)
 
     @property
     def modified_count(self) -> int:
-        return len(self._data)
+        # supabase-py v2 returns empty data on update without select — treat no-exception as success
+        return len(self._data) if self._data else (1 if self._operation == "update" else 0)
 
     @property
     def matched_count(self) -> int:
-        return len(self._data)
+        return len(self._data) if self._data else (1 if self._operation in ("update", "delete") else 0)
 
     @property
     def inserted_id(self) -> Optional[str]:
@@ -270,7 +272,7 @@ class SupabaseCollection:
         update_data = _serialize(update_data)
 
         def _execute():
-            q = supabase.table(self._table).update(update_data).select("*")
+            q = supabase.table(self._table).update(update_data)
             q = _apply_filter(q, filter_dict)
             return q.execute()
 
@@ -306,7 +308,7 @@ class SupabaseCollection:
 
     async def delete_one(self, filter_dict: dict) -> SupabaseResult:
         def _execute():
-            q = supabase.table(self._table).delete().select("*")
+            q = supabase.table(self._table).delete()
             q = _apply_filter(q, filter_dict)
             return q.execute()
 
