@@ -5280,7 +5280,7 @@ async def get_admin_pros():
     try:
         pros = await db.users.find({"is_partner": True}).limit(100).to_list(100)
         return [{
-            "id": str(p.get("_id", "")),
+            "id": str(p.get("id", "")),
             "store_name": p.get("store_name", p.get("display_name", "")),
             "email": p.get("email", ""),
             "baskets_sold": p.get("baskets_sold", 0),
@@ -5298,7 +5298,7 @@ async def get_all_zones():
     try:
         zones = await db.zones.find({}).to_list(100)
         return [{
-            "id": str(z.get("_id", "")),
+            "id": str(z.get("id", "")),
             "name": z.get("name", ""),
             "displayName": z.get("displayName", ""),
             "type": z.get("type", "agglomeration"),
@@ -5321,7 +5321,7 @@ async def get_active_zones():
             active_communes = [c for c in z.get("communes", []) if c.get("isActive", False)]
             if active_communes:  # Only include zones with at least one active commune
                 result.append({
-                    "id": str(z.get("_id", "")),
+                    "id": str(z.get("id", "")),
                     "name": z.get("name", ""),
                     "displayName": z.get("displayName", ""),
                     "type": z.get("type", "agglomeration"),
@@ -5647,7 +5647,7 @@ async def analytics_dashboard():
                 "zones_count": len(zones)
             },
             "zones": [{
-                "id": str(z.get("_id", "")),
+                "id": str(z.get("id", "")),
                 "name": z.get("name", ""),
                 "displayName": z.get("displayName", ""),
                 "communes_count": len(z.get("communes", [])),

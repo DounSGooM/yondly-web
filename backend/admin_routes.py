@@ -878,7 +878,7 @@ Yondly ne vend pas les produits : le professionnel reste responsable.""",
         existing = await db.platform_transparency.find_one({})
         if existing:
             await db.platform_transparency.update_one(
-                {"_id": existing["_id"]},
+                {"id": existing["id"]},
                 {"$set": {
                     "ranking_text": ranking_text,
                     "dereferencing_rules_text": dereferencing_rules_text,
