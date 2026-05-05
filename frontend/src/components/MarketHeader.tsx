@@ -1,192 +1,178 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors as Colors, Typography, Spacing, BorderRadius } from '../theme';
+import { colors, Typography, Spacing, BorderRadius, Shadows } from '../theme';
 import NotificationBell from './NotificationBell';
 
 interface MarketHeaderProps {
-    location?: string;
-    onLocationPress?: () => void;
-    onNotificationPress?: () => void;
-    onMessagePress?: () => void;
-    onViewToggle?: () => void;
-    viewModeIcon?: string;
-    notificationCount?: number;
-    searchQuery?: string;
-    onSearchChange?: (text: string) => void;
-    onFilterPress?: () => void;
-    onSaveSearchPress?: () => void;
-    showSaveSearch?: boolean;
-    activeFilters?: boolean;
+  title?: string;
+  subtitle?: string;
+  location?: string;
+  onLocationPress?: () => void;
+  onMessagePress?: () => void;
+  onViewToggle?: () => void;
+  viewModeIcon?: string;
+  searchQuery?: string;
+  onSearchChange?: (text: string) => void;
+  onFilterPress?: () => void;
+  activeFilters?: boolean;
+  accentColor?: string;
 }
 
 export default function MarketHeader({
-    location = 'Poitiers',
-    onLocationPress,
-    onNotificationPress,
-    onMessagePress,
-    onViewToggle,
-    viewModeIcon = 'grid-outline',
-    notificationCount = 0,
-    searchQuery = '',
-    onSearchChange,
-    onFilterPress,
-    onSaveSearchPress,
-    showSaveSearch = false,
-    activeFilters = false,
+  title,
+  subtitle,
+  location = 'Grand Poitiers',
+  onLocationPress,
+  onMessagePress,
+  onViewToggle,
+  viewModeIcon = 'grid-outline',
+  searchQuery = '',
+  onSearchChange,
+  onFilterPress,
+  activeFilters = false,
+  accentColor,
 }: MarketHeaderProps) {
-    return (
-        <View style={styles.container}>
-            {/* Top row: Logo, Location, Right Actions */}
-            <View style={styles.topRow}>
-                <Image
-                    source={require('../../assets/images/loop-logo.png')}
-                    style={styles.logo}
-                    resizeMode="contain"
-                />
+  const accent = accentColor || colors.primary;
 
-                <TouchableOpacity style={styles.locationButton} onPress={onLocationPress}>
-                    <Ionicons name="location" size={16} color={Colors.textPrimary} />
-                    <Text style={styles.locationText} numberOfLines={1}>{location}</Text>
-                    {/* <Ionicons name="chevron-down" size={16} color={Colors.textSecondary} /> */}
-                </TouchableOpacity>
+  return (
+    <View style={styles.container}>
+      {/* Top row */}
+      <View style={styles.topRow}>
+        <View style={styles.leftBlock}>
+          {title && (
+            <Text style={[styles.title, { color: accent }]}>{title}</Text>
+          )}
+          <TouchableOpacity style={styles.locationPill} onPress={onLocationPress}>
+            <Ionicons name="location-sharp" size={13} color={accent} />
+            <Text style={[styles.locationText, { color: accent }]} numberOfLines={1}>
+              {location}
+            </Text>
+            <Ionicons name="chevron-down" size={13} color={accent} />
+          </TouchableOpacity>
+        </View>
 
-                <View style={styles.rightActions}>
-                    {onViewToggle && (
-                        <TouchableOpacity style={styles.iconButton} onPress={onViewToggle}>
-                            <Ionicons name={viewModeIcon as any} size={24} color={Colors.textPrimary} />
-                        </TouchableOpacity>
-                    )}
+        <View style={styles.rightActions}>
+          {onViewToggle && (
+            <TouchableOpacity style={styles.iconBtn} onPress={onViewToggle}>
+              <Ionicons name={viewModeIcon as any} size={22} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+          <NotificationBell size={22} color={colors.textSecondary} />
+          {onMessagePress && (
+            <TouchableOpacity style={styles.iconBtn} onPress={onMessagePress}>
+              <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
 
-                    <NotificationBell size={24} color={Colors.textPrimary} />
-
-                    {onMessagePress && (
-                        <TouchableOpacity style={styles.iconButton} onPress={onMessagePress}>
-                            <Ionicons name="chatbubbles-outline" size={24} color={Colors.textPrimary} />
-                        </TouchableOpacity>
-                    )}
-                </View>
-            </View>
-
-            {/* Search bar row */}
-            <View style={styles.searchRow}>
-                <View style={styles.searchContainer}>
-                    <Ionicons name="search" size={20} color={Colors.textSecondary} style={styles.searchIcon} />
-                    <TextInput
-                        style={styles.searchInput}
-                        placeholder={location === "Don" ? "Rechercher des dons..." : "Rechercher..."}
-                        placeholderTextColor={Colors.textSecondary}
-                        value={searchQuery}
-                        onChangeText={onSearchChange}
-                    />
-                </View>
-
-                <View style={styles.searchActions}>
-                    {showSaveSearch && (
-                        <TouchableOpacity style={styles.actionButton} onPress={onSaveSearchPress}>
-                            <Ionicons name="bookmark-outline" size={22} color={Colors.primary} />
-                        </TouchableOpacity>
-                    )}
-                    <TouchableOpacity style={styles.actionButton} onPress={onFilterPress}>
-                        <Ionicons name="filter" size={22} color={activeFilters ? Colors.primary : Colors.textPrimary} />
-                    </TouchableOpacity>
-                </View>
-            </View>
-        </View >
-    );
+      {/* Search row */}
+      <View style={styles.searchRow}>
+        <View style={styles.searchBox}>
+          <Ionicons name="search-outline" size={18} color={colors.textTertiary} style={{ marginRight: 8 }} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={subtitle || 'Rechercher…'}
+            placeholderTextColor={colors.textTertiary}
+            value={searchQuery}
+            onChangeText={onSearchChange}
+          />
+        </View>
+        {onFilterPress && (
+          <TouchableOpacity
+            style={[styles.filterBtn, activeFilters && { backgroundColor: accent }]}
+            onPress={onFilterPress}
+          >
+            <Ionicons
+              name="options-outline"
+              size={20}
+              color={activeFilters ? '#fff' : colors.textSecondary}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        backgroundColor: Colors.surface,
-        paddingTop: 50,
-        paddingHorizontal: Spacing.md,
-        paddingBottom: Spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-    },
-    topRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: Spacing.md,
-        justifyContent: 'space-between',
-    },
-    rightActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    logo: {
-        width: 90,
-        height: 32,
-        marginRight: Spacing.sm,
-    },
-    locationButton: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#f0f0f0', // Light gray pill
-        paddingHorizontal: Spacing.md,
-        paddingVertical: 8,
-        borderRadius: 20,
-        marginHorizontal: Spacing.sm,
-    },
-    locationText: {
-        fontSize: Typography.base,
-        fontWeight: Typography.semibold,
-        color: Colors.textPrimary,
-        marginLeft: 8,
-        flex: 1,
-    },
-    iconButton: {
-        width: 40,
-        height: 40,
-        alignItems: 'center',
-        justifyContent: 'center',
-        position: 'relative',
-    },
-    notificationDot: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: Colors.error,
-    },
-    searchRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.sm,
-    },
-    searchContainer: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: Colors.background,
-        borderRadius: BorderRadius.lg,
-        paddingHorizontal: Spacing.md,
-        height: 44,
-    },
-    searchIcon: {
-        marginRight: Spacing.sm,
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: Typography.base,
-        color: Colors.textPrimary,
-        height: '100%',
-    },
-    searchActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    actionButton: {
-        width: 44,
-        height: 44,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: Colors.background,
-        borderRadius: BorderRadius.lg,
-        marginLeft: Spacing.xs,
-    },
+  container: {
+    backgroundColor: colors.surface,
+    paddingTop: Platform.OS === 'ios' ? 56 : 36,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    ...Shadows.card,
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  leftBlock: {
+    flex: 1,
+    gap: 4,
+  },
+  title: {
+    fontSize: Typography.xxl,
+    fontWeight: Typography.heavy,
+    letterSpacing: -0.5,
+  },
+  locationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  locationText: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.semibold,
+  },
+  rightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  iconBtn: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BorderRadius.full,
+    backgroundColor: colors.surfaceAlt,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  searchBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    height: 44,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: Typography.sm,
+    color: colors.textPrimary,
+  },
+  filterBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: BorderRadius.lg,
+  },
 });

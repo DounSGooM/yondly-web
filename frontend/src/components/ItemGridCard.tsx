@@ -1,16 +1,14 @@
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors as Colors, Typography, Spacing, BorderRadius, Shadows } from '../theme';
-import { getLevelBadge } from '../utils/levelBadges';
+import { colors, Typography, Spacing, BorderRadius, Shadows } from '../theme';
 
 interface ItemGridCardProps {
   item: any;
   layout?: 'grid' | 'list';
 }
 
-// Quick ADEME-based CO2 estimates (kg)
-const QUICK_CO2_ESTIMATES: Record<string, number> = {
+const QUICK_CO2: Record<string, number> = {
   'Électronique': 50, 'High-Tech': 50,
   'Vêtements': 12, 'Mode': 12,
   'Maison': 50, 'Meubles': 50,
@@ -20,134 +18,116 @@ const QUICK_CO2_ESTIMATES: Record<string, number> = {
   'default': 10,
 };
 
+const TYPE_COLORS: Record<string, string> = {
+  donation: colors.primary,
+  sale: '#1A73E8',
+  rent: '#7B4FBE',
+  antigaspi: colors.accent,
+};
+
+const TYPE_LABELS: Record<string, string> = {
+  donation: 'Don',
+  sale: 'Vente',
+  rent: 'Location',
+  antigaspi: 'Anti-gaspi',
+};
+
 export default function ItemGridCard({ item, layout = 'grid' }: ItemGridCardProps) {
   const router = useRouter();
 
-  const getUrgencyColor = (hours: number) => {
-    if (hours <= 6) return Colors.error;
-    if (hours <= 24) return Colors.warning;
-    return Colors.success;
-  };
+  const co2 = item.co2_estimate?.co2_saved_kg?.toFixed(1)
+    ?? (QUICK_CO2[item.category] || QUICK_CO2['default']);
 
-  const getCategoryIcon = (category: string) => {
-    const icons: Record<string, string> = {
-      electronics: '📱',
-      furniture: '🛋️',
-      clothing: '👕',
-      sports: '⚽',
-      books: '📚',
-      children: '🧸',
-      hobbies: '🎨',
-      home: '🏠',
-      vehicles: '🚗',
-      tools: '🔧',
-      other: '➕',
-    };
-    return icons[category] || '🏷️';
-  };
+  const typeColor = TYPE_COLORS[item.type] || colors.primary;
+  const typeLabel = TYPE_LABELS[item.type] || item.type;
 
-  const formatPrice = (cents: number) => {
-    return `${(cents / 100).toFixed(0)}€`;
-  };
+  const formatPrice = (cents: number) => `${(cents / 100).toFixed(0)} €`;
 
-  // Get CO2 estimate from category or AI
-  const getCO2Estimate = () => {
-    if (item.co2_estimate && item.co2_estimate.co2_saved_kg) {
-      return item.co2_estimate.co2_saved_kg.toFixed(1);
-    }
-    const category = item.category || 'default';
-    return QUICK_CO2_ESTIMATES[category] || QUICK_CO2_ESTIMATES['default'];
-  };
+  const isList = layout === 'list';
 
   return (
     <TouchableOpacity
-      style={[styles.card, layout === 'list' && styles.cardList]}
+      style={[styles.card, isList && styles.cardList]}
       onPress={() => router.push(`/item-detail?id=${item.id}` as any)}
-      activeOpacity={0.8}
+      activeOpacity={0.85}
     >
-      {/* Image Container */}
-      <View style={[styles.imageContainer, layout === 'list' && styles.imageContainerList]}>
-
-        {item.photos && item.photos.length > 0 ? (
-          <Image
-            source={{ uri: item.photos[0] }}
-            style={styles.image}
-            resizeMode="cover"
-          />
+      {/* Image */}
+      <View style={[styles.imgBox, isList && styles.imgBoxList]}>
+        {item.photos?.length > 0 ? (
+          <Image source={{ uri: item.photos[0] }} style={styles.img} resizeMode="cover" />
         ) : (
-          <View style={[styles.image, styles.placeholderImage]}>
-            <Ionicons name="image-outline" size={48} color={Colors.border} />
+          <View style={[styles.img, styles.imgPlaceholder]}>
+            <Ionicons name="image-outline" size={36} color={colors.border} />
           </View>
         )}
 
+        {/* Type pill */}
+        <View style={[styles.typePill, { backgroundColor: typeColor }]}>
+          <Text style={styles.typePillText}>{typeLabel}</Text>
+        </View>
 
-        {/* CO2 Badge - Show on all items except anti-gaspi */}
-        {item.type !== 'antigaspi' && (
-          <View style={styles.co2Badge}>
-            <Ionicons name="leaf" size={12} color={Colors.primary} />
-            <Text style={styles.co2Text}>-{getCO2Estimate()}kg</Text>
-          </View>
-        )}
-
-        {/* Urgency Badge for donations */}
+        {/* Urgency for donations */}
         {item.type === 'donation' && item.urgency_hours && (
-          <View style={[styles.urgencyBadge, { backgroundColor: getUrgencyColor(item.urgency_hours) }]}>
-            <Ionicons name="time" size={12} color="#fff" />
+          <View style={[styles.urgencyBadge, {
+            backgroundColor: item.urgency_hours <= 6 ? colors.error : colors.accent
+          }]}>
+            <Ionicons name="time-outline" size={10} color="#fff" />
             <Text style={styles.urgencyText}>{item.urgency_hours}h</Text>
           </View>
         )}
 
-        {/* Price Badge for sales */}
-        {item.type === 'sale' && item.price_cents && (
-          <View style={styles.priceBadge}>
+        {/* Price overlay */}
+        {item.type === 'sale' && item.price_cents > 0 && (
+          <View style={[styles.pricePill, { backgroundColor: '#1A73E8' }]}>
             <Text style={styles.priceText}>{formatPrice(item.price_cents)}</Text>
           </View>
         )}
-
-        {/* Rent Badge */}
-        {item.type === 'rent' && item.price_per_day_cents && (
-          <View style={styles.rentBadge}>
-            <Text style={styles.rentText}>{formatPrice(item.price_per_day_cents)}/j</Text>
+        {item.type === 'rent' && item.price_per_day_cents > 0 && (
+          <View style={[styles.pricePill, { backgroundColor: '#7B4FBE' }]}>
+            <Text style={styles.priceText}>{formatPrice(item.price_per_day_cents)}/j</Text>
           </View>
         )}
       </View>
 
-      {/* Info Container */}
-      <View style={styles.infoContainer}>
-        <Text style={styles.title} numberOfLines={2}>
-          {item.title}
-        </Text>
+      {/* Info */}
+      <View style={styles.info}>
+        <Text style={styles.title} numberOfLines={isList ? 1 : 2}>{item.title}</Text>
 
-        {/* Distance or Location */}
-        {item.distance_km !== undefined ? (
-          <View style={styles.distanceRow}>
-            <Ionicons name="location" size={14} color={Colors.primary} />
-            <Text style={styles.distanceText}>{item.distance_km.toFixed(1)} km</Text>
-          </View>
-        ) : item.location?.address ? (
-          <View style={styles.distanceRow}>
-            <Ionicons name="location-outline" size={14} color={Colors.textSecondary} />
-            <Text style={styles.addressText} numberOfLines={1}>{item.location.address}</Text>
-          </View>
-        ) : null}
-
-        {/* Owner Avatar (if available) */}
-        {item.owner?.photo_url && (
-          <View style={styles.ownerRow}>
-            <Image
-              source={{ uri: item.owner.photo_url }}
-              style={styles.ownerAvatar}
-            />
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text style={styles.ownerName} numberOfLines={1}>
-                {item.owner.display_name || item.owner.username}
+        <View style={styles.meta}>
+          {/* Distance */}
+          {item.distance_km !== undefined && (
+            <View style={styles.metaRow}>
+              <Ionicons name="location-sharp" size={12} color={typeColor} />
+              <Text style={[styles.metaText, { color: typeColor }]}>
+                {item.distance_km < 1
+                  ? `${(item.distance_km * 1000).toFixed(0)} m`
+                  : `${item.distance_km.toFixed(1)} km`}
               </Text>
-              {item.owner.level && (
-                <View style={{ backgroundColor: getLevelBadge(item.owner.level).color, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 8 }}>
-                  <Text style={{ fontSize: 8, color: '#fff', fontWeight: 'bold' }}>{getLevelBadge(item.owner.level).label.split(' ')[1]}</Text>
-                </View>
-              )}
             </View>
+          )}
+
+          {/* CO2 */}
+          {item.type !== 'antigaspi' && (
+            <View style={styles.co2Row}>
+              <Ionicons name="leaf" size={11} color={colors.primary} />
+              <Text style={styles.co2Text}>-{co2} kg CO₂</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Owner */}
+        {item.owner && (
+          <View style={styles.ownerRow}>
+            {item.owner.photo_url ? (
+              <Image source={{ uri: item.owner.photo_url }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarFallback]}>
+                <Ionicons name="person" size={10} color={colors.textTertiary} />
+              </View>
+            )}
+            <Text style={styles.ownerName} numberOfLines={1}>
+              {item.owner.display_name || 'Utilisateur'}
+            </Text>
           </View>
         )}
       </View>
@@ -157,7 +137,7 @@ export default function ItemGridCard({ item, layout = 'grid' }: ItemGridCardProp
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
     marginBottom: Spacing.md,
@@ -165,135 +145,125 @@ const styles = StyleSheet.create({
   },
   cardList: {
     flexDirection: 'row',
-    height: 120, // Fixed height for list view
+    height: 110,
   },
-  imageContainer: {
+  imgBox: {
     position: 'relative',
     width: '100%',
     aspectRatio: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.surfaceAlt,
   },
-  imageContainerList: {
-    width: 120,
+  imgBoxList: {
+    width: 110,
+    aspectRatio: undefined,
     height: '100%',
-    aspectRatio: undefined, // Remove aspect ratio for list view
   },
-  image: {
+  img: {
     width: '100%',
     height: '100%',
   },
-  placeholderImage: {
-    justifyContent: 'center',
+  imgPlaceholder: {
     alignItems: 'center',
-    backgroundColor: Colors.background,
+    justifyContent: 'center',
+  },
+  typePill: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+  typePillText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   urgencyBadge: {
     position: 'absolute',
-    top: Spacing.sm,
-    right: Spacing.sm,
+    top: 8,
+    right: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.sm,
-    gap: 4,
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
   },
   urgencyText: {
     color: '#fff',
-    fontSize: Typography.xs,
-    fontWeight: Typography.semibold,
+    fontSize: 10,
+    fontWeight: '700',
   },
-  priceBadge: {
+  pricePill: {
     position: 'absolute',
-    bottom: Spacing.sm,
-    right: Spacing.sm,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.lg,
-    ...Shadows.button,
+    bottom: 8,
+    right: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
   },
   priceText: {
-    color: Colors.textInverse,
-    fontSize: Typography.base,
+    color: '#fff',
+    fontSize: Typography.sm,
     fontWeight: Typography.bold,
   },
-  rentBadge: {
-    position: 'absolute',
-    bottom: Spacing.sm,
-    right: Spacing.sm,
-    backgroundColor: Colors.info,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.lg,
-    ...Shadows.button,
+  info: {
+    padding: Spacing.md,
+    flex: 1,
+    gap: 4,
   },
-  rentText: {
-    color: Colors.textInverse,
+  title: {
     fontSize: Typography.sm,
     fontWeight: Typography.semibold,
+    color: colors.textPrimary,
+    lineHeight: 18,
   },
-  co2Badge: {
-    position: 'absolute',
-    top: Spacing.sm,
-    left: Spacing.sm,
+  meta: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.sm,
-    gap: 4,
-    ...Shadows.button,
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  co2Text: {
-    color: Colors.primary,
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  metaText: {
     fontSize: 11,
     fontWeight: '600',
   },
-  infoContainer: {
-    padding: Spacing.md,
-    flex: 1, // Take remaining space in list view
-    justifyContent: 'space-between', // Distribute content vertically
-  },
-  title: {
-    fontSize: Typography.base,
-    fontWeight: Typography.semibold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
-    lineHeight: Typography.base * Typography.tight,
-  },
-  distanceRow: {
+  co2Row: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: Spacing.xs,
-    gap: 4,
+    gap: 3,
   },
-  distanceText: {
-    fontSize: Typography.sm,
-    color: Colors.primary,
-    fontWeight: Typography.medium,
-  },
-  addressText: {
-    fontSize: Typography.xs,
-    color: Colors.textSecondary,
-    flex: 1,
+  co2Text: {
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: '500',
   },
   ownerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: Spacing.sm,
     gap: 6,
+    marginTop: 2,
   },
-  ownerAvatar: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: Colors.border,
+  avatar: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+  },
+  avatarFallback: {
+    backgroundColor: colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   ownerName: {
-    fontSize: Typography.xs,
-    color: Colors.textSecondary,
+    fontSize: 11,
+    color: colors.textTertiary,
     flex: 1,
   },
 });
