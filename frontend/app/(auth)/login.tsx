@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../src/store/authStore';
 import { Image } from 'react-native';
 import SocialAuth from '../../src/components/SocialAuth';
+import { colors, Typography, Spacing, BorderRadius } from '../../src/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -34,10 +35,9 @@ export default function LoginScreen() {
 
       const user = useAuthStore.getState().user;
 
-      // Enforce Personal Space Only
       if (user?.is_partner) {
         Alert.alert(
-          "Compte Professionnel",
+          'Compte Professionnel',
           "Ce compte est un compte partenaire. Veuillez utiliser l'Accès Pro."
         );
         return;
@@ -60,7 +60,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Image
             source={require('../../assets/images/loop-logo.png')}
@@ -76,6 +76,7 @@ export default function LoginScreen() {
           <TextInput
             style={styles.input}
             placeholder="votre@email.fr"
+            placeholderTextColor={colors.textTertiary}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -87,6 +88,7 @@ export default function LoginScreen() {
           <TextInput
             style={styles.input}
             placeholder="••••••••"
+            placeholderTextColor={colors.textTertiary}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -97,6 +99,7 @@ export default function LoginScreen() {
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleLogin}
             disabled={loading}
+            activeOpacity={0.85}
           >
             <Text style={styles.buttonText}>
               {loading ? 'Connexion...' : 'Se connecter'}
@@ -105,34 +108,26 @@ export default function LoginScreen() {
 
           <TouchableOpacity
             onPress={() => router.push('/forgot-password')}
-            style={{ marginTop: 12, alignItems: 'center' }}
+            style={styles.forgotLink}
           >
-            <Text style={{ color: '#999', fontSize: 13 }}>Mot de passe oublié ?</Text>
+            <Text style={styles.forgotText}>Mot de passe oublié ?</Text>
           </TouchableOpacity>
 
           <SocialAuth />
 
           <TouchableOpacity
-            onPress={() => {
-              console.log('🔘 Navigating to register...');
-              router.push('/register');
-            }}
+            onPress={() => router.push('/register')}
             style={styles.linkButton}
           >
-            <Text style={styles.linkText}>Pas encore de compte ? S'inscrire</Text>
+            <Text style={styles.linkText}>Pas encore de compte ? <Text style={styles.linkTextBold}>S'inscrire</Text></Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => {
-              console.log('🔘 Navigating to login-pro...');
-              router.push('/login-pro');
-            }}
+            onPress={() => router.push('/login-pro')}
             style={styles.proLinkButton}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.proLinkText}>Vous êtes commerçant ?</Text>
-              <Text style={[styles.proLinkText, { fontWeight: 'bold' }]}>Accès Pro</Text>
-            </View>
+            <Text style={styles.proLinkText}>Vous êtes commerçant ? </Text>
+            <Text style={[styles.proLinkText, styles.proLinkBold]}>Accès Pro</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -143,93 +138,108 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 24,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.xxxl,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: Spacing.xxxl,
   },
   logo: {
     width: 280,
     height: 120,
     backgroundColor: 'transparent',
   },
-  title: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    color: '#4C7B4B',
-    marginTop: 16,
-  },
   appName: {
-    fontSize: 42,
+    fontSize: Typography.display,
     fontFamily: 'Nunito_800ExtraBold',
-    color: '#4C7B4B',
-    marginTop: -10, // Pull it closer to logo if needed
-    marginBottom: 8,
-    letterSpacing: 0.5, // Tighter letter spacing for logo look
+    color: colors.primary,
+    marginTop: -10,
+    marginBottom: Spacing.sm,
+    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 8,
+    fontSize: Typography.base,
+    color: colors.textSecondary,
+    marginTop: Spacing.xs,
   },
   form: {
     width: '100%',
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: colors.textPrimary,
+    marginBottom: Spacing.sm,
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    marginBottom: 16,
+    borderColor: colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 15,
+    fontSize: Typography.base,
+    color: colors.textPrimary,
+    marginBottom: Spacing.lg,
   },
   button: {
-    backgroundColor: '#4C7B4B',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: Spacing.sm,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+  },
+  forgotLink: {
+    marginTop: Spacing.md,
+    alignItems: 'center',
+  },
+  forgotText: {
+    color: colors.textTertiary,
+    fontSize: Typography.sm,
   },
   linkButton: {
-    marginTop: 16,
+    marginTop: Spacing.lg,
     alignItems: 'center',
   },
   linkText: {
-    color: '#4C7B4B',
-    fontSize: 14,
-    fontWeight: '500',
+    color: colors.textSecondary,
+    fontSize: Typography.sm,
+  },
+  linkTextBold: {
+    color: colors.primary,
+    fontWeight: Typography.semibold,
   },
   proLinkButton: {
-    marginTop: 32,
+    marginTop: Spacing.xxl,
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 20,
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: BorderRadius.full,
     alignSelf: 'center',
   },
   proLinkText: {
-    color: '#333',
-    fontSize: 12,
+    color: colors.textSecondary,
+    fontSize: Typography.xs,
+  },
+  proLinkBold: {
+    fontWeight: Typography.bold,
+    color: colors.textPrimary,
   },
 });
