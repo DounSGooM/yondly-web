@@ -4900,49 +4900,43 @@ async def get_admin_stats():
     """Get admin dashboard statistics"""
     try:
         users_count = await db.users.count_documents({})
-        pros_count = await db.users.count_documents({"is_pro": True})
+        pros_count = await db.users.count_documents({"is_partner": True})
         items_count = await db.items.count_documents({})
-        
-        # Calculate total CO2 (estimated based on completed orders)
-        orders_count = await db.orders.count_documents({"status": "completed"})
-        total_co2 = orders_count * 3.75  # ~3.75kg per anti-gaspi basket
-        
-        # Calculate total suspended baskets
-        pipeline = [
-            {"$group": {"_id": None, "total": {"$sum": "$suspended_quantity"}}}
-        ]
-        res_suspended = await db.deals.aggregate(pipeline).to_list(1)
-        total_suspended = res_suspended[0]["total"] if res_suspended else 0
-        
+
+        # CO2 from co2_saved column sum (approximate via count * avg)
+        orders_count = await db.orders.count_documents({"payment_status": "released"})
+        total_co2 = orders_count * 3.75
+
+        # Suspended baskets: sum suspended_quantity from deals
+        deals = await db.deals.find({"status": "active"}).to_list(5000)
+        total_suspended = sum(d.get("suspended_quantity", 0) or 0 for d in deals)
+
         return {
             "totalUsers": users_count,
             "totalPros": pros_count,
             "totalItems": items_count,
             "totalCO2Kg": round(total_co2, 1),
-            "totalSuspended": total_suspended
+            "totalSuspended": total_suspended,
         }
     except Exception as e:
         logging.error(f"Admin stats error: {e}")
-        return {
-            "totalUsers": 0,
-            "totalPros": 0,
-            "totalItems": 0,
-            "totalCO2Kg": 0
-        }
+        return {"totalUsers": 0, "totalPros": 0, "totalItems": 0, "totalCO2Kg": 0, "totalSuspended": 0}
 
 @api_router.get("/admin/users")
 async def get_admin_users():
     """Get all users for admin dashboard"""
     try:
-        # Fetch only non-partner users (individuals)
-        users = await db.users.find({"is_partner": {"$ne": True}}).limit(100).to_list(100)
+        users = await db.users.find({}).sort("created_at", -1).limit(200).to_list(200)
         return [{
-            "id": u.get("id", str(u.get("_id", ""))),
+            "id": u.get("id", ""),
             "display_name": u.get("display_name", ""),
             "email": u.get("email", ""),
-            "level": u.get("level", "Éco-curieux"),
+            "level": u.get("level", "Graine"),
+            "trust_level": u.get("trust_level", "NEW"),
             "co2_saved": u.get("co2_saved", 0),
-            "is_pro": u.get("is_pro", False)
+            "is_partner": u.get("is_partner", False),
+            "is_association": u.get("is_association", False),
+            "created_at": u.get("created_at"),
         } for u in users]
     except Exception as e:
         logging.error(f"Admin users error: {e}")
