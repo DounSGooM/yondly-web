@@ -71,7 +71,7 @@ INITIAL_DATA_DICTIONARY = [
 async def _log_admin_action(db, admin_id: str, action: str, target_type: str, target_id: str = None, metadata: dict = None):
     """Log admin action — silently ignore if audit_logs table doesn't exist."""
     try:
-        await db.audit_logs.insert_one({
+        await db.admin_audit_logs.insert_one({
             "id": str(uuid.uuid4()),
             "admin_id": admin_id,
             "action": action,
@@ -202,20 +202,20 @@ def create_admin_routes(db, get_current_user_func):
     @router.get("/data-dictionary")
     async def get_data_dictionary(current_user: dict = Depends(get_current_user_func)):
         try:
-            return await db.data_dictionary.find().to_list(1000)
+            return await db.admin_data_dictionary.find().to_list(1000)
         except Exception:
             return []
 
     @router.post("/data-dictionary/seed")
     async def seed_data_dictionary(current_user: dict = Depends(get_current_user_func)):
         try:
-            existing = await db.data_dictionary.count_documents({})
+            existing = await db.admin_data_dictionary.count_documents({})
             if existing > 0:
                 return {"message": "Already seeded", "count": existing}
             for entry in INITIAL_DATA_DICTIONARY:
                 entry["id"] = str(uuid.uuid4())
                 entry["created_at"] = datetime.utcnow()
-                await db.data_dictionary.insert_one(entry)
+                await db.admin_data_dictionary.insert_one(entry)
             return {"message": "Seeded", "count": len(INITIAL_DATA_DICTIONARY)}
         except Exception as ex:
             raise HTTPException(status_code=500, detail=str(ex))
@@ -226,7 +226,7 @@ def create_admin_routes(db, get_current_user_func):
             d = entry.dict()
             d["id"] = str(uuid.uuid4())
             d["created_at"] = datetime.utcnow()
-            await db.data_dictionary.insert_one(d)
+            await db.admin_data_dictionary.insert_one(d)
             return d
         except Exception as ex:
             raise HTTPException(status_code=500, detail=str(ex))
@@ -234,7 +234,7 @@ def create_admin_routes(db, get_current_user_func):
     @router.delete("/data-dictionary/{entry_id}")
     async def delete_data_dictionary_entry(entry_id: str, current_user: dict = Depends(get_current_user_func)):
         try:
-            result = await db.data_dictionary.delete_one({"id": entry_id})
+            result = await db.admin_data_dictionary.delete_one({"id": entry_id})
             if result.deleted_count == 0:
                 raise HTTPException(status_code=404, detail="Not found")
             return {"message": "Deleted"}
@@ -251,7 +251,7 @@ def create_admin_routes(db, get_current_user_func):
             f = {}
             if action:
                 f["action"] = action
-            logs = await db.audit_logs.find(f).sort("created_at", -1).limit(limit).to_list(limit)
+            logs = await db.admin_audit_logs.find(f).sort("created_at", -1).limit(limit).to_list(limit)
             for log in logs:
                 if log.get("admin_id"):
                     admin = await db.users.find_one({"id": log["admin_id"]})
@@ -402,7 +402,7 @@ def create_admin_routes(db, get_current_user_func):
     @router.get("/transparency")
     async def get_transparency(current_user: dict = Depends(get_current_user_func)):
         try:
-            config = await db.platform_transparency.find_one({})
+            config = await db.admin_transparency.find_one({})
             return config or _DEFAULT_TRANSPARENCY
         except Exception:
             return _DEFAULT_TRANSPARENCY
@@ -410,13 +410,13 @@ def create_admin_routes(db, get_current_user_func):
     @router.put("/transparency")
     async def update_transparency(ranking_text: str, dereferencing_rules_text: str, current_user: dict = Depends(get_current_user_func)):
         try:
-            existing = await db.platform_transparency.find_one({})
+            existing = await db.admin_transparency.find_one({})
             data = {"ranking_text": ranking_text, "dereferencing_rules_text": dereferencing_rules_text, "updated_at": datetime.utcnow()}
             if existing:
-                await db.platform_transparency.update_one({"id": existing["id"]}, {"$set": data})
+                await db.admin_transparency.update_one({"id": existing["id"]}, {"$set": data})
             else:
                 data["id"] = str(uuid.uuid4())
-                await db.platform_transparency.insert_one(data)
+                await db.admin_transparency.insert_one(data)
             await _log_admin_action(db, current_user["id"], "UPDATE_TRANSPARENCY", "platform_transparency")
             return {"message": "Updated"}
         except Exception as ex:
@@ -456,7 +456,7 @@ def create_admin_routes(db, get_current_user_func):
     @router.get("/export-definitions")
     async def get_export_definitions(current_user: dict = Depends(get_current_user_func)):
         try:
-            return await db.export_definitions.find().sort("created_at", -1).to_list(100)
+            return await db.admin_export_definitions.find().sort("created_at", -1).to_list(100)
         except Exception:
             return []
 
@@ -467,7 +467,7 @@ def create_admin_routes(db, get_current_user_func):
             d["id"] = str(uuid.uuid4())
             d["created_at"] = datetime.utcnow()
             d["created_by"] = current_user["id"]
-            await db.export_definitions.insert_one(d)
+            await db.admin_export_definitions.insert_one(d)
             await _log_admin_action(db, current_user["id"], "CREATE", "export_definition", d["id"])
             return d
         except Exception as ex:
@@ -476,7 +476,7 @@ def create_admin_routes(db, get_current_user_func):
     @router.get("/exports")
     async def get_export_runs(current_user: dict = Depends(get_current_user_func)):
         try:
-            return await db.export_runs.find().sort("created_at", -1).to_list(100)
+            return await db.admin_export_runs.find().sort("created_at", -1).to_list(100)
         except Exception:
             return []
 
