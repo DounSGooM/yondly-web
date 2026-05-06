@@ -1,9 +1,16 @@
 -- ============================================================
--- MIGRATION 003 — Tables admin manquantes
+-- MIGRATION 003 — Tables admin manquantes (v2 — safe)
 -- ============================================================
 
--- Data Dictionary (catalogue des champs exportables)
-CREATE TABLE IF NOT EXISTS data_dictionary (
+-- Drop si mal créées lors d'une tentative précédente
+DROP TABLE IF EXISTS export_runs CASCADE;
+DROP TABLE IF EXISTS export_definitions CASCADE;
+DROP TABLE IF EXISTS audit_logs CASCADE;
+DROP TABLE IF EXISTS data_dictionary CASCADE;
+DROP TABLE IF EXISTS platform_transparency CASCADE;
+
+-- Data Dictionary
+CREATE TABLE data_dictionary (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     field_name TEXT NOT NULL,
     data_type TEXT NOT NULL,
@@ -16,8 +23,8 @@ CREATE TABLE IF NOT EXISTS data_dictionary (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Audit Logs (journal des actions admin)
-CREATE TABLE IF NOT EXISTS audit_logs (
+-- Audit Logs
+CREATE TABLE audit_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
     action TEXT NOT NULL,
@@ -26,12 +33,12 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_audit_logs_admin ON audit_logs(admin_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at DESC);
+CREATE INDEX idx_audit_logs_admin ON audit_logs(admin_id);
+CREATE INDEX idx_audit_logs_action ON audit_logs(action);
+CREATE INDEX idx_audit_logs_created ON audit_logs(created_at DESC);
 
--- Export Definitions (définitions d'export collectivités)
-CREATE TABLE IF NOT EXISTS export_definitions (
+-- Export Definitions
+CREATE TABLE export_definitions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
     period_granularity TEXT NOT NULL CHECK (period_granularity IN ('day','week','month')),
@@ -42,8 +49,8 @@ CREATE TABLE IF NOT EXISTS export_definitions (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Export Runs (exports générés)
-CREATE TABLE IF NOT EXISTS export_runs (
+-- Export Runs
+CREATE TABLE export_runs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     export_def_id UUID REFERENCES export_definitions(id) ON DELETE SET NULL,
     export_def_name TEXT,
@@ -58,8 +65,8 @@ CREATE TABLE IF NOT EXISTS export_runs (
     completed_at TIMESTAMPTZ
 );
 
--- Platform Transparency (textes DSA)
-CREATE TABLE IF NOT EXISTS platform_transparency (
+-- Platform Transparency (DSA)
+CREATE TABLE platform_transparency (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     ranking_text TEXT,
     dereferencing_rules_text TEXT,
