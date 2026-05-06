@@ -14,8 +14,6 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { Item } from '../src/types';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale/fr';
 import { useAuthStore } from '../src/store/authStore';
 import MakeOfferModal from '../src/components/MakeOfferModal';
 import BookingCalendar from '../src/components/BookingCalendar';
@@ -23,19 +21,16 @@ import ScreenHeader from '../src/components/ScreenHeader';
 import CO2Badge from '../src/components/CO2Badge';
 import { getLevelBadge } from '../src/utils/levelBadges';
 import AddToInspirationModal from '../src/components/AddToInspirationModal';
-import LevelRestrictedAction from '../src/components/LevelRestrictedAction';
-
 import { API_URL } from '../src/config/api';
 import { getProximityLabel } from '../src/utils/locationUtils';
+import { colors, Typography, Spacing, BorderRadius, Shadows } from '../src/theme';
+
 const { width } = Dimensions.get('window');
 
 interface Offer {
   id: string;
   buyer_id: string;
-  buyer?: {
-    display_name?: string;
-    email: string;
-  };
+  buyer?: { display_name?: string; email: string };
   amount_cents: number;
   status: 'pending' | 'accepted' | 'declined' | 'expired';
   created_at: string;
@@ -49,8 +44,6 @@ export default function ItemDetailScreen() {
   const { user, token } = useAuthStore();
   const [item, setItem] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [purchasing, setPurchasing] = useState(false);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [showBookingCalendar, setShowBookingCalendar] = useState(false);
   const [showInspirationModal, setShowInspirationModal] = useState(false);
@@ -58,21 +51,17 @@ export default function ItemDetailScreen() {
   const [loadingOffers, setLoadingOffers] = useState(false);
 
   useEffect(() => {
-    if (id) {
-      fetchItem();
-    }
+    if (id) fetchItem();
   }, [id]);
 
   const fetchItem = async () => {
     try {
       const response = await axios.get(`${API_URL}/items/${id}`);
       setItem(response.data);
-
-      // Si c'est un article en vente ou location, charger les offres
       if (response.data.type === 'sale' || response.data.type === 'rent') {
         fetchOffers();
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Erreur', 'Impossible de charger cet article');
       router.back();
     } finally {
@@ -83,17 +72,12 @@ export default function ItemDetailScreen() {
   const fetchOffers = async () => {
     try {
       setLoadingOffers(true);
-
       const response = await axios.get(`${API_URL}/offers/item/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       setOffers(response.data);
-    } catch (error: any) {
-      console.error('Error fetching offers:', error.response?.data || error.message);
-    } finally {
-      setLoadingOffers(false);
-    }
+    } catch {}
+    finally { setLoadingOffers(false); }
   };
 
   const handleMakeOffer = async (amountCents: number) => {
@@ -103,20 +87,17 @@ export default function ItemDetailScreen() {
         { item_id: id, amount_cents: amountCents },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      // Notification locale pour information (la vraie notification sera gérée côté backend en prod)
       Alert.alert('Offre envoyée ✅', 'Le vendeur va examiner votre offre et recevra une notification');
       setShowOfferModal(false);
     } catch (error: any) {
-      throw error; // Let the modal handle the error
+      throw error;
     }
   };
 
   const handleAcceptOffer = async (offerId: string) => {
     const offer = offers.find(o => o.id === offerId);
-
     Alert.alert(
-      'Accepter l\'offre',
+      "Accepter l'offre",
       'Si vous acceptez, le prix sera verrouillé pendant 4h pour que l\'acheteur puisse payer.',
       [
         { text: 'Annuler', style: 'cancel' },
@@ -124,23 +105,17 @@ export default function ItemDetailScreen() {
           text: 'Accepter',
           onPress: async () => {
             try {
-              await axios.put(
-                `${API_URL}/offers/${offerId}/accept`,
-                {},
-                { headers: { Authorization: `Bearer ${token}` } }
-              );
-
-              // Envoyer une notification locale (TODO: remplacer par notification push serveur)
-              // Pour l'instant, c'est juste une confirmation pour le vendeur
+              await axios.put(`${API_URL}/offers/${offerId}/accept`, {}, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
               Alert.alert(
                 'Offre acceptée ✅',
                 `L'acheteur ${offer?.buyer?.display_name || offer?.buyer?.email} a 4h pour payer ${(offer?.amount_cents! / 100).toFixed(2)}€`
               );
-
-              fetchItem(); // Refresh item with new price
-              fetchOffers(); // Refresh offers
-            } catch (error) {
-              Alert.alert('Erreur', 'Impossible d\'accepter l\'offre');
+              fetchItem();
+              fetchOffers();
+            } catch {
+              Alert.alert('Erreur', "Impossible d'accepter l'offre");
             }
           },
         },
@@ -150,28 +125,22 @@ export default function ItemDetailScreen() {
 
   const handleDeclineOffer = async (offerId: string) => {
     try {
-      await axios.put(
-        `${API_URL}/offers/${offerId}/decline`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await axios.put(`${API_URL}/offers/${offerId}/decline`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       Alert.alert('Offre refusée');
-      fetchOffers(); // Refresh offers
-    } catch (error) {
+      fetchOffers();
+    } catch {
       Alert.alert('Erreur', 'Impossible de refuser l\'offre');
     }
   };
 
   const handleBuy = async () => {
     if (!item) return;
-
     if (item.type === 'rent') {
-      // Open booking calendar for rentals
       setShowBookingCalendar(true);
       return;
     }
-
-    // Navigate to payment screen for sales
     router.push(`/order/item-payment?itemId=${item.id}` as any);
   };
 
@@ -182,7 +151,6 @@ export default function ItemDetailScreen() {
 
   const handlePickup = async () => {
     if (!item) return;
-
     Alert.alert(
       'Demande de récupération',
       `Vous souhaitez récupérer "${item.title}"?\n\nLe donateur sera notifié de votre demande.`,
@@ -192,28 +160,42 @@ export default function ItemDetailScreen() {
           text: 'Confirmer',
           onPress: async () => {
             try {
-              // Create an order for the donation - this sends notification to donor
               const response = await axios.post(
                 `${API_URL}/orders`,
                 { item_id: item.id },
                 { headers: { Authorization: `Bearer ${token}` } }
               );
-
-              const orderId = response.data.id;
-
               Alert.alert(
                 '🎉 Demande envoyée !',
                 'Le donateur a été notifié. Présentez le QR code lors de la récupération.',
-                [
-                  {
-                    text: 'Voir mon QR code',
-                    onPress: () => router.push(`/order-detail?id=${orderId}` as any),
-                  },
-                ]
+                [{ text: 'Voir mon QR code', onPress: () => router.push(`/order-detail?id=${response.data.id}` as any) }]
               );
             } catch (error: any) {
-              const errorMsg = error.response?.data?.detail || 'Erreur lors de la demande';
-              Alert.alert('Erreur', errorMsg);
+              Alert.alert('Erreur', error.response?.data?.detail || 'Erreur lors de la demande');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteItem = () => {
+    Alert.alert(
+      "Supprimer l'annonce",
+      'Êtes-vous sûr de vouloir supprimer cette annonce ? Cette action est irréversible.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await axios.delete(`${API_URL}/items/${id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              Alert.alert('Succès', 'Annonce supprimée', [{ text: 'OK', onPress: () => router.back() }]);
+            } catch (error: any) {
+              Alert.alert('Erreur', error.response?.data?.detail || 'La suppression a échoué');
             }
           },
         },
@@ -226,44 +208,29 @@ export default function ItemDetailScreen() {
     return item?.type === 'rent' ? `${price}€/jour` : `${price}€`;
   };
 
-  const handleDeleteItem = () => {
-    Alert.alert(
-      'Supprimer l\'annonce',
-      'Êtes-vous sûr de vouloir supprimer cette annonce ? Cette action est irréversible.',
-      [
-        {
-          text: 'Annuler',
-          style: 'cancel',
-        },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await axios.delete(`${API_URL}/items/${id}`, {
-                headers: { Authorization: `Bearer ${token}` },
-              });
-              Alert.alert('Succès', 'Annonce supprimée', [
-                {
-                  text: 'OK',
-                  onPress: () => router.back(),
-                },
-              ]);
-            } catch (error: any) {
-              const errorMsg = error.response?.data?.detail || 'La suppression a échoué';
-              Alert.alert('Erreur', errorMsg);
-            }
-          },
-        },
-      ]
-    );
-  };
+  const getTimeRemaining = (expiresAtDate?: string) => {
+    const myAcceptedOffer = offers.find(o => o.status === 'accepted' && o.buyer_id === user?.id);
+    const dateToUse = expiresAtDate || myAcceptedOffer?.expires_at;
+    if (!dateToUse) return null;
 
+    const diffMs = new Date(dateToUse).getTime() - Date.now();
+    if (diffMs <= 0) return 'Expiré';
+
+    if (!expiresAtDate && myAcceptedOffer) {
+      const h = Math.floor(diffMs / (1000 * 60 * 60));
+      const m = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      return `${h}h ${m}m`;
+    }
+
+    const hoursLeft = Math.round(diffMs / (1000 * 60 * 60));
+    if (hoursLeft < 1) return 'Expire bientôt!';
+    return `Expire dans ${hoursLeft}h`;
+  };
 
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#4C7B4B" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -272,34 +239,8 @@ export default function ItemDetailScreen() {
 
   const isOwner = user?.id === item.owner_id;
   const isDonation = item.type === 'donation';
-
-  // Vérifier s'il y a une offre acceptée
   const acceptedOffer = offers.find(o => o.status === 'accepted');
   const myAcceptedOffer = acceptedOffer?.buyer_id === user?.id ? acceptedOffer : null;
-
-  // Fonction unifiée pour calculer le temps restant
-  const getTimeRemaining = (expiresAtDate?: string) => {
-    const dateToUse = expiresAtDate || myAcceptedOffer?.expires_at;
-    if (!dateToUse) return null;
-
-    const now = new Date();
-    const expiresAt = new Date(dateToUse);
-    const diffMs = expiresAt.getTime() - now.getTime();
-
-    if (diffMs <= 0) return 'Expiré';
-
-    // Pour l'offre acceptée, format détaillé
-    if (!expiresAtDate && myAcceptedOffer) {
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-      return `${diffHours}h ${diffMinutes}m`;
-    }
-
-    // Pour les items normaux, format simple
-    const hoursLeft = Math.round(diffMs / (1000 * 60 * 60));
-    if (hoursLeft < 1) return 'Expire bientôt!';
-    return `Expire dans ${hoursLeft}h`;
-  };
 
   return (
     <View style={styles.container}>
@@ -307,18 +248,18 @@ export default function ItemDetailScreen() {
         rightAction={
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <TouchableOpacity onPress={() => setShowInspirationModal(true)}>
-              <Ionicons name="bookmark-outline" size={24} color="#333" />
+              <Ionicons name="bookmark-outline" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => { /* TODO: Share */ }}>
-              <Ionicons name="share-outline" size={24} color="#333" />
+            <TouchableOpacity onPress={() => {}}>
+              <Ionicons name="share-outline" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
             {isOwner && (
               <>
                 <TouchableOpacity onPress={() => router.push(`/edit-item?id=${item.id}` as any)}>
-                  <Ionicons name="create-outline" size={24} color="#333" />
+                  <Ionicons name="create-outline" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleDeleteItem}>
-                  <Ionicons name="trash-outline" size={24} color="#d32f2f" />
+                  <Ionicons name="trash-outline" size={24} color={colors.error} />
                 </TouchableOpacity>
               </>
             )}
@@ -329,18 +270,10 @@ export default function ItemDetailScreen() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}>
         <View style={styles.imageContainer}>
           {item.photos && item.photos.length > 0 ? (
-            <Image
-              source={{ uri: item.photos[0] }}
-              style={styles.image}
-              resizeMode="cover"
-            />
+            <Image source={{ uri: item.photos[0] }} style={styles.image} resizeMode="cover" />
           ) : (
             <View style={[styles.image, styles.placeholderImage]}>
-              <Ionicons
-                name={isDonation ? 'nutrition' : 'storefront'}
-                size={80}
-                color="#ccc"
-              />
+              <Ionicons name={isDonation ? 'nutrition' : 'storefront'} size={80} color={colors.border} />
             </View>
           )}
         </View>
@@ -353,12 +286,12 @@ export default function ItemDetailScreen() {
                 <Text style={styles.freeBadgeText}>GRATUIT</Text>
               </View>
             ) : (
-              <View>
-                <Text style={styles.price}>{formatPrice(item.type === 'rent' ? item.price_per_day_cents! : item.price_cents || 0)}</Text>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={styles.price}>
+                  {formatPrice(item.type === 'rent' ? item.price_per_day_cents! : item.price_cents || 0)}
+                </Text>
                 {item.type === 'rent' && item.deposit_cents && (
-                  <Text style={{ fontSize: 14, color: '#666', marginTop: 4 }}>
-                    Caution: {(item.deposit_cents / 100).toFixed(0)}€
-                  </Text>
+                  <Text style={styles.depositText}>Caution: {(item.deposit_cents / 100).toFixed(0)}€</Text>
                 )}
               </View>
             )}
@@ -367,19 +300,13 @@ export default function ItemDetailScreen() {
           <View style={styles.tags}>
             {item.food_type && (
               <View style={styles.tag}>
-                <Text style={styles.tagText}>
-                  {item.food_type === 'non_perishable' ? 'Sec' : 'Frais'}
-                </Text>
+                <Text style={styles.tagText}>{item.food_type === 'non_perishable' ? 'Sec' : 'Frais'}</Text>
               </View>
             )}
             {item.condition && (
               <View style={styles.tag}>
                 <Text style={styles.tagText}>
-                  {item.condition === 'new'
-                    ? 'Neuf'
-                    : item.condition === 'good'
-                      ? 'Bon état'
-                      : 'À réparer'}
+                  {item.condition === 'new' ? 'Neuf' : item.condition === 'good' ? 'Bon état' : 'À réparer'}
                 </Text>
               </View>
             )}
@@ -400,49 +327,41 @@ export default function ItemDetailScreen() {
             </View>
           )}
 
-          {/* CO2 Impact Section - Show for non-donation items */}
           {item.type !== 'donation' && (
-            <CO2Badge
-              itemId={item.id}
-              category={item.category}
-              showDetails={true}
-            />
+            <CO2Badge itemId={item.id} category={item.category} showDetails={true} />
           )}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Localisation</Text>
             <View style={styles.locationRow}>
-              <Ionicons name="location" size={20} color="#4C7B4B" />
-              <Text style={styles.locationText}>
-                {getProximityLabel(item.radius_km || 5)}
-              </Text>
+              <Ionicons name="location" size={20} color={colors.primary} />
+              <Text style={styles.locationText}>{getProximityLabel(item.radius_km || 5)}</Text>
             </View>
           </View>
 
           {item.store ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Boutique Partenaire</Text>
-              <TouchableOpacity onPress={() => router.push(`/store-detail?id=${item.store?.id}` as any)} activeOpacity={0.9}>
-                <View style={[styles.ownerCard, { backgroundColor: '#f8fdf8', borderColor: '#4C7B4B', borderWidth: 1 }]}>
-                  <Image source={{ uri: item.store?.logo || 'https://via.placeholder.com/150' }} style={styles.ownerAvatar} />
+              <TouchableOpacity
+                onPress={() => router.push(`/store-detail?id=${item.store?.id}` as any)}
+                activeOpacity={0.9}
+              >
+                <View style={[styles.ownerCard, styles.storeCard]}>
+                  <Image source={{ uri: item.store?.logo || 'https://via.placeholder.com/150' }} style={styles.ownerAvatarImg} />
                   <View style={styles.sellerInfo}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Text style={styles.sellerName}>{item.store?.name}</Text>
-                      <View style={{ backgroundColor: '#4C7B4B', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>PRO</Text>
+                      <View style={styles.proBadge}>
+                        <Text style={styles.proBadgeText}>PRO</Text>
                       </View>
                     </View>
-                    <Text style={{ fontSize: 14, color: '#666', marginTop: 2 }}>
-                      {item.store?.address}
-                    </Text>
+                    <Text style={styles.storeAddress}>{item.store?.address}</Text>
                     <View style={styles.ratingContainer}>
                       <Ionicons name="star" size={14} color="#ffc107" />
-                      <Text style={styles.ratingText}>
-                        4.8 (Expert) {/* Need to fetch ratings? for now mock or use User ratings */}
-                      </Text>
+                      <Text style={styles.ratingText}>4.8 (Expert)</Text>
                     </View>
                   </View>
-                  <Ionicons name="chevron-forward" size={24} color="#4C7B4B" />
+                  <Ionicons name="chevron-forward" size={24} color={colors.primary} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -450,30 +369,28 @@ export default function ItemDetailScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{isDonation ? 'Donateur' : 'Vendeur'}</Text>
               <View style={styles.ownerCard}>
-                <View style={styles.ownerAvatar}>
-                  <Ionicons name="person" size={24} color="#4C7B4B" />
+                <View style={styles.ownerAvatarIcon}>
+                  <Ionicons name="person" size={24} color={colors.primary} />
                 </View>
                 <View style={styles.sellerInfo}>
-                  <View style={styles.sellerTextContainer}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Text style={styles.sellerName}>{item.owner?.display_name}</Text>
-                      {item.owner?.level && (
-                        <View style={{ backgroundColor: getLevelBadge(item.owner.level).color, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 }}>
-                          <Text style={{ fontSize: 10, color: '#fff', fontWeight: 'bold' }}>{getLevelBadge(item.owner.level).label}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.ratingContainer}>
-                      <Ionicons name="star" size={14} color="#ffc107" />
-                      <Text style={styles.ratingText}>
-                        {item.owner?.ratings_avg?.toFixed(1) || 'N/A'} ({item.owner?.ratings_count || 0})
-                      </Text>
-                    </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={styles.sellerName}>{item.owner?.display_name}</Text>
+                    {item.owner?.level && (
+                      <View style={{ backgroundColor: getLevelBadge(item.owner.level).color, paddingHorizontal: 6, paddingVertical: 2, borderRadius: BorderRadius.xs }}>
+                        <Text style={{ fontSize: Typography.xs, color: '#fff', fontWeight: Typography.bold }}>{getLevelBadge(item.owner.level).label}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.ratingContainer}>
+                    <Ionicons name="star" size={14} color="#ffc107" />
+                    <Text style={styles.ratingText}>
+                      {item.owner?.ratings_avg?.toFixed(1) || 'N/A'} ({item.owner?.ratings_count || 0})
+                    </Text>
                   </View>
                 </View>
                 {!isOwner && (
                   <TouchableOpacity style={styles.chatButton} onPress={handleContact}>
-                    <Ionicons name="chatbubble-outline" size={20} color="#4C7B4B" />
+                    <Ionicons name="chatbubble-outline" size={20} color={colors.primary} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -482,23 +399,20 @@ export default function ItemDetailScreen() {
 
           {isDonation && (
             <View style={styles.safetyTip}>
-              <Ionicons name="information-circle" size={20} color="#4C7B4B" />
+              <Ionicons name="information-circle" size={20} color={colors.primary} />
               <Text style={styles.safetyText}>
-                Conseil sécurité: Rencontrez dans un lieu public et vérifiez la fraîcheur des
-                produits
+                Conseil sécurité: Rencontrez dans un lieu public et vérifiez la fraîcheur des produits
               </Text>
             </View>
           )}
         </View>
-        {/* Section Offers for seller */}
+
         {!isDonation && item.owner_id === user?.id && (
           <View style={styles.offersSection}>
             <Text style={styles.offersSectionTitle}>
               Offres reçues ({offers.filter(o => o.status === 'pending').length})
             </Text>
-            {loadingOffers && (
-              <ActivityIndicator size="small" color="#4C7B4B" />
-            )}
+            {loadingOffers && <ActivityIndicator size="small" color={colors.primary} />}
             {!loadingOffers && offers.length === 0 && (
               <Text style={styles.noOffersText}>Aucune offre pour le moment</Text>
             )}
@@ -511,25 +425,17 @@ export default function ItemDetailScreen() {
                       <Text style={styles.offerBuyer}>
                         {offer.buyer?.display_name || offer.buyer?.email || 'Acheteur'}
                       </Text>
-                      <Text style={styles.offerAmount}>
-                        {(offer.amount_cents / 100).toFixed(2)}€
-                      </Text>
+                      <Text style={styles.offerAmount}>{(offer.amount_cents / 100).toFixed(2)}€</Text>
                       <Text style={styles.offerSavings}>
                         Réduction de {(((item.price_cents! - offer.amount_cents) / item.price_cents!) * 100).toFixed(0)}%
                       </Text>
                     </View>
                     <View style={styles.offerActions}>
-                      <TouchableOpacity
-                        style={styles.acceptButton}
-                        onPress={() => handleAcceptOffer(offer.id)}
-                      >
+                      <TouchableOpacity style={styles.acceptButton} onPress={() => handleAcceptOffer(offer.id)}>
                         <Ionicons name="checkmark" size={20} color="#fff" />
                         <Text style={styles.acceptButtonText}>Accepter</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.declineButton}
-                        onPress={() => handleDeclineOffer(offer.id)}
-                      >
+                      <TouchableOpacity style={styles.declineButton} onPress={() => handleDeclineOffer(offer.id)}>
                         <Ionicons name="close" size={20} color="#fff" />
                       </TouchableOpacity>
                     </View>
@@ -548,141 +454,104 @@ export default function ItemDetailScreen() {
         onOfferSubmit={handleMakeOffer}
       />
 
-      {/* Inspiration Modal Integration */}
       <AddToInspirationModal
         visible={showInspirationModal}
         item={item}
         onClose={() => setShowInspirationModal(false)}
       />
 
-      {
-        item.type === 'rent' && (
-          <BookingCalendar
-            visible={showBookingCalendar}
-            onClose={() => setShowBookingCalendar(false)}
-            item_id={item.id}
-            price_per_day_cents={item.price_per_day_cents || 0}
-            deposit_cents={item.deposit_cents || 0}
-            token={token || ''}
-            onBookingComplete={() => {
-              fetchItem();
-            }}
-          />
-        )
-      }
+      {item.type === 'rent' && (
+        <BookingCalendar
+          visible={showBookingCalendar}
+          onClose={() => setShowBookingCalendar(false)}
+          item_id={item.id}
+          price_per_day_cents={item.price_per_day_cents || 0}
+          deposit_cents={item.deposit_cents || 0}
+          token={token || ''}
+          onBookingComplete={() => fetchItem()}
+        />
+      )}
 
-      {
-        item.status === 'active' && (
-          <View style={styles.footer}>
-            {isDonation ? (
-              // For food donations
-              item.owner_id === user?.id ? (
-                <View style={styles.ownerFooterInfo}>
-                  <Text style={styles.ownerInfoText}>✅ C'est votre annonce</Text>
-                </View>
-              ) : (
-                <TouchableOpacity style={styles.actionButton} onPress={handlePickup}>
-                  <Ionicons name="hand-right" size={24} color="#fff" />
-                  <Text style={styles.actionButtonText}>Demander à récupérer</Text>
-                </TouchableOpacity>
-              )
+      {item.status === 'active' && (
+        <View style={styles.footer}>
+          {isDonation ? (
+            item.owner_id === user?.id ? (
+              <View style={styles.ownerFooterInfo}>
+                <Text style={styles.ownerInfoText}>✅ C'est votre annonce</Text>
+              </View>
             ) : (
-              // For rentals or sales
-              item.owner_id === user?.id ? (
-                <View style={styles.ownerFooterInfo}>
-                  <Text style={styles.ownerInfoText}>✅ C'est votre annonce</Text>
-                </View>
-              ) : myAcceptedOffer ? (
-                // Offre acceptée
-                <View style={styles.acceptedOfferContainer}>
-                  <View style={styles.acceptedOfferInfo}>
-                    <Ionicons name="checkmark-circle" size={24} color="#4caf50" />
-                    <View style={styles.acceptedOfferText}>
-                      <Text style={styles.acceptedOfferTitle}>
-                        ✅ Votre offre a été acceptée !
-                      </Text>
-                      <Text style={styles.acceptedOfferPrice}>
-                        {(myAcceptedOffer.amount_cents / 100).toFixed(2)}€
-                      </Text>
-                      <Text style={styles.acceptedOfferTimer}>
-                        Paiement requis: {getTimeRemaining()}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.payButton]}
-                    onPress={handleBuy}
-                  >
-                    <Text style={styles.actionButtonText}>Payer maintenant</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                // Standard View (Sale or Rent)
-                <View style={styles.footerActions}>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.secondaryButton]}
-                    onPress={() => setShowOfferModal(true)}
-                  >
-                    <Ionicons name="pricetag-outline" size={24} color="#4C7B4B" />
-                    <Text style={styles.secondaryButtonText}>
-                      {item.type === 'rent' ? 'Négocier' : 'Faire une offre'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.primaryButton]}
-                    onPress={handleBuy}
-                  >
-                    <Ionicons name={item.type === 'rent' ? "calendar-outline" : "cart-outline"} size={24} color="#fff" />
-                    <Text style={styles.primaryButtonText}>
-                      {item.type === 'rent' ? 'Louer' : 'Acheter'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )
+              <TouchableOpacity style={styles.actionButton} onPress={handlePickup}>
+                <Ionicons name="hand-right" size={24} color="#fff" />
+                <Text style={styles.actionButtonText}>Demander à récupérer</Text>
+              </TouchableOpacity>
             )
-            }
-          </View>
-        )
-      }
+          ) : (
+            item.owner_id === user?.id ? (
+              <View style={styles.ownerFooterInfo}>
+                <Text style={styles.ownerInfoText}>✅ C'est votre annonce</Text>
+              </View>
+            ) : myAcceptedOffer ? (
+              <View style={styles.acceptedOfferContainer}>
+                <View style={styles.acceptedOfferInfo}>
+                  <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+                  <View style={styles.acceptedOfferText}>
+                    <Text style={styles.acceptedOfferTitle}>✅ Votre offre a été acceptée !</Text>
+                    <Text style={styles.acceptedOfferPrice}>{(myAcceptedOffer.amount_cents / 100).toFixed(2)}€</Text>
+                    <Text style={styles.acceptedOfferTimer}>Paiement requis: {getTimeRemaining()}</Text>
+                  </View>
+                </View>
+                <TouchableOpacity style={[styles.actionButton, { width: '100%' }]} onPress={handleBuy}>
+                  <Text style={styles.actionButtonText}>Payer maintenant</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.footerActions}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.secondaryButton]}
+                  onPress={() => setShowOfferModal(true)}
+                >
+                  <Ionicons name="pricetag-outline" size={22} color={colors.primary} />
+                  <Text style={styles.secondaryButtonText}>
+                    {item.type === 'rent' ? 'Négocier' : 'Faire une offre'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.actionButton, styles.primaryButton]} onPress={handleBuy}>
+                  <Ionicons name={item.type === 'rent' ? 'calendar-outline' : 'cart-outline'} size={22} color="#fff" />
+                  <Text style={styles.primaryButtonText}>
+                    {item.type === 'rent' ? 'Louer' : 'Acheter'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )
+          )}
+        </View>
+      )}
 
-      {
-        item.status !== 'active' && (
-          <View style={styles.footer}>
-            <View style={styles.statusBadge}>
-              <Text style={styles.statusText}>
-                {item.status === 'reserved'
-                  ? 'Réservé'
-                  : item.status === 'completed'
-                    ? 'Terminé'
-                    : 'Expiré'}
-              </Text>
-            </View>
+      {item.status !== 'active' && (
+        <View style={styles.footer}>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusText}>
+              {item.status === 'reserved' ? 'Réservé' : item.status === 'completed' ? 'Terminé' : 'Expiré'}
+            </Text>
           </View>
-        )
-      }
-    </View >
+        </View>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  // Header styles removed as ScreenHeader is used
-  headerActions: {
-    flexDirection: 'row',
-    gap: 8,
+    backgroundColor: colors.background,
   },
   imageContainer: {
-    position: 'relative',
     height: 350,
     width: '100%',
   },
@@ -690,270 +559,275 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  imageOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 120,
-    backgroundColor: 'linear-gradient(180deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 100%)', // Note: LinearGradient requires expo-linear-gradient, using simple transparency for now or just rely on image contrast
-  },
   placeholderImage: {
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
   },
   content: {
-    padding: 16,
+    padding: Spacing.lg,
   },
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: Typography.xl,
+    fontWeight: Typography.bold,
+    color: colors.textPrimary,
     flex: 1,
-    marginRight: 16,
+    marginRight: Spacing.lg,
   },
   price: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#4C7B4B',
+    fontSize: Typography.xxl,
+    fontWeight: Typography.bold,
+    color: colors.primary,
+  },
+  depositText: {
+    fontSize: Typography.sm,
+    color: colors.textSecondary,
+    marginTop: Spacing.xs,
   },
   freeBadge: {
-    backgroundColor: '#4caf50',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    backgroundColor: colors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
   },
   freeBadgeText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontSize: Typography.sm,
+    fontWeight: Typography.bold,
   },
   tags: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
   },
   tag: {
-    backgroundColor: '#e8f5e9',
-    paddingHorizontal: 12,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: Spacing.md,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: BorderRadius.full,
   },
   tagText: {
-    fontSize: 12,
-    color: '#4C7B4B',
-    fontWeight: '500',
+    fontSize: Typography.xs,
+    color: colors.primary,
+    fontWeight: Typography.semibold,
   },
   urgentTag: {
-    backgroundColor: '#fff3e0',
+    backgroundColor: '#FDF0E6',
   },
   urgentText: {
-    fontSize: 12,
-    color: '#f57c00',
-    fontWeight: '600',
+    fontSize: Typography.xs,
+    color: colors.accent,
+    fontWeight: Typography.semibold,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: Spacing.xl,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
+    fontSize: Typography.lg,
+    fontWeight: Typography.semibold,
+    color: colors.textPrimary,
+    marginBottom: Spacing.md,
   },
   description: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: Typography.base,
+    color: colors.textSecondary,
     lineHeight: 24,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.sm,
   },
   locationText: {
-    fontSize: 16,
-    color: '#666',
-    marginLeft: 8,
+    fontSize: Typography.base,
+    color: colors.textSecondary,
   },
   ownerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    ...Shadows.sm,
   },
-  ownerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#e8f5e9',
+  storeCard: {
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  ownerAvatarImg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primaryLight,
+  },
+  ownerAvatarIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  ownerInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
   sellerInfo: {
     flex: 1,
-    marginLeft: 12,
-  },
-  sellerTextContainer: {
-    flex: 1,
+    marginLeft: Spacing.md,
   },
   sellerName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: colors.textPrimary,
+  },
+  storeAddress: {
+    fontSize: Typography.sm,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  proBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
+  },
+  proBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: Typography.bold,
   },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
     marginTop: 2,
   },
-  ownerName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   ratingText: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 4,
+    fontSize: Typography.sm,
+    color: colors.textSecondary,
   },
   chatButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#e8f5e9',
+    backgroundColor: colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   safetyTip: {
     flexDirection: 'row',
-    backgroundColor: '#e8f5e9',
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: colors.primaryLight,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.md,
   },
   safetyText: {
     flex: 1,
-    fontSize: 14,
-    color: '#4C7B4B',
-    marginLeft: 12,
+    fontSize: Typography.sm,
+    color: colors.primary,
     lineHeight: 20,
   },
   footer: {
-    flexDirection: 'row',
-    padding: 16,
-    backgroundColor: '#fff',
+    padding: Spacing.lg,
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    gap: 12,
+    borderTopColor: colors.borderLight,
+    gap: Spacing.md,
+  },
+  footerActions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#4C7B4B',
-    padding: 12,
-    borderRadius: 12,
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.sm,
   },
-  contactButton: {
-    flex: 0,
-    width: 56,
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#4C7B4B',
+  primaryButton: {
+    backgroundColor: colors.primary,
+    flex: 1,
   },
-  buyButton: {
+  secondaryButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
     flex: 1,
   },
   actionButtonText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: Typography.base,
+    fontWeight: Typography.bold,
+  },
+  secondaryButtonText: {
+    color: colors.primary,
+    fontSize: Typography.base,
+    fontWeight: Typography.bold,
   },
   statusBadge: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: colors.surfaceAlt,
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
   },
   statusText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#999',
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: colors.textTertiary,
   },
   ownerFooterInfo: {
     flex: 1,
-    backgroundColor: '#e8f5e9',
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: colors.primaryLight,
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
   },
   ownerInfoText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#4C7B4B',
-  },
-  buyerActions: {
-    flexDirection: 'row',
-    gap: 8,
-    flex: 1,
-  },
-  offerButton: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#4C7B4B',
-    gap: 6,
-  },
-  offerButtonText: {
-    color: '#4C7B4B',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: colors.primary,
   },
   offersSection: {
-    padding: 16,
-    backgroundColor: '#f9f9f9',
+    padding: Spacing.lg,
+    backgroundColor: colors.surfaceAlt,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: colors.borderLight,
   },
   offersSectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
+    fontSize: Typography.lg,
+    fontWeight: Typography.bold,
+    color: colors.textPrimary,
+    marginBottom: Spacing.md,
   },
   noOffersText: {
-    fontSize: 14,
-    color: '#999',
+    fontSize: Typography.sm,
+    color: colors.textTertiary,
     textAlign: 'center',
-    paddingVertical: 16,
+    paddingVertical: Spacing.lg,
   },
   offerCard: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
+    backgroundColor: colors.surface,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: colors.border,
   },
   offerHeader: {
     flexDirection: 'row',
@@ -961,122 +835,75 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   offerBuyer: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: Typography.sm,
+    color: colors.textSecondary,
     marginBottom: 4,
   },
   offerAmount: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#4C7B4B',
+    fontSize: Typography.xl,
+    fontWeight: Typography.bold,
+    color: colors.primary,
     marginBottom: 2,
   },
   offerSavings: {
-    fontSize: 12,
-    color: '#999',
+    fontSize: Typography.xs,
+    color: colors.textTertiary,
   },
   offerActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Spacing.sm,
   },
   acceptButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4C7B4B',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: colors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
     gap: 4,
   },
   acceptButtonText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
   },
   declineButton: {
-    backgroundColor: '#d32f2f',
+    backgroundColor: colors.error,
     width: 36,
     height: 36,
-    borderRadius: 8,
+    borderRadius: BorderRadius.sm,
     justifyContent: 'center',
     alignItems: 'center',
   },
   acceptedOfferContainer: {
     flex: 1,
-    gap: 12,
+    gap: Spacing.md,
   },
   acceptedOfferInfo: {
     flexDirection: 'row',
-    backgroundColor: '#e8f5e9',
-    padding: 16,
-    borderRadius: 12,
-    gap: 12,
+    backgroundColor: colors.primaryLight,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.md,
   },
   acceptedOfferText: {
     flex: 1,
   },
   acceptedOfferTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#4C7B4B',
+    fontSize: Typography.base,
+    fontWeight: Typography.bold,
+    color: colors.primary,
     marginBottom: 4,
   },
   acceptedOfferPrice: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: Typography.lg,
+    fontWeight: Typography.bold,
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   acceptedOfferTimer: {
-    fontSize: 14,
-    color: '#f57c00',
-    fontWeight: '600',
-  },
-  footerActions: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 12,
-  },
-  primaryButton: {
-    backgroundColor: '#4C7B4B',
-    flex: 1,
-  },
-  secondaryButton: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#4C7B4B',
-    flex: 1,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  secondaryButtonText: {
-    color: '#4C7B4B',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  payButton: {
-    backgroundColor: '#4C7B4B',
-    width: '100%',
-  },
-
-  offerAcceptedByOther: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f5f5f5',
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  offerAcceptedText: {
-    fontSize: 14,
-    color: '#999',
-    fontWeight: '600',
+    fontSize: Typography.sm,
+    color: colors.accent,
+    fontWeight: Typography.semibold,
   },
 });

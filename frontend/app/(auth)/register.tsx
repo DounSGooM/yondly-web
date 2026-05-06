@@ -16,6 +16,10 @@ import { useAuthStore } from '../../src/store/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'react-native';
 import AddressAutocomplete, { AddressResult } from '../../src/components/AddressAutocomplete';
+import { colors, Typography, Spacing, BorderRadius } from '../../src/theme';
+
+const { height: screenHeight } = Dimensions.get('window');
+const isSmallScreen = screenHeight < 700;
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -36,7 +40,6 @@ export default function RegisterScreen() {
       return;
     }
 
-    // French phone validation: +33 format or 0X format
     const cleanPhone = phone.replace(/[\s.-]/g, '');
     if (!/^(\+33[1-9]\d{8}|0[1-9]\d{8})$/.test(cleanPhone)) {
       Alert.alert('Erreur', 'Numéro de téléphone invalide. Format attendu : +33 6 12 34 56 78');
@@ -55,9 +58,8 @@ export default function RegisterScreen() {
       { label: 'Un chiffre', valid: /[0-9]/.test(password) },
       { label: 'Un caractère spécial (!@#$...)', valid: /[!@#$%^&*()_+\-=\[\]{};':"\|,.<>\/?`~]/.test(password) },
     ];
-    const passwordValid = passwordRules.every(r => r.valid);
 
-    if (!passwordValid) {
+    if (!passwordRules.every(r => r.valid)) {
       Alert.alert('Erreur', 'Le mot de passe ne respecte pas les critères de sécurité');
       return;
     }
@@ -92,13 +94,10 @@ export default function RegisterScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={22} color="#4C7B4B" />
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={22} color={colors.primary} />
           </TouchableOpacity>
           <Image
             source={require('../../assets/images/loop-logo.png')}
@@ -114,6 +113,7 @@ export default function RegisterScreen() {
           <TextInput
             style={styles.input}
             placeholder="Votre nom"
+            placeholderTextColor={colors.textTertiary}
             value={displayName}
             onChangeText={setDisplayName}
             autoComplete="name"
@@ -123,6 +123,7 @@ export default function RegisterScreen() {
           <TextInput
             style={styles.input}
             placeholder="votre@email.fr"
+            placeholderTextColor={colors.textTertiary}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -138,6 +139,7 @@ export default function RegisterScreen() {
             <TextInput
               style={[styles.input, styles.phoneInput]}
               placeholder="6 12 34 56 78"
+              placeholderTextColor={colors.textTertiary}
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
@@ -146,49 +148,20 @@ export default function RegisterScreen() {
           </View>
 
           <Text style={styles.label}>Votre rue *</Text>
-          <Text style={styles.helperText}>
-            Rejoindre votre communauté locale
-          </Text>
+          <Text style={styles.helperText}>Rejoindre votre communauté locale</Text>
           <AddressAutocomplete
             value={address}
             onSelect={setAddress}
             placeholder="Ex: Rue du Commerce, Poitiers"
           />
 
-          {/* ASSOCIATION REGISTRATION - TEMPORARILY DISABLED
-          <TouchableOpacity
-            style={styles.checkboxRow}
-            onPress={() => setIsAssociation(!isAssociation)}
-          >
-            <View style={[styles.checkbox, isAssociation && styles.checkboxChecked]}>
-              {isAssociation && <Ionicons name="checkmark" size={16} color="#fff" />}
-            </View>
-            <Text style={styles.checkboxLabel}>Je suis une association / CCAS</Text>
-          </TouchableOpacity>
-
-          {isAssociation && (
-            <>
-              <Text style={styles.label}>Nom de l'association *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ex: Restos du Cœur, CCAS de Poitiers..."
-                value={associationName}
-                onChangeText={setAssociationName}
-              />
-              <View style={styles.infoBox}>
-                <Ionicons name="information-circle" size={20} color="#4FC3F7" />
-                <Text style={styles.infoText}>
-                  Votre compte devra être vérifié par un administrateur avant de pouvoir récupérer des paniers suspendus.
-                </Text>
-              </View>
-            </>
-          )}
-          */}
+          {/* ASSOCIATION REGISTRATION - TEMPORARILY DISABLED */}
 
           <Text style={styles.label}>Mot de passe *</Text>
           <TextInput
             style={styles.input}
             placeholder="Min. 8 caractères, majuscule, chiffre"
+            placeholderTextColor={colors.textTertiary}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -208,7 +181,7 @@ export default function RegisterScreen() {
                   <Ionicons
                     name={rule.valid ? 'checkmark-circle' : 'ellipse-outline'}
                     size={16}
-                    color={rule.valid ? '#4C7B4B' : '#bbb'}
+                    color={rule.valid ? colors.primary : colors.border}
                   />
                   <Text style={[styles.ruleText, rule.valid && styles.ruleTextValid]}>
                     {rule.label}
@@ -225,6 +198,7 @@ export default function RegisterScreen() {
               confirmPassword.length > 0 && confirmPassword !== password && styles.inputError,
             ]}
             placeholder="Retapez votre mot de passe"
+            placeholderTextColor={colors.textTertiary}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
@@ -238,19 +212,15 @@ export default function RegisterScreen() {
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleRegister}
             disabled={loading}
+            activeOpacity={0.85}
           >
             <Text style={styles.buttonText}>
-              {loading ? "Création..." : "S'inscrire"}
+              {loading ? 'Création...' : "S'inscrire"}
             </Text>
           </TouchableOpacity>
 
-
-
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.linkButton}
-          >
-            <Text style={styles.linkText}>Déjà un compte ? Se connecter</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.linkButton}>
+            <Text style={styles.linkText}>Déjà un compte ? <Text style={styles.linkTextBold}>Se connecter</Text></Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -258,139 +228,102 @@ export default function RegisterScreen() {
   );
 }
 
-const { height: screenHeight } = Dimensions.get('window');
-const isSmallScreen = screenHeight < 700;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f0',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: Spacing.xl,
     paddingTop: Platform.OS === 'ios' ? 52 : 32,
-    paddingBottom: 24,
+    paddingBottom: Spacing.xl,
   },
   header: {
     alignItems: 'center',
-    marginBottom: isSmallScreen ? 16 : 24,
+    marginBottom: isSmallScreen ? Spacing.lg : Spacing.xl,
     position: 'relative',
   },
   backButton: {
     position: 'absolute',
     left: 0,
     top: 0,
+    padding: Spacing.xs,
   },
   logo: {
     width: isSmallScreen ? 48 : 60,
     height: isSmallScreen ? 48 : 60,
   },
-  title: {
-    fontSize: isSmallScreen ? 22 : 26,
-    fontWeight: 'bold',
-    color: '#4C7B4B',
-    marginTop: 6,
-  },
   appName: {
-    fontSize: isSmallScreen ? 20 : 24,
-    fontWeight: '800',
-    color: '#4C7B4B',
-    marginTop: 4,
+    fontSize: isSmallScreen ? Typography.xl : Typography.xxl,
+    fontWeight: Typography.heavy,
+    color: colors.primary,
+    marginTop: Spacing.xs,
     letterSpacing: 0.3,
+  },
+  title: {
+    fontSize: isSmallScreen ? Typography.lg : Typography.xl,
+    fontWeight: Typography.bold,
+    color: colors.textPrimary,
+    marginTop: Spacing.xs,
   },
   form: {
     width: '100%',
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 6,
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: colors.textPrimary,
+    marginBottom: Spacing.xs,
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    padding: 14,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    marginBottom: 12,
+    borderColor: colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 14,
+    fontSize: Typography.base,
+    color: colors.textPrimary,
+    marginBottom: Spacing.md,
   },
   button: {
-    backgroundColor: '#4C7B4B',
-    borderRadius: 12,
-    padding: 15,
+    backgroundColor: colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 15,
     alignItems: 'center',
-    marginTop: 6,
+    marginTop: Spacing.sm,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
   },
   linkButton: {
-    marginTop: 14,
+    marginTop: Spacing.lg,
     alignItems: 'center',
   },
   linkText: {
-    color: '#4C7B4B',
-    fontSize: 14,
-    fontWeight: '500',
+    color: colors.textSecondary,
+    fontSize: Typography.sm,
+  },
+  linkTextBold: {
+    color: colors.primary,
+    fontWeight: Typography.semibold,
   },
   helperText: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 6,
+    fontSize: Typography.xs,
+    color: colors.textSecondary,
+    marginBottom: Spacing.sm,
     lineHeight: 16,
-  },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    marginTop: 6,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#4C7B4B',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  checkboxChecked: {
-    backgroundColor: '#4C7B4B',
-  },
-  checkboxLabel: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
-  },
-  infoBox: {
-    flexDirection: 'row',
-    backgroundColor: '#E1F5FE',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#0277BD',
-    lineHeight: 18,
   },
   passwordRules: {
     marginTop: -4,
-    marginBottom: 12,
-    paddingHorizontal: 4,
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.xs,
   },
   ruleRow: {
     flexDirection: 'row',
@@ -399,44 +332,43 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   ruleText: {
-    fontSize: 12,
-    color: '#999',
+    fontSize: Typography.xs,
+    color: colors.textTertiary,
   },
   ruleTextValid: {
-    color: '#4C7B4B',
+    color: colors.primary,
   },
   inputError: {
-    borderColor: '#d32f2f',
+    borderColor: colors.error,
   },
   errorHint: {
-    color: '#d32f2f',
-    fontSize: 12,
+    color: colors.error,
+    fontSize: Typography.xs,
     marginTop: -8,
-    marginBottom: 10,
-    paddingHorizontal: 4,
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.xs,
   },
   phoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    gap: 8,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
   },
   phonePrefix: {
-    backgroundColor: '#f0f7f0',
+    backgroundColor: colors.primaryLight,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    paddingHorizontal: 14,
+    borderColor: colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.lg,
     paddingVertical: 14,
   },
   phonePrefixText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: colors.textPrimary,
   },
   phoneInput: {
     flex: 1,
     marginBottom: 0,
   },
 });
-

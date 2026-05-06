@@ -9,7 +9,6 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../src/store/authStore';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,47 +16,30 @@ import { Image } from 'react-native';
 import axios from 'axios';
 import { getLevelBadge } from '../../src/utils/levelBadges';
 import { calculateCO2Impact, formatCO2, getCO2Level, getCO2Equivalents } from '../../src/utils/co2Calculator';
-
 import { API_URL } from '../../src/config/api';
+import { colors, Typography, Spacing, BorderRadius, Shadows } from '../../src/theme';
 
-// CO2 Preview Card Component
-function CO2PreviewCard({ onPress, onLevelLoaded }: { onPress: () => void; onLevelLoaded?: (level: any) => void }) {
+function CO2PreviewCard({ onPress }: { onPress: () => void }) {
   const { token } = useAuthStore();
   const [co2Data, setCo2Data] = useState({ basketsCount: 0, donationsCount: 0, salesCount: 0, rentalsCount: 0 });
 
   useEffect(() => {
-    fetchCO2Data();
+    axios.get(`${API_URL}/users/me/impact`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => setCo2Data(r.data))
+      .catch(() => {});
   }, []);
-
-  const fetchCO2Data = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/users/me/impact`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setCo2Data(response.data);
-    } catch (error) {
-      setCo2Data({ basketsCount: 0, donationsCount: 0, salesCount: 0, rentalsCount: 0 });
-    }
-  };
 
   const co2Impact = calculateCO2Impact(co2Data.basketsCount, co2Data.donationsCount, co2Data.salesCount, co2Data.rentalsCount);
   const level = getCO2Level(co2Impact.totalCO2SavedKg);
   const equivalents = getCO2Equivalents(co2Impact.totalCO2SavedKg);
 
-  // Notify parent of level change
-  useEffect(() => {
-    if (onLevelLoaded && co2Impact.totalCO2SavedKg > 0) {
-      onLevelLoaded(level);
-    }
-  }, [co2Impact.totalCO2SavedKg]);
-
   return (
-    <TouchableOpacity style={styles.co2Card} onPress={onPress}>
+    <TouchableOpacity style={styles.co2Card} onPress={onPress} activeOpacity={0.9}>
       <View style={styles.co2Header}>
         <Text style={styles.co2Emoji}>{level.emoji}</Text>
         <View style={styles.co2HeaderRight}>
           <Text style={styles.co2LevelText}>{level.level}</Text>
-          <Ionicons name="chevron-forward" size={18} color="#4C7B4B" />
+          <Ionicons name="chevron-forward" size={18} color={colors.primary} />
         </View>
       </View>
 
@@ -91,101 +73,84 @@ function CO2PreviewCard({ onPress, onLevelLoaded }: { onPress: () => void; onLev
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout, refreshUser, isLoading } = useAuthStore();
-
-  // Hooks must be called unconditionally before any returns
   const [stats, setStats] = useState<{ total_transactions: number; people_helped: number } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    try {
-      if (refreshUser) await refreshUser();
-
-      if (user && user.level !== 'Graine') {
-        await fetchStats();
-      }
-    } catch (e) {
-      console.log(e);
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const handleLogout = () => {
-    Alert.alert(
-      'Déconnexion',
-      'Êtes-vous sûr de vouloir vous déconnecter?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Déconnexion',
-          style: 'destructive',
-          onPress: () => {
-            // Navigate first to avoid rendering protected screens without user
-            router.replace('/(auth)/login');
-            // Small delay to let navigation start before clearing state
-            setTimeout(async () => {
-              await logout();
-            }, 100);
-          },
-        },
-      ]
-    );
-  };
-
   useEffect(() => {
-    if (user && user.level !== 'Graine') {
-      fetchStats();
-    }
+    if (user && user.level !== 'Graine') fetchStats();
   }, [user]);
 
   const fetchStats = async () => {
     try {
       const response = await axios.get(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/auth/stats`, {
-        headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }
+        headers: { Authorization: `Bearer ${useAuthStore.getState().token}` },
       });
       setStats(response.data);
-    } catch (e) {
-      console.log('Error fetching stats');
-    }
+    } catch {}
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      if (refreshUser) await refreshUser();
+      if (user && user.level !== 'Graine') await fetchStats();
+    } catch {}
+    finally { setRefreshing(false); }
+  };
+
+  const handleLogout = () => {
+    Alert.alert('Déconnexion', 'Êtes-vous sûr de vouloir vous déconnecter?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Déconnexion',
+        style: 'destructive',
+        onPress: () => {
+          router.replace('/(auth)/login');
+          setTimeout(async () => { await logout(); }, 100);
+        },
+      },
+    ]);
   };
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#4C7B4B" />
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   if (!user) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: '#666', fontSize: 16 }}>Connecte-toi pour voir ton profil</Text>
+      <View style={styles.centerContainer}>
+        <Text style={styles.notLoggedInText}>Connecte-toi pour voir ton profil</Text>
       </View>
     );
   }
 
-  // Unify badge format - use DB user level as source of truth
   const badge = getLevelBadge(user.level || 'Graine');
+  const levelTarget = user.level === 'Graine' ? 100 : user.level === 'Pousse' ? 500 : 2500;
+  const progress = Math.min(((user.co2_saved || 0) / levelTarget) * 100, 100);
 
   return (
     <ScrollView
       style={styles.container}
+      showsVerticalScrollIndicator={false}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4C7B4B" />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
       }
     >
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Profil</Text>
       </View>
 
+      {/* Profile Card */}
       <View style={[styles.profileCard, user.profile_theme_color ? { borderTopColor: user.profile_theme_color, borderTopWidth: 4 } : {}]}>
         <TouchableOpacity
           style={[styles.editButton, user.profile_theme_color ? { backgroundColor: user.profile_theme_color + '20' } : {}]}
           onPress={() => router.push('/profile/edit' as any)}
         >
-          <Ionicons name="pencil" size={20} color={user.profile_theme_color || "#4C7B4B"} />
+          <Ionicons name="pencil" size={20} color={user.profile_theme_color || colors.primary} />
         </TouchableOpacity>
 
         <View style={styles.avatar}>
@@ -202,53 +167,45 @@ export default function ProfileScreen() {
             <Text style={styles.levelBadgeEmoji}>{badge.emoji || '🌱'}</Text>
           </View>
         </View>
+
         <Text style={styles.name}>{user.display_name}</Text>
         <Text style={styles.email}>{user.email}</Text>
         {user.phone && <Text style={styles.phone}>{user.phone}</Text>}
 
-        <TouchableOpacity
-          style={styles.ratingRow}
-          onPress={() => router.push('/profile/reviews' as any)}
-        >
+        <TouchableOpacity style={styles.ratingRow} onPress={() => router.push('/profile/reviews' as any)}>
           <Ionicons name="star" size={16} color="#ffc107" />
-          <Text style={styles.rating}>
-            {user.ratings_avg?.toFixed(1) || '0.0'} ({user.ratings_count || 0} avis)
-          </Text>
-          <Ionicons name="chevron-forward" size={14} color="#999" style={{ marginLeft: 4 }} />
+          <Text style={styles.rating}>{user.ratings_avg?.toFixed(1) || '0.0'} ({user.ratings_count || 0} avis)</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} style={{ marginLeft: 4 }} />
         </TouchableOpacity>
 
-
         {user.level === 'Graine' && (
-          <View style={{ marginTop: 16, backgroundColor: '#f9f9f9', padding: 12, borderRadius: 8, width: '100%', alignItems: 'center' }}>
-            <Text style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>🌱 Graine d'Impact</Text>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: '#333' }}>Prochain but: Débloquer les recherches sauvegardées (100kg)</Text>
+          <View style={styles.seedGoal}>
+            <Text style={styles.seedGoalLabel}>🌱 Graine d'Impact</Text>
+            <Text style={styles.seedGoalText}>Prochain but: Débloquer les recherches sauvegardées (100kg)</Text>
           </View>
         )}
 
-        {/* Pousse+ Reward: Detailed Stats */}
         {stats && user.level !== 'Graine' && (
-          <View style={{ flexDirection: 'row', marginTop: 16, width: '100%', justifyContent: 'space-around', paddingTop: 16, borderTopWidth: 1, borderTopColor: '#f0f0f0' }}>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#4C7B4B' }}>{stats.total_transactions}</Text>
-              <Text style={{ fontSize: 12, color: '#666' }}>Transactions</Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{stats.total_transactions}</Text>
+              <Text style={styles.statLabel}>Transactions</Text>
             </View>
-            <View style={{ width: 1, backgroundColor: '#f0f0f0' }} />
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#4C7B4B' }}>{stats.people_helped}</Text>
-              <Text style={{ fontSize: 12, color: '#666' }}>Personnes aidées</Text>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{stats.people_helped}</Text>
+              <Text style={styles.statLabel}>Personnes aidées</Text>
             </View>
           </View>
         )}
       </View>
 
-      {/* Gamification Card */}
+      {/* Level Card */}
       <View style={styles.levelCard}>
         <View style={styles.levelHeader}>
           <View style={styles.levelInfo}>
             <Text style={styles.levelLabel}>Niveau actuel</Text>
-            <View style={styles.levelTitleRow}>
-              <Text style={styles.levelTitle}>{badge.level}</Text>
-            </View>
+            <Text style={styles.levelTitle}>{badge.level}</Text>
           </View>
           <View style={[styles.pointsBadge, { backgroundColor: badge.color + '20' }]}>
             <Text style={[styles.pointsText, { color: badge.color }]}>{Math.round(user.co2_saved || 0)} kg CO₂</Text>
@@ -256,136 +213,88 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.progressBarContainer}>
-          <View style={[styles.progressBar, { width: `${Math.min(((user.co2_saved || 0) / (user.level === 'Graine' ? 100 : user.level === 'Pousse' ? 500 : user.level === 'Arbre' ? 2500 : 2500)) * 100, 100)}%`, backgroundColor: badge.color }]} />
+          <View style={[styles.progressBar, { width: `${progress}%` as any, backgroundColor: badge.color }]} />
         </View>
 
         <Text style={styles.nextLevelText}>
           {user.level === 'Forêt'
             ? 'Niveau maximum atteint ! 🌲'
-            : `${Math.round((user.level === 'Graine' ? 100 : user.level === 'Pousse' ? 500 : 2500) - (user.co2_saved || 0))} kg CO₂ avant le niveau ${user.level === 'Graine' ? 'Pousse' : user.level === 'Pousse' ? 'Arbre' : 'Forêt'}`}
+            : `${Math.round(levelTarget - (user.co2_saved || 0))} kg CO₂ avant le niveau ${user.level === 'Graine' ? 'Pousse' : user.level === 'Pousse' ? 'Arbre' : 'Forêt'}`}
         </Text>
       </View>
 
-      {/* CO2 Impact Card with Preview */}
-      <CO2PreviewCard
-        onPress={() => router.push('/profile/impact' as any)}
-      />
+      {/* CO2 Impact Preview */}
+      <CO2PreviewCard onPress={() => router.push('/profile/impact' as any)} />
 
-      {/* NEW: Espace Vendeur */}
+      {/* Seller Space */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Espace Vendeur</Text>
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/my-items' as any)}
-        >
-          <Ionicons name="pricetags-outline" size={24} color="#4C7B4B" />
-          <Text style={styles.menuText}>Mes annonces</Text>
-          <Ionicons name="chevron-forward" size={24} color="#ccc" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/profile/analytics' as any)}
-        >
-          <Ionicons name="bar-chart-outline" size={24} color="#4C7B4B" />
-          <Text style={styles.menuText}>Tableau de bord Vendeur</Text>
-          <Ionicons name="chevron-forward" size={24} color="#ccc" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/profile/wallet' as any)}
-        >
-          <Ionicons name="wallet-outline" size={24} color="#4C7B4B" />
-          <Text style={styles.menuText}>Ma Tirelire</Text>
-          <Ionicons name="chevron-forward" size={24} color="#ccc" />
-        </TouchableOpacity>
+        {[
+          { icon: 'pricetags-outline', label: 'Mes annonces', path: '/my-items', accent: true },
+          { icon: 'bar-chart-outline', label: 'Tableau de bord Vendeur', path: '/profile/analytics', accent: true },
+          { icon: 'wallet-outline', label: 'Ma Tirelire', path: '/profile/wallet', accent: true },
+        ].map((item) => (
+          <TouchableOpacity key={item.path} style={styles.menuItem} onPress={() => router.push(item.path as any)}>
+            <Ionicons name={item.icon as any} size={24} color={item.accent ? colors.primary : colors.textSecondary} />
+            <Text style={styles.menuText}>{item.label}</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.border} />
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* NEW: Espace Acheteur */}
+      {/* Buyer Space */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Espace Acheteur</Text>
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/profile/orders' as any)}
-        >
-          <Ionicons name="receipt-outline" size={24} color="#4C7B4B" />
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/profile/orders' as any)}>
+          <Ionicons name="receipt-outline" size={24} color={colors.primary} />
           <Text style={styles.menuText}>Mes Commandes & Réservations</Text>
-          <Ionicons name="chevron-forward" size={24} color="#ccc" />
+          <Ionicons name="chevron-forward" size={20} color={colors.border} />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/profile/saved-searches' as any)}
-        >
-          <Ionicons name="bookmarks-outline" size={24} color="#4C7B4B" />
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/profile/saved-searches' as any)}>
+          <Ionicons name="bookmarks-outline" size={24} color={colors.primary} />
           <Text style={styles.menuText}>Recherches Sauvegardées</Text>
-          {user.level === 'Graine' && <Ionicons name="lock-closed" size={16} color="#999" style={{ marginRight: 8 }} />}
-          <Ionicons name="chevron-forward" size={24} color="#ccc" />
+          {user.level === 'Graine' && <Ionicons name="lock-closed" size={16} color={colors.textTertiary} style={{ marginRight: Spacing.sm }} />}
+          <Ionicons name="chevron-forward" size={20} color={colors.border} />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/profile/disputes' as any)}
-        >
-          <Ionicons name="shield-checkmark-outline" size={24} color="#4C7B4B" />
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/profile/disputes' as any)}>
+          <Ionicons name="shield-checkmark-outline" size={24} color={colors.primary} />
           <Text style={styles.menuText}>Mes litiges</Text>
-          <Ionicons name="chevron-forward" size={24} color="#ccc" />
+          <Ionicons name="chevron-forward" size={20} color={colors.border} />
         </TouchableOpacity>
 
-        {/* Forêt Feature: Pages Inspirations (Public Lists) */}
         {['Arbre', 'Forêt'].includes(user.level) && (
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => router.push('/profile/public-lists' as any)}
-          >
+          <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/profile/public-lists' as any)}>
             <Ionicons name="color-palette-outline" size={24} color="#ffb74d" />
             <Text style={styles.menuText}>Pages Inspirations</Text>
-            <Ionicons name="chevron-forward" size={24} color="#ccc" />
+            <Ionicons name="chevron-forward" size={20} color={colors.border} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* NEW: Paramètres */}
+      {/* App Settings */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Application</Text>
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/profile/security' as any)}
-        >
-          <Ionicons name="shield-checkmark-outline" size={24} color="#666" />
-          <Text style={styles.menuText}>Sécurité et Confiance</Text>
-          <Ionicons name="chevron-forward" size={24} color="#ccc" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/profile/settings' as any)}
-        >
-          <Ionicons name="settings-outline" size={24} color="#666" />
-          <Text style={styles.menuText}>Préférences</Text>
-          <Ionicons name="chevron-forward" size={24} color="#ccc" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => router.push('/profile/help' as any)}
-        >
-          <Ionicons name="help-circle-outline" size={24} color="#666" />
-          <Text style={styles.menuText}>Aide & Support</Text>
-          <Ionicons name="chevron-forward" size={24} color="#ccc" />
-        </TouchableOpacity>
+        {[
+          { icon: 'shield-checkmark-outline', label: 'Sécurité et Confiance', path: '/profile/security' },
+          { icon: 'settings-outline', label: 'Préférences', path: '/profile/settings' },
+          { icon: 'help-circle-outline', label: 'Aide & Support', path: '/profile/help' },
+        ].map((item) => (
+          <TouchableOpacity key={item.path} style={styles.menuItem} onPress={() => router.push(item.path as any)}>
+            <Ionicons name={item.icon as any} size={24} color={colors.textSecondary} />
+            <Text style={styles.menuText}>{item.label}</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.border} />
+          </TouchableOpacity>
+        ))}
       </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Ionicons name="log-out-outline" size={24} color="#d32f2f" />
+        <Ionicons name="log-out-outline" size={24} color={colors.error} />
         <Text style={styles.logoutText}>Se déconnecter</Text>
       </TouchableOpacity>
 
-      <View style={styles.spacer} />
+      <View style={{ height: Spacing.xxl }} />
     </ScrollView>
   );
 }
@@ -393,56 +302,62 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+  notLoggedInText: {
+    color: colors.textSecondary,
+    fontSize: Typography.base,
   },
   header: {
-    padding: 16,
+    padding: Spacing.lg,
     paddingTop: 60,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: colors.borderLight,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: Typography.xxl,
+    fontWeight: Typography.bold,
+    color: colors.textPrimary,
   },
   profileCard: {
-    backgroundColor: '#fff',
-    padding: 24,
+    backgroundColor: colors.surface,
+    padding: Spacing.xl,
     alignItems: 'center',
-    marginTop: 16,
-    marginHorizontal: 16,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    marginTop: Spacing.lg,
+    marginHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
     position: 'relative',
+    ...Shadows.md,
   },
   editButton: {
     position: 'absolute',
-    top: 16,
-    right: 16,
-    padding: 8,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 20,
+    top: Spacing.lg,
+    right: Spacing.lg,
+    padding: Spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: BorderRadius.full,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#e8f5f1',
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
     position: 'relative',
   },
   avatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 40,
+    borderRadius: 42,
   },
   levelBadge: {
     position: 'absolute',
@@ -454,209 +369,183 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: colors.surface,
   },
   levelBadgeEmoji: {
     fontSize: 14,
   },
   name: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
+    fontSize: Typography.xl,
+    fontWeight: Typography.bold,
+    color: colors.textPrimary,
+    marginBottom: Spacing.xs,
   },
   email: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
+    fontSize: Typography.sm,
+    color: colors.textSecondary,
+    marginBottom: Spacing.xs,
   },
   phone: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
+    fontSize: Typography.sm,
+    color: colors.textSecondary,
+    marginBottom: Spacing.sm,
   },
   ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
   },
   rating: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 4,
+    fontSize: Typography.sm,
+    color: colors.textSecondary,
+  },
+  seedGoal: {
+    marginTop: Spacing.lg,
+    backgroundColor: colors.surfaceAlt,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    width: '100%',
+    alignItems: 'center',
+  },
+  seedGoalLabel: {
+    fontSize: Typography.xs,
+    color: colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  seedGoalText: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    marginTop: Spacing.lg,
+    width: '100%',
+    justifyContent: 'space-around',
+    paddingTop: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: Typography.lg,
+    fontWeight: Typography.bold,
+    color: colors.primary,
+  },
+  statLabel: {
+    fontSize: Typography.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: colors.borderLight,
   },
   levelCard: {
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 20,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: colors.surface,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    padding: Spacing.xl,
+    borderRadius: BorderRadius.lg,
+    ...Shadows.sm,
   },
   levelHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   levelInfo: {
-    gap: 4,
+    gap: Spacing.xs,
   },
   levelLabel: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: Typography.xs,
+    color: colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  levelTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
   levelTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#4C7B4B',
+    fontSize: Typography.xl,
+    fontWeight: Typography.bold,
+    color: colors.primary,
   },
   pointsBadge: {
-    backgroundColor: '#e8f5e9',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
   },
   pointsText: {
-    color: '#4C7B4B',
-    fontWeight: 'bold',
-    fontSize: 14,
+    fontWeight: Typography.bold,
+    fontSize: Typography.sm,
   },
   progressBarContainer: {
     height: 8,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 4,
-    marginBottom: 8,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: BorderRadius.full,
+    marginBottom: Spacing.sm,
     overflow: 'hidden',
   },
   progressBar: {
     height: '100%',
-    backgroundColor: '#4C7B4B',
-    borderRadius: 4,
+    borderRadius: BorderRadius.full,
   },
   nextLevelText: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: Typography.xs,
+    color: colors.textTertiary,
     textAlign: 'right',
   },
-  section: {
-    marginTop: 24,
-    marginHorizontal: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  menuText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-    marginLeft: 12,
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    marginHorizontal: 16,
-    marginTop: 32,
-    borderWidth: 1,
-    borderColor: '#d32f2f',
-  },
-  logoutText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#d32f2f',
-    marginLeft: 8,
-  },
-  spacer: {
-    height: 32,
-  },
   co2Card: {
-    backgroundColor: '#e8f5e9',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 16,
-    borderRadius: 20,
+    backgroundColor: colors.primaryLight,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
   },
   co2Header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   co2HeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Spacing.xs,
   },
   co2LevelText: {
-    fontSize: 13,
-    color: '#4C7B4B',
-    fontWeight: '600',
-  },
-  co2Left: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    fontSize: Typography.sm,
+    color: colors.primary,
+    fontWeight: Typography.semibold,
   },
   co2Emoji: {
     fontSize: 28,
   },
-  co2Title: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2e7d32',
-  },
-  co2Subtitle: {
-    fontSize: 13,
-    color: '#4C7B4B',
-    marginTop: 2,
-  },
   co2MainValue: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: Spacing.lg,
   },
   co2ValueText: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#2e7d32',
+    fontSize: Typography.display,
+    fontWeight: Typography.bold,
+    color: colors.primary,
   },
   co2ValueLabel: {
-    fontSize: 13,
-    color: '#4C7B4B',
+    fontSize: Typography.sm,
+    color: colors.primary,
     marginTop: 2,
+    opacity: 0.8,
   },
   co2Equivalents: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: 'rgba(255,255,255,0.5)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
   },
   co2EquivItem: {
     alignItems: 'center',
@@ -665,62 +554,64 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   co2EquivValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginTop: 4,
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    color: colors.textPrimary,
+    marginTop: Spacing.xs,
   },
   co2EquivDivider: {
     width: 1,
-    backgroundColor: '#c8e6c9',
+    backgroundColor: colors.border,
   },
   co2SeeMore: {
     textAlign: 'center',
-    fontSize: 13,
-    color: '#4C7B4B',
-    fontWeight: '500',
+    fontSize: Typography.sm,
+    color: colors.primary,
+    fontWeight: Typography.semibold,
   },
-  // Beneficiary ID styles
-  beneficiaryIdCard: {
-    marginTop: 16,
-    backgroundColor: '#f0f7f0',
-    padding: 14,
-    borderRadius: 12,
-    width: '100%',
-    borderWidth: 1,
-    borderColor: '#4C7B4B30',
-    borderStyle: 'dashed',
+  section: {
+    marginTop: Spacing.xl,
+    marginHorizontal: Spacing.lg,
   },
-  beneficiaryIdHeader: {
+  sectionTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: colors.textSecondary,
+    marginBottom: Spacing.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
+    backgroundColor: colors.surface,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 15,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+    gap: Spacing.md,
   },
-  beneficiaryIdLabel: {
-    fontSize: 13,
-    color: '#4C7B4B',
-    fontWeight: '600',
+  menuText: {
+    flex: 1,
+    fontSize: Typography.base,
+    color: colors.textPrimary,
   },
-  beneficiaryIdRow: {
+  logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    paddingVertical: 15,
+    borderRadius: BorderRadius.md,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.xxl,
+    borderWidth: 1.5,
+    borderColor: colors.error,
+    gap: Spacing.sm,
   },
-  beneficiaryIdValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
-    letterSpacing: 2,
-    fontFamily: 'monospace',
-  },
-  beneficiaryIdHint: {
-    fontSize: 11,
-    color: '#666',
-    textAlign: 'center',
+  logoutText: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: colors.error,
   },
 });
