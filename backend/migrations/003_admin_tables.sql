@@ -1,16 +1,15 @@
 -- ============================================================
--- MIGRATION 003 — Tables admin manquantes (v2 — safe)
+-- MIGRATION 003 — Tables admin (noms sans conflit)
 -- ============================================================
 
--- Drop si mal créées lors d'une tentative précédente
-DROP TABLE IF EXISTS export_runs CASCADE;
-DROP TABLE IF EXISTS export_definitions CASCADE;
-DROP TABLE IF EXISTS audit_logs CASCADE;
-DROP TABLE IF EXISTS data_dictionary CASCADE;
-DROP TABLE IF EXISTS platform_transparency CASCADE;
+DROP TABLE IF EXISTS admin_export_runs CASCADE;
+DROP TABLE IF EXISTS admin_export_definitions CASCADE;
+DROP TABLE IF EXISTS admin_audit_logs CASCADE;
+DROP TABLE IF EXISTS admin_data_dictionary CASCADE;
+DROP TABLE IF EXISTS admin_transparency CASCADE;
 
 -- Data Dictionary
-CREATE TABLE data_dictionary (
+CREATE TABLE admin_data_dictionary (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     field_name TEXT NOT NULL,
     data_type TEXT NOT NULL,
@@ -24,52 +23,52 @@ CREATE TABLE data_dictionary (
 );
 
 -- Audit Logs
-CREATE TABLE audit_logs (
+CREATE TABLE admin_audit_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    admin_id TEXT,
     action TEXT NOT NULL,
     target_type TEXT NOT NULL,
     target_id TEXT,
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_audit_logs_admin ON audit_logs(admin_id);
-CREATE INDEX idx_audit_logs_action ON audit_logs(action);
-CREATE INDEX idx_audit_logs_created ON audit_logs(created_at DESC);
+CREATE INDEX idx_admin_audit_admin ON admin_audit_logs(admin_id);
+CREATE INDEX idx_admin_audit_action ON admin_audit_logs(action);
+CREATE INDEX idx_admin_audit_created ON admin_audit_logs(created_at DESC);
 
 -- Export Definitions
-CREATE TABLE export_definitions (
+CREATE TABLE admin_export_definitions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
-    period_granularity TEXT NOT NULL CHECK (period_granularity IN ('day','week','month')),
-    geo_level TEXT NOT NULL CHECK (geo_level IN ('QUARTIER','VILLE','EPCI')),
+    period_granularity TEXT NOT NULL,
+    geo_level TEXT NOT NULL,
     metrics TEXT[] DEFAULT '{}',
     k_min_threshold INT DEFAULT 30,
-    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_by TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Export Runs
-CREATE TABLE export_runs (
+CREATE TABLE admin_export_runs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    export_def_id UUID REFERENCES export_definitions(id) ON DELETE SET NULL,
+    export_def_id UUID REFERENCES admin_export_definitions(id) ON DELETE SET NULL,
     export_def_name TEXT,
     period_start TEXT,
     period_end TEXT,
-    status TEXT DEFAULT 'processing' CHECK (status IN ('processing','completed','failed')),
+    status TEXT DEFAULT 'processing',
     row_count INT DEFAULT 0,
     k_min_applied INT DEFAULT 30,
     data JSONB DEFAULT '[]',
-    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_by TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     completed_at TIMESTAMPTZ
 );
 
 -- Platform Transparency (DSA)
-CREATE TABLE platform_transparency (
+CREATE TABLE admin_transparency (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     ranking_text TEXT,
     dereferencing_rules_text TEXT,
-    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    updated_by TEXT,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
