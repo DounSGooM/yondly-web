@@ -120,7 +120,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         context: address?.context,
         location: address ? { lat: address.lat, lng: address.lng } : undefined,
       });
-      return response.data; // { requires_verification, email, message }
+      const data = response.data;
+      // If email verification is bypassed, store token and log in directly
+      if (!data.requires_verification && data.access_token) {
+        await AsyncStorage.setItem('auth_token', data.access_token);
+        set({ user: data.user, token: data.access_token, isAuthenticated: true });
+      }
+      return data;
     } catch (error: any) {
       if (error.message === 'Network Error') {
         throw new Error('Connexion impossible au serveur.');

@@ -557,33 +557,11 @@ async def register(user_data: UserRegister):
         "co2_saved": 0.0,
         "beneficiary_id": generate_beneficiary_id(),
         "created_at": datetime.utcnow(),
-        "verified_email": False
+        "verified_email": True
     }
-    
+
     await db.users.insert_one(user_dict)
-    
-    # Generate 6-digit verification code
-    import random
-    code = f"{random.randint(100000, 999999)}"
-    await db.email_verifications.insert_one({
-        "email": user_data.email,
-        "code": code,
-        "expires_at": datetime.utcnow() + timedelta(minutes=10),
-        "created_at": datetime.utcnow()
-    })
-    
-    # Send verification email in a thread so it doesn't block the response
-    import asyncio
-    async def _send_email_bg():
-        try:
-            from email_service import send_verification_email
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, send_verification_email, user_data.email, code)
-            logger.info(f"Verification email sent to {user_data.email}")
-        except Exception as e:
-            logger.error(f"Failed to send verification email: {e}")
-    asyncio.create_task(_send_email_bg())
-    
+
     # Track user signup event
     try:
         from analytics_routes import track_event_internal
@@ -595,11 +573,16 @@ async def register(user_data: UserRegister):
         )
     except:
         pass
-    
+
+    # Return JWT directly — email verification bypassed
+    access_token = create_access_token(data={"sub": user_id})
+    user_dict.pop("password_hash", None)
+    user_dict.pop("_id", None)
+
     return {
-        "requires_verification": True,
-        "email": user_data.email,
-        "message": "Un code de vérification a été envoyé à votre adresse email."
+        "requires_verification": False,
+        "user": user_dict,
+        "access_token": access_token,
     }
 
 class VerifyEmailRequest(BaseModel):
