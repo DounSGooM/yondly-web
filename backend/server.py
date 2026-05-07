@@ -441,11 +441,9 @@ async def check_zone_coverage(postcode=None, citycode=None, location=None):
                     for cp in c.get("postalCodes", []):
                         allowed_postcodes.add(cp)
         
-        # If no active zones defined, maybe allow all? 
-        # Ideally: If no zones, block everything or allow everything. 
-        # Decision: If no zones active, BLOCK (Strict Mode).
+        # If no active zones defined, allow all registrations (open mode)
         if not zones:
-            return False
+            return True
 
         # 2. Logic A: INSE Code (Most robust)
         if citycode and citycode in allowed_insee:
@@ -574,13 +572,17 @@ async def register(user_data: UserRegister):
         "created_at": datetime.utcnow()
     })
     
-    # Send verification email
-    try:
-        from email_service import send_verification_email
-        send_verification_email(user_data.email, code)
-        logger.info(f"Verification email sent to {user_data.email}")
-    except Exception as e:
-        logger.error(f"Failed to send verification email: {e}")
+    # Send verification email in a thread so it doesn't block the response
+    import asyncio
+    async def _send_email_bg():
+        try:
+            from email_service import send_verification_email
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, send_verification_email, user_data.email, code)
+            logger.info(f"Verification email sent to {user_data.email}")
+        except Exception as e:
+            logger.error(f"Failed to send verification email: {e}")
+    asyncio.create_task(_send_email_bg())
     
     # Track user signup event
     try:
