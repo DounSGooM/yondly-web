@@ -52,21 +52,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   loadToken: async () => {
-    set({ isLoading: true }); // Set loading when actually loading
+    // Skip if already authenticated (e.g. just logged in)
+    if (get().isAuthenticated) {
+      set({ isLoading: false });
+      return;
+    }
+    set({ isLoading: true });
     try {
       const token = await AsyncStorage.getItem('auth_token');
       if (token) {
-        // Verify token and get user
         const response = await axios.get(`${API_URL}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 10000,
         });
-        set({ user: response.data, token, isAuthenticated: true, isLoading: false });
+        // Only update if not already authenticated by a concurrent login
+        if (!get().isAuthenticated) {
+          set({ user: response.data, token, isAuthenticated: true, isLoading: false });
+        } else {
+          set({ isLoading: false });
+        }
       } else {
         set({ isLoading: false });
       }
     } catch (error) {
-      await AsyncStorage.removeItem('auth_token');
-      set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+      // Only clear auth if not already authenticated by a concurrent login
+      if (!get().isAuthenticated) {
+        await AsyncStorage.removeItem('auth_token');
+        set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+      } else {
+        set({ isLoading: false });
+      }
     }
   },
 
