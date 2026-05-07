@@ -7060,6 +7060,12 @@ try:
     from pro_routes import create_pro_routes
     pro_router = create_pro_routes(db, get_current_user)
     app.include_router(pro_router)
+    from producteur_routes import create_producteur_routes
+    producteur_router = create_producteur_routes(db, get_current_user)
+    app.include_router(producteur_router)
+    from territoire_routes import create_territoire_routes
+    territoire_router = create_territoire_routes(db)
+    app.include_router(territoire_router)
 except ImportError as e:
     print(f"Warning: Could not load pro_routes: {e}")
 
