@@ -9,14 +9,14 @@ import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
+  TextInput,
+  Platform,
   Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { Item } from '../../src/types';
-import InteractiveMap from '../../src/components/InteractiveMap';
-import MarketHeader from '../../src/components/MarketHeader';
 import FilterModal, { FilterState } from '../../src/components/FilterModal';
 import { useAuthStore } from '../../src/store/authStore';
 import * as Location from 'expo-location';
@@ -242,19 +242,44 @@ export default function ReemploiScreen() {
   return (
     <View style={styles.container}>
       {/* ── Header ── */}
-      <MarketHeader
-        title="Réemploi"
-        subtitle="Autour de moi…"
-        location="Grand Poitiers"
-        onViewToggle={toggleViewMode}
-        viewModeIcon={getViewIcon()}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onMessagePress={() => router.push('/messages' as any)}
-        onFilterPress={activeTab !== 'pros' ? () => setShowFilters(true) : undefined}
-        activeFilters={hasActiveFilters}
-        accentColor={currentTab.color}
-      />
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <Text style={styles.headerTitle}>Réemploi</Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.headerBtn} onPress={toggleViewMode}>
+              <Ionicons name={getViewIcon() as any} size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerBtn} onPress={() => router.push('/messages' as any)}>
+              <Ionicons name="chatbubble-outline" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View style={styles.searchRow}>
+          <View style={styles.searchBar}>
+            <Ionicons name="search-outline" size={16} color={colors.textTertiary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Rechercher un objet…"
+              placeholderTextColor={colors.textTertiary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={16} color={colors.textTertiary} />
+              </TouchableOpacity>
+            )}
+          </View>
+          {activeTab !== 'pros' && (
+            <TouchableOpacity
+              style={[styles.filterBtn, hasActiveFilters && { backgroundColor: currentTab.color }]}
+              onPress={() => setShowFilters(true)}
+            >
+              <Ionicons name="options-outline" size={18} color={hasActiveFilters ? '#fff' : colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
 
       {/* ── Sub-tabs ── */}
       <View style={styles.subTabsBar}>
@@ -334,12 +359,6 @@ export default function ReemploiScreen() {
         <View style={styles.loader}>
           <ActivityIndicator size="large" color={currentTab.color} />
         </View>
-      ) : viewMode === 'map' ? (
-        <InteractiveMap
-          items={items}
-          userLocation={userLocation}
-          onItemPress={(id) => router.push(`/item-detail?id=${id}` as any)}
-        />
       ) : items.length === 0 ? (
         <ScrollView
           contentContainerStyle={{ flex: 1 }}
@@ -392,6 +411,72 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
+  // Header
+  header: {
+    backgroundColor: colors.surface,
+    paddingTop: Platform.OS === 'ios' ? 56 : 40,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    gap: Spacing.md,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerTitle: {
+    fontSize: Typography.xxl,
+    fontWeight: Typography.heavy as any,
+    color: colors.textPrimary,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  headerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.full,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    alignItems: 'center',
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Platform.OS === 'ios' ? 9 : 7,
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: Typography.sm,
+    color: colors.textPrimary,
+    padding: 0,
+  },
+  filterBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+
   subTabsBar: {
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
@@ -439,7 +524,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
-    ...Shadows.sm,
+    ...Shadows.card,
   },
   cardImg: { height: 130, backgroundColor: colors.surfaceAlt, position: 'relative' },
   cardImgPlaceholder: { justifyContent: 'center', alignItems: 'center', backgroundColor: '#EFF6FF' },
@@ -480,7 +565,7 @@ const styles = StyleSheet.create({
   emptyBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: Spacing.xl, paddingVertical: 12,
-    borderRadius: BorderRadius.full, marginTop: Spacing.sm, ...Shadows.sm,
+    borderRadius: BorderRadius.full, marginTop: Spacing.sm, ...Shadows.card,
   },
   emptyBtnText: { color: '#fff', fontSize: Typography.sm, fontWeight: Typography.heavy as any },
 });
