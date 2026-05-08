@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { Item } from '../../src/types';
 import ItemGridCard from '../../src/components/ItemGridCard';
+import InteractiveMap from '../../src/components/InteractiveMap';
 import { useAuthStore } from '../../src/store/authStore';
 import * as Location from 'expo-location';
 import { colors, Typography, Spacing, BorderRadius, Shadows } from '../../src/theme';
@@ -67,6 +68,8 @@ export default function AccueilScreen() {
     finally { setLoading(false); setRefreshing(false); }
   };
 
+  const allMapItems = [...donations, ...sales];
+
   const sections: Section[] = [
     { title: 'Dons alimentaires', icon: 'leaf', color: colors.primary, items: donations, route: '/(tabs)/alimentaire' },
     { title: 'Anti-gaspi du moment', icon: 'timer', color: colors.accent, items: deals, route: '/(tabs)/alimentaire' },
@@ -89,15 +92,34 @@ export default function AccueilScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchAll(); }} tintColor={colors.primary} colors={[colors.primary]} />
       }
       ListHeaderComponent={
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Bonjour{user ? ` ${user.display_name?.split(' ')[0]}` : ''} 👋</Text>
-            <Text style={styles.subtitle}>Voici ce qui se passe près de chez vous</Text>
+        <>
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.greeting}>Bonjour{user ? ` ${user.display_name?.split(' ')[0]}` : ''} 👋</Text>
+              <Text style={styles.subtitle}>Voici ce qui se passe près de chez vous</Text>
+            </View>
+            <TouchableOpacity style={styles.notifBtn} onPress={() => router.push('/messages' as any)}>
+              <Ionicons name="chatbubble-outline" size={22} color={colors.textSecondary} />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.notifBtn} onPress={() => router.push('/messages' as any)}>
-            <Ionicons name="chatbubble-outline" size={22} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
+
+          {/* Carte interactive */}
+          <View style={styles.mapSection}>
+            <View style={styles.mapHeader}>
+              <View style={[styles.sectionIcon, { backgroundColor: colors.primary + '18' }]}>
+                <Ionicons name="map" size={16} color={colors.primary} />
+              </View>
+              <Text style={styles.sectionTitle}>Autour de moi</Text>
+            </View>
+            <View style={styles.mapContainer}>
+              <InteractiveMap
+                items={allMapItems}
+                userLocation={userLocation}
+                onItemPress={(id) => router.push(`/item-detail?id=${id}` as any)}
+              />
+            </View>
+          </View>
+        </>
       }
       data={sections}
       keyExtractor={(s) => s.title}
@@ -172,6 +194,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  mapSection: {
+    marginTop: Spacing.xl,
+    paddingHorizontal: Spacing.xl,
+  },
+  mapHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  mapContainer: {
+    height: 220,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.sm,
   },
 
   section: {
