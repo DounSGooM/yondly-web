@@ -43,7 +43,7 @@ export default function LoginScreen() {
         return;
       }
 
-      router.replace('/(tabs)/food');
+      router.replace('/(tabs)/accueil');
     } catch (error: any) {
       if ((error as any).requiresVerification) {
         router.replace({ pathname: '/(auth)/verify-email', params: { email: (error as any).email || email } });
