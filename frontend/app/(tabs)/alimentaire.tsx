@@ -27,11 +27,10 @@ const { width: SCREEN_W } = Dimensions.get('window');
 // ─── Sub-tabs ────────────────────────────────────────────────────────────────
 
 const SUB_TABS = [
-  { key: 'dons',        label: 'Dons',        icon: 'leaf',        color: colors.primary,  bg: colors.primaryLight },
-  { key: 'antigaspi',   label: 'Anti-gaspi',  icon: 'timer',       color: colors.accent,   bg: colors.accentLight },
-  { key: 'producteurs', label: 'Producteurs', icon: 'storefront',  color: '#059669',        bg: '#ECFDF5' },
-  { key: 'surplus',     label: 'Surplus',     icon: 'flower',      color: '#7C3AED',        bg: '#F5F3FF' },
-  { key: 'circuits',    label: 'Circuits',    icon: 'bicycle',     color: '#0284C7',        bg: '#F0F9FF' },
+  { key: 'dons',        label: 'Dons & Surplus', icon: 'leaf',       color: colors.primary, bg: colors.primaryLight },
+  { key: 'antigaspi',   label: 'Anti-gaspi',     icon: 'timer',      color: colors.accent,  bg: colors.accentLight },
+  { key: 'producteurs', label: 'Producteurs',    icon: 'storefront', color: '#059669',       bg: '#ECFDF5' },
+  { key: 'circuits',    label: 'Circuits',       icon: 'bicycle',    color: '#0284C7',       bg: '#F0F9FF' },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -119,7 +118,7 @@ function FoodCard({ item, onPress, accentColor }: { item: any; onPress: () => vo
 
 function EmptyState({ tab, onPublish }: { tab: typeof SUB_TABS[0]; onPublish: () => void }) {
   const MESSAGES: Record<string, { title: string; sub: string; cta: string }> = {
-    dons:        { title: 'Aucun don alimentaire', sub: 'Partagez vos surplus de cuisine ou de jardin avec vos voisins.', cta: 'Faire un don' },
+    dons:        { title: 'Aucun don ni surplus', sub: 'Partagez vos surplus de cuisine ou de jardin avec vos voisins.', cta: 'Faire un don' },
     antigaspi:   { title: 'Aucun panier anti-gaspi', sub: 'Les commerçants locaux peuvent proposer leurs invendus ici.', cta: 'Proposer un panier' },
     producteurs: { title: 'Aucun producteur local', sub: 'Inscrivez votre exploitation pour toucher des acheteurs locaux.', cta: 'Référencer mon exploitation' },
     surplus:     { title: 'Aucun surplus de jardin', sub: 'Vos tomates poussent trop vite ? Partagez-les ici !', cta: 'Partager mon surplus' },
@@ -184,8 +183,8 @@ export default function AlimentaireScreen() {
         const params: any = { type: 'donation' };
         if (userLocation) { params.lat = userLocation.lat; params.lng = userLocation.lng; }
         if (activeTab === 'producteurs') params.category = 'Producteur local';
-        if (activeTab === 'surplus')     params.category = 'Surplus jardin';
         if (activeTab === 'circuits')    params.category = 'Circuit court';
+        // 'dons' fetches all donations (food + garden surplus)
         const res = await axios.get(`${API_URL}/items`, { params });
         const now = new Date();
         setItems(res.data.filter((i: Item) => !i.locked_until || new Date(i.locked_until) < now));
