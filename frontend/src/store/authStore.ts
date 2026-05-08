@@ -52,21 +52,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   loadToken: async () => {
-    set({ isLoading: true }); // Set loading when actually loading
+    // Skip if already authenticated (e.g. just logged in)
+    if (get().isAuthenticated) {
+      set({ isLoading: false });
+      return;
+    }
+    set({ isLoading: true });
     try {
       const token = await AsyncStorage.getItem('auth_token');
       if (token) {
-        // Verify token and get user
         const response = await axios.get(`${API_URL}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 10000,
         });
-        set({ user: response.data, token, isAuthenticated: true, isLoading: false });
+        // Only update if not already authenticated by a concurrent login
+        if (!get().isAuthenticated) {
+          set({ user: response.data, token, isAuthenticated: true, isLoading: false });
+        } else {
+          set({ isLoading: false });
+        }
       } else {
         set({ isLoading: false });
       }
     } catch (error) {
-      await AsyncStorage.removeItem('auth_token');
-      set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+      // Only clear auth if not already authenticated by a concurrent login
+      if (!get().isAuthenticated) {
+        await AsyncStorage.removeItem('auth_token');
+        set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+      } else {
+        set({ isLoading: false });
+      }
     }
   },
 
@@ -120,7 +135,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         context: address?.context,
         location: address ? { lat: address.lat, lng: address.lng } : undefined,
       });
-      return response.data; // { requires_verification, email, message }
+      const data = response.data;
+      // If email verification is bypassed, store token and log in directly
+      if (!data.requires_verification && data.access_token) {
+        await AsyncStorage.setItem('auth_token', data.access_token);
+        set({ user: data.user, token: data.access_token, isAuthenticated: true });
+      }
+      return data;
     } catch (error: any) {
       if (error.message === 'Network Error') {
         throw new Error('Connexion impossible au serveur.');

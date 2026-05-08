@@ -21,7 +21,7 @@ export default function Index() {
 
         <TouchableOpacity
           style={[styles.button, styles.secondaryButton]}
-          onPress={() => router.push('/(tabs)/food')}
+          onPress={() => router.push('/(tabs)/accueil')}
         >
           <Text style={[styles.buttonText, styles.secondaryText]}>Explorer (sans compte)</Text>
         </TouchableOpacity>

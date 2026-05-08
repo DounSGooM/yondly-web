@@ -80,7 +80,7 @@ export default function RegisterScreen() {
       if (result?.requires_verification) {
         router.replace({ pathname: '/(auth)/verify-email', params: { email } });
       } else {
-        router.replace('/(tabs)/food');
+        router.replace('/(tabs)/accueil');
       }
     } catch (error: any) {
       Alert.alert('Erreur', error.message);

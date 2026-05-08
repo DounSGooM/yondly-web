@@ -90,7 +90,7 @@ export default function VerifyEmailScreen() {
         setLoading(true);
         try {
             await verifyEmail(email || '', verificationCode);
-            router.replace('/(tabs)/food');
+            router.replace('/(tabs)/accueil');
         } catch (error: any) {
             Alert.alert('Erreur', error.message || 'Code invalide');
             setCode(['', '', '', '', '', '']);
