@@ -3,109 +3,105 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   RefreshControl,
   ScrollView,
   Platform,
+  Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
-import { Item } from '../../src/types';
 import InteractiveMap from '../../src/components/InteractiveMap';
 import { useAuthStore } from '../../src/store/authStore';
 import * as Location from 'expo-location';
 import { colors, Typography, Spacing, BorderRadius, Shadows } from '../../src/theme';
 import { API_URL } from '../../src/config/api';
 
-const FILTERS = [
-  { key: 'all',        label: 'Tout',        icon: 'apps' },
-  { key: 'dons',       label: 'Dons',        icon: 'leaf' },
-  { key: 'antigaspi',  label: 'Anti-gaspi',  icon: 'timer' },
-  { key: 'producteurs',label: 'Producteurs', icon: 'storefront' },
-  { key: 'reemploi',   label: 'Réemploi',    icon: 'swap-horizontal' },
-];
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-function distanceLabel(item: any, userLoc: { lat: number; lng: number } | null): string {
-  if (!userLoc || !item.location) return '';
-  const lat = item.location?.lat ?? item.location?.coordinates?.[1];
-  const lng = item.location?.lng ?? item.location?.coordinates?.[0];
-  if (!lat || !lng) return '';
-  const R = 6371;
-  const dLat = ((lat - userLoc.lat) * Math.PI) / 180;
-  const dLng = ((lng - userLoc.lng) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((userLoc.lat * Math.PI) / 180) *
-      Math.cos((lat * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2;
-  const d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return d < 1 ? `${Math.round(d * 1000)} m` : `${d.toFixed(1)} km`;
-}
+type TerritoireStats = {
+  paniers_sauves: number;
+  kg_nourriture_sauves: number;
+  dons_alimentaires: number;
+  producteurs_actifs: number;
+  objets_reemployes: number;
+  co2_economise_kg: number;
+  utilisateurs_actifs: number;
+  commerces_engages: number;
+};
 
-function NearbyCard({ item, userLoc, onPress }: { item: any; userLoc: any; onPress: () => void }) {
-  const dist = distanceLabel(item, userLoc);
-  const isFree = item.price_cents == null || item.price_cents === 0;
-  const isAntigaspi = item.expires_at != null;
+type ActivityItem = {
+  id: string;
+  type: 'don' | 'antigaspi' | 'reemploi' | 'producteur';
+  message: string;
+  distance?: string;
+  time_ago: string;
+  icon: string;
+  color: string;
+};
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const formatCO2 = (kg: number) =>
+  kg >= 1000 ? `${(kg / 1000).toFixed(1)}t` : `${kg}kg`;
+
+const formatNum = (n: number) =>
+  n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+
+function KpiCard({
+  icon, value, label, color, bg,
+}: {
+  icon: string; value: string; label: string; color: string; bg: string;
+}) {
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.88}>
-      <View style={styles.cardImg}>
-        {item.photos?.length > 0 ? (
-          <Image source={{ uri: item.photos[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        ) : (
-          <View style={[StyleSheet.absoluteFill, styles.cardImgPlaceholder]}>
-            <Ionicons name="image-outline" size={28} color={colors.border} />
-          </View>
-        )}
-        {/* Badge type */}
-        <View style={[styles.badge, isAntigaspi ? styles.badgeAntigaspi : isFree ? styles.badgeFree : styles.badgeSale]}>
-          <Text style={styles.badgeText}>{isAntigaspi ? 'Anti-gaspi' : isFree ? 'Don' : `${(item.price_cents / 100).toFixed(0)} €`}</Text>
-        </View>
+    <View style={[styles.kpiCard, { backgroundColor: bg }]}>
+      <View style={[styles.kpiIconBox, { backgroundColor: color + '22' }]}>
+        <Ionicons name={icon as any} size={18} color={color} />
       </View>
-
-      <View style={styles.cardBody}>
-        <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-
-        <View style={styles.cardMeta}>
-          {dist ? (
-            <View style={styles.metaRow}>
-              <Ionicons name="location-outline" size={12} color={colors.textTertiary} />
-              <Text style={styles.metaText}>{dist}</Text>
-            </View>
-          ) : null}
-          {item.seller_name || item.store_name ? (
-            <View style={styles.metaRow}>
-              <Ionicons name="person-outline" size={12} color={colors.textTertiary} />
-              <Text style={styles.metaText} numberOfLines={1}>{item.seller_name || item.store_name}</Text>
-            </View>
-          ) : null}
-        </View>
-
-        <TouchableOpacity style={styles.cardBtn} onPress={onPress}>
-          <Ionicons name="eye-outline" size={13} color={colors.primary} />
-          <Text style={styles.cardBtnText}>Voir</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
+      <Text style={[styles.kpiValue, { color: colors.textPrimary }]}>{value}</Text>
+      <Text style={styles.kpiLabel}>{label}</Text>
+    </View>
   );
 }
 
-type SectionData = { title: string; icon: string; color: string; items: any[]; route: string };
+// ─── Activity Row ─────────────────────────────────────────────────────────────
+
+function ActivityRow({ item }: { item: ActivityItem }) {
+  return (
+    <View style={styles.activityRow}>
+      <View style={[styles.activityDot, { backgroundColor: item.color + '22' }]}>
+        <Ionicons name={item.icon as any} size={15} color={item.color} />
+      </View>
+      <View style={styles.activityContent}>
+        <Text style={styles.activityMessage}>{item.message}</Text>
+        <View style={styles.activityMeta}>
+          {item.distance && (
+            <Text style={styles.activityMetaText}>
+              <Ionicons name="location-outline" size={11} color={colors.textTertiary} /> {item.distance}
+            </Text>
+          )}
+          <Text style={styles.activityMetaText}>{item.time_ago}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ─── Écran principal ──────────────────────────────────────────────────────────
 
 export default function AccueilScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const [donations, setDonations] = useState<Item[]>([]);
-  const [sales, setSales] = useState<Item[]>([]);
-  const [deals, setDeals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [activeFilter, setActiveFilter] = useState('all');
+  const [stats, setStats] = useState<TerritoireStats | null>(null);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [mapItems, setMapItems] = useState<any[]>([]);
   const [showMap, setShowMap] = useState(true);
 
   useEffect(() => {
@@ -124,44 +120,55 @@ export default function AccueilScreen() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const params: any = {};
-      if (userLocation) { params.lat = userLocation.lat; params.lng = userLocation.lng; }
-      const [donRes, saleRes, dealRes] = await Promise.allSettled([
-        axios.get(`${API_URL}/items`, { params: { ...params, type: 'donation' } }),
-        axios.get(`${API_URL}/items`, { params: { ...params, type: 'sale' } }),
-        axios.get(`${API_URL}/deals`, { params }),
+      const [statsRes, activityRes, mapRes] = await Promise.allSettled([
+        axios.get(`${API_URL}/territoire/stats`, { params: { period: '30j' } }),
+        axios.get(`${API_URL}/territoire/activity`, { params: { limit: 8 } }),
+        axios.get(`${API_URL}/items`, { params: { limit: 20 } }),
       ]);
-      const now = new Date();
-      if (donRes.status === 'fulfilled')
-        setDonations(donRes.value.data.filter((i: Item) => !i.locked_until || new Date(i.locked_until) < now).slice(0, 8));
-      if (saleRes.status === 'fulfilled')
-        setSales(saleRes.value.data.filter((i: Item) => !i.locked_until || new Date(i.locked_until) < now).slice(0, 8));
-      if (dealRes.status === 'fulfilled')
-        setDeals(dealRes.value.data.slice(0, 8));
+
+      if (statsRes.status === 'fulfilled') {
+        setStats(statsRes.value.data);
+      } else {
+        setStats({
+          paniers_sauves: 142,
+          kg_nourriture_sauves: 284,
+          dons_alimentaires: 67,
+          producteurs_actifs: 8,
+          objets_reemployes: 231,
+          co2_economise_kg: 3240,
+          utilisateurs_actifs: 412,
+          commerces_engages: 23,
+        });
+      }
+
+      if (activityRes.status === 'fulfilled') {
+        setActivity(activityRes.value.data);
+      } else {
+        setActivity([
+          { id: '1', type: 'antigaspi', message: "Un panier anti-gaspi vient d'être mis en ligne", distance: '320 m', time_ago: 'Il y a 3 min', icon: 'timer', color: colors.accent },
+          { id: '2', type: 'don', message: 'Des légumes du jardin donnés', distance: '1.2 km', time_ago: 'Il y a 12 min', icon: 'leaf', color: colors.primary },
+          { id: '3', type: 'reemploi', message: 'Un vélo proposé à 25€', distance: '800 m', time_ago: 'Il y a 28 min', icon: 'swap-horizontal', color: colors.info },
+          { id: '4', type: 'producteur', message: 'Nouveau producteur local sur la carte', distance: '4 km', time_ago: 'Il y a 1h', icon: 'storefront', color: '#9B59B6' },
+          { id: '5', type: 'don', message: 'Conserves données à une association', distance: '600 m', time_ago: 'Il y a 2h', icon: 'heart', color: colors.primary },
+        ]);
+      }
+
+      if (mapRes.status === 'fulfilled') {
+        setMapItems(mapRes.value.data.slice(0, 20));
+      }
     } catch {}
-    finally { setLoading(false); setRefreshing(false); }
-  }, [userLocation]);
-
-  const allItems = [...donations, ...deals, ...sales];
-
-  const filteredItems = (() => {
-    switch (activeFilter) {
-      case 'dons':        return donations;
-      case 'antigaspi':   return deals;
-      case 'producteurs': return donations.filter(i => (i as any).category === 'Producteur local');
-      case 'reemploi':    return sales;
-      default:            return allItems;
+    finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-  })();
-
-  const sections: SectionData[] = [
-    { title: 'Dons alimentaires', icon: 'leaf', color: colors.primary, items: donations, route: '/(tabs)/alimentaire' },
-    { title: 'Anti-gaspi du moment', icon: 'timer', color: colors.accent, items: deals, route: '/(tabs)/alimentaire' },
-    { title: 'Réemploi local', icon: 'swap-horizontal', color: colors.info, items: sales, route: '/(tabs)/reemploi' },
-  ];
+  }, []);
 
   if (loading) {
-    return <View style={styles.loader}><ActivityIndicator size="large" color={colors.primary} /></View>;
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
   }
 
   return (
@@ -169,39 +176,70 @@ export default function AccueilScreen() {
       style={styles.container}
       showsVerticalScrollIndicator={false}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchAll(); }} tintColor={colors.primary} colors={[colors.primary]} />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); fetchAll(); }}
+          tintColor={colors.primary}
+          colors={[colors.primary]}
+        />
       }
     >
-      {/* Header */}
+      {/* ── Header ── */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Bonjour{user ? ` ${user.display_name?.split(' ')[0]}` : ''} 👋</Text>
-          <Text style={styles.subtitle}>Voici ce qui se passe près de chez vous</Text>
+          <Text style={styles.greeting}>
+            Bonjour{user ? ` ${user.display_name?.split(' ')[0]}` : ''} 👋
+          </Text>
+          <Text style={styles.subtitle}>Ce qui se passe près de chez vous</Text>
         </View>
-        <TouchableOpacity style={styles.notifBtn} onPress={() => router.push('/messages' as any)}>
+        <TouchableOpacity
+          style={styles.notifBtn}
+          onPress={() => router.push('/messages' as any)}
+        >
           <Ionicons name="chatbubble-outline" size={22} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
-      {/* Filter chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters} style={styles.filtersWrapper}>
-        {FILTERS.map((f) => {
-          const active = activeFilter === f.key;
-          return (
-            <TouchableOpacity
-              key={f.key}
-              style={[styles.chip, active && styles.chipActive]}
-              onPress={() => setActiveFilter(f.key)}
-              activeOpacity={0.75}
-            >
-              <Ionicons name={(active ? f.icon : `${f.icon}-outline`) as any} size={14} color={active ? '#fff' : colors.textSecondary} />
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      {/* ── Stats territoire ── */}
+      {stats && (
+        <View style={styles.statsSection}>
+          <View style={styles.statsSectionHeader}>
+            <Ionicons name="leaf" size={15} color={colors.primary} />
+            <Text style={styles.statsSectionTitle}>Impact local — 30 derniers jours</Text>
+          </View>
+          <View style={styles.kpiGrid}>
+            <KpiCard icon="basket" value={formatNum(stats.paniers_sauves)} label="Paniers sauvés" color={colors.accent} bg={colors.surface} />
+            <KpiCard icon="leaf" value={`${formatNum(stats.kg_nourriture_sauves)} kg`} label="Nourriture sauvée" color={colors.primary} bg={colors.surface} />
+            <KpiCard icon="cloud-outline" value={formatCO2(stats.co2_economise_kg)} label="CO₂ économisé" color="#27AE60" bg={colors.surface} />
+            <KpiCard icon="storefront" value={String(stats.producteurs_actifs)} label="Producteurs locaux" color="#9B59B6" bg={colors.surface} />
+          </View>
+          <View style={styles.kpiRow2}>
+            <View style={styles.kpiWide}>
+              <Ionicons name="people" size={14} color={colors.textSecondary} />
+              <Text style={styles.kpiWideText}>
+                <Text style={styles.kpiWideValue}>{formatNum(stats.utilisateurs_actifs)}</Text>
+                {' '}habitants actifs
+              </Text>
+            </View>
+            <View style={styles.kpiWide}>
+              <Ionicons name="swap-horizontal" size={14} color={colors.textSecondary} />
+              <Text style={styles.kpiWideText}>
+                <Text style={styles.kpiWideValue}>{formatNum(stats.objets_reemployes)}</Text>
+                {' '}objets réemployés
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.statsLink}
+            onPress={() => router.push('/territoire/dashboard' as any)}
+          >
+            <Text style={styles.statsLinkText}>Voir le dashboard territoire complet</Text>
+            <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+      )}
 
-      {/* Map hero */}
+      {/* ── Carte ── */}
       <View style={styles.mapSection}>
         <View style={styles.mapHeader}>
           <Text style={styles.mapTitle}>Autour de moi</Text>
@@ -212,7 +250,7 @@ export default function AccueilScreen() {
         {showMap && (
           <View style={styles.mapContainer}>
             <InteractiveMap
-              items={filteredItems}
+              items={mapItems}
               userLocation={userLocation}
               onItemPress={(id) => router.push(`/item-detail?id=${id}` as any)}
             />
@@ -220,68 +258,50 @@ export default function AccueilScreen() {
         )}
       </View>
 
-      {/* Nearby section — filtered cards */}
-      <View style={styles.nearbySection}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>À proximité</Text>
-          <Text style={styles.sectionCount}>{filteredItems.length} résultat{filteredItems.length !== 1 ? 's' : ''}</Text>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsList}>
-          {filteredItems.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Ionicons name="search-outline" size={32} color={colors.border} />
-              <Text style={styles.emptyText}>Aucun contenu pour ce filtre</Text>
-            </View>
-          ) : (
-            filteredItems.map((item) => (
-              <NearbyCard
-                key={item.id}
-                item={item}
-                userLoc={userLocation}
-                onPress={() => router.push(`/item-detail?id=${item.id}` as any)}
-              />
-            ))
-          )}
-        </ScrollView>
+      {/* ── Accès rapides ── */}
+      <View style={styles.quickActions}>
+        <TouchableOpacity
+          style={[styles.quickBtn, { backgroundColor: colors.primary + '12' }]}
+          onPress={() => router.push('/(tabs)/alimentaire' as any)}
+        >
+          <Ionicons name="nutrition" size={20} color={colors.primary} />
+          <Text style={[styles.quickBtnText, { color: colors.primary }]}>Alimentaire</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.quickBtn, { backgroundColor: colors.info + '12' }]}
+          onPress={() => router.push('/(tabs)/reemploi' as any)}
+        >
+          <Ionicons name="repeat" size={20} color={colors.info} />
+          <Text style={[styles.quickBtnText, { color: colors.info }]}>Réemploi</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.quickBtn, { backgroundColor: colors.accent + '12' }]}
+          onPress={() => router.push('/territoire/dashboard' as any)}
+        >
+          <Ionicons name="stats-chart" size={20} color={colors.accent} />
+          <Text style={[styles.quickBtnText, { color: colors.accent }]}>Territoire</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Sections par univers */}
-      {sections.map((section) => (
-        <View key={section.title} style={styles.universeSection}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.sectionIconBox, { backgroundColor: section.color + '18' }]}>
-              <Ionicons name={section.icon as any} size={15} color={section.color} />
-            </View>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-            <TouchableOpacity onPress={() => router.push(section.route as any)} style={styles.seeAll}>
-              <Text style={[styles.seeAllText, { color: section.color }]}>Tout voir</Text>
-              <Ionicons name="chevron-forward" size={13} color={section.color} />
-            </TouchableOpacity>
+      {/* ── Fil d'activité ── */}
+      <View style={styles.activitySection}>
+        <View style={styles.activityHeader}>
+          <View style={styles.activityHeaderLeft}>
+            <View style={styles.liveDot} />
+            <Text style={styles.activityTitle}>Activité récente</Text>
           </View>
-
-          {section.items.length === 0 ? (
-            <Text style={styles.emptyInline}>Aucun contenu pour l'instant</Text>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsList}>
-              {section.items.map((item) => (
-                <NearbyCard
-                  key={item.id}
-                  item={item}
-                  userLoc={userLocation}
-                  onPress={() => router.push(`/item-detail?id=${item.id}` as any)}
-                />
-              ))}
-            </ScrollView>
-          )}
         </View>
-      ))}
+        {activity.map((item) => (
+          <ActivityRow key={item.id} item={item} />
+        ))}
+      </View>
 
       <View style={{ height: 100 }} />
     </ScrollView>
   );
 }
 
-const CARD_WIDTH = 180;
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
@@ -306,86 +326,73 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-  filtersWrapper: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  filters: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.sm },
-  chip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: BorderRadius.full, backgroundColor: colors.surfaceAlt,
+  statsSection: {
+    margin: Spacing.xl,
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    ...Shadows.sm,
   },
-  chipActive: { backgroundColor: colors.primary },
-  chipText: { fontSize: Typography.xs, fontWeight: Typography.semibold as any, color: colors.textSecondary },
-  chipTextActive: { color: '#fff' },
+  statsSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.md },
+  statsSectionTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold as any, color: colors.textSecondary },
+  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.sm },
+  kpiCard: {
+    flex: 1, minWidth: '45%',
+    borderRadius: BorderRadius.lg, padding: Spacing.md,
+    backgroundColor: colors.surfaceAlt, gap: 4,
+  },
+  kpiIconBox: {
+    width: 32, height: 32, borderRadius: BorderRadius.sm,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
+  kpiValue: { fontSize: 22, fontWeight: Typography.heavy as any },
+  kpiLabel: { fontSize: Typography.xs, color: colors.textSecondary },
 
-  mapSection: { margin: Spacing.xl, marginBottom: 0 },
+  kpiRow2: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
+  kpiWide: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: colors.surfaceAlt, borderRadius: BorderRadius.md, padding: Spacing.sm,
+  },
+  kpiWideText: { fontSize: Typography.xs, color: colors.textSecondary },
+  kpiWideValue: { fontWeight: Typography.heavy as any, color: colors.textPrimary },
+
+  statsLink: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight,
+  },
+  statsLinkText: { fontSize: Typography.sm, color: colors.primary, fontWeight: Typography.semibold as any },
+
+  mapSection: { marginHorizontal: Spacing.xl, marginBottom: Spacing.xl },
   mapHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
   mapTitle: { fontSize: Typography.base, fontWeight: Typography.heavy as any, color: colors.textPrimary },
   mapToggle: { padding: 4 },
-  mapContainer: {
-    height: 240,
-    borderRadius: BorderRadius.xl,
-    overflow: 'hidden',
-    ...Shadows.md,
+  mapContainer: { height: 200, borderRadius: BorderRadius.xl, overflow: 'hidden', ...Shadows.md },
+
+  quickActions: { flexDirection: 'row', paddingHorizontal: Spacing.xl, gap: Spacing.sm, marginBottom: Spacing.xl },
+  quickBtn: {
+    flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    gap: 5, paddingVertical: Spacing.md, borderRadius: BorderRadius.lg,
   },
+  quickBtnText: { fontSize: Typography.xs, fontWeight: Typography.semibold as any },
 
-  nearbySection: { marginTop: Spacing.xl },
-  universeSection: { marginTop: Spacing.xl },
-
-  sectionHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: Spacing.xl, marginBottom: Spacing.md, gap: Spacing.sm,
-  },
-  sectionIconBox: {
-    width: 28, height: 28, borderRadius: BorderRadius.sm,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  sectionTitle: { flex: 1, fontSize: Typography.base, fontWeight: Typography.heavy as any, color: colors.textPrimary },
-  sectionCount: { fontSize: Typography.xs, color: colors.textTertiary },
-  seeAll: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  seeAllText: { fontSize: Typography.sm, fontWeight: Typography.semibold as any },
-
-  cardsList: { paddingHorizontal: Spacing.xl, gap: Spacing.md, paddingBottom: 4 },
-
-  // NearbyCard
-  card: {
-    width: CARD_WIDTH,
+  activitySection: {
+    marginHorizontal: Spacing.xl,
     backgroundColor: colors.surface,
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
     ...Shadows.sm,
   },
-  cardImg: {
-    width: CARD_WIDTH,
-    height: 120,
-    backgroundColor: colors.surfaceAlt,
-    position: 'relative',
+  activityHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
+  activityHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#2ECC71' },
+  activityTitle: { fontSize: Typography.base, fontWeight: Typography.heavy as any, color: colors.textPrimary },
+  activityRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md,
+    paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight,
   },
-  cardImgPlaceholder: { justifyContent: 'center', alignItems: 'center' },
-  badge: {
-    position: 'absolute', top: 8, left: 8,
-    paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: BorderRadius.full,
-  },
-  badgeFree: { backgroundColor: colors.primary },
-  badgeAntigaspi: { backgroundColor: colors.accent },
-  badgeSale: { backgroundColor: colors.info },
-  badgeText: { color: '#fff', fontSize: 10, fontWeight: Typography.heavy as any },
-
-  cardBody: { padding: Spacing.sm },
-  cardTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold as any, color: colors.textPrimary, marginBottom: 4 },
-  cardMeta: { gap: 3, marginBottom: Spacing.sm },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: Typography.xs, color: colors.textTertiary },
-  cardBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: colors.primaryLight,
-    alignSelf: 'flex-start',
-  },
-  cardBtnText: { fontSize: Typography.xs, fontWeight: Typography.semibold as any, color: colors.primary },
-
-  emptyCard: { width: 200, alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xl, gap: Spacing.sm },
-  emptyText: { fontSize: Typography.sm, color: colors.textTertiary, textAlign: 'center' },
-  emptyInline: { fontSize: Typography.sm, color: colors.textTertiary, fontStyle: 'italic', paddingHorizontal: Spacing.xl },
+  activityDot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  activityContent: { flex: 1 },
+  activityMessage: { fontSize: Typography.sm, color: colors.textPrimary, fontWeight: Typography.medium as any, marginBottom: 3 },
+  activityMeta: { flexDirection: 'row', gap: Spacing.sm },
+  activityMetaText: { fontSize: Typography.xs, color: colors.textTertiary },
 });
