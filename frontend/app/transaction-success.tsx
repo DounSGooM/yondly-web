@@ -83,7 +83,7 @@ export default function TransactionSuccessScreen() {
         if (params.nextPath) {
             router.replace(params.nextPath as any);
         } else {
-            router.replace('/(tabs)/food');
+            router.replace('/(tabs)/accueil');
         }
     };
 
