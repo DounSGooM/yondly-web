@@ -13,11 +13,13 @@ import {
   Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { Item } from '../../src/types';
 import InteractiveMap from '../../src/components/InteractiveMap';
 import MarketHeader from '../../src/components/MarketHeader';
+import { useAuthStore } from '../../src/store/authStore';
 import * as Location from 'expo-location';
 import { colors, Typography, Spacing, BorderRadius, Shadows } from '../../src/theme';
 import { API_URL } from '../../src/config/api';
@@ -27,9 +29,9 @@ const { width: SCREEN_W } = Dimensions.get('window');
 // ─── Sub-tabs ────────────────────────────────────────────────────────────────
 
 const SUB_TABS = [
-  { key: 'dons',     label: 'Dons & Surplus',  icon: 'leaf',    color: colors.primary, bg: colors.primaryLight },
-  { key: 'antigaspi',label: 'Anti-gaspi',      icon: 'timer',   color: colors.accent,  bg: colors.accentLight },
-  { key: 'circuits', label: 'Circuits courts', icon: 'storefront', color: '#059669',   bg: '#ECFDF5' },
+  { key: 'dons',     label: 'Dons & Surplus',  icon: 'leaf',       color: colors.primary, bg: colors.primaryLight, proOnly: false },
+  { key: 'antigaspi',label: 'Anti-gaspi',      icon: 'timer',      color: colors.accent,  bg: colors.accentLight,  proOnly: true  },
+  { key: 'circuits', label: 'Circuits courts', icon: 'storefront', color: '#059669',       bg: '#ECFDF5',           proOnly: true  },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -115,7 +117,7 @@ function FoodCard({ item, onPress, accentColor }: { item: any; onPress: () => vo
 
 // ─── Empty State ─────────────────────────────────────────────────────────────
 
-function EmptyState({ tab, onPublish }: { tab: typeof SUB_TABS[0]; onPublish: () => void }) {
+function EmptyState({ tab, onPublish, isPro }: { tab: typeof SUB_TABS[0]; onPublish: () => void; isPro: boolean }) {
   const MESSAGES: Record<string, { title: string; sub: string; cta: string }> = {
     dons:     { title: 'Aucun don ni surplus', sub: 'Partagez vos surplus de cuisine ou de jardin avec vos voisins.', cta: 'Faire un don' },
     antigaspi:{ title: 'Aucun panier anti-gaspi', sub: 'Les commerçants locaux peuvent proposer leurs invendus ici.', cta: 'Proposer un panier' },
@@ -130,10 +132,17 @@ function EmptyState({ tab, onPublish }: { tab: typeof SUB_TABS[0]; onPublish: ()
       </View>
       <Text style={styles.emptyTitle}>{msg.title}</Text>
       <Text style={styles.emptySub}>{msg.sub}</Text>
-      <TouchableOpacity style={[styles.emptyBtn, { backgroundColor: tab.color }]} onPress={onPublish}>
-        <Ionicons name="add" size={16} color="#fff" />
-        <Text style={styles.emptyBtnText}>{msg.cta}</Text>
-      </TouchableOpacity>
+      {tab.proOnly && !isPro ? (
+        <TouchableOpacity style={[styles.emptyBtn, { backgroundColor: '#1A73E8' }]} onPress={onPublish}>
+          <Ionicons name="briefcase-outline" size={16} color="#fff" />
+          <Text style={styles.emptyBtnText}>Passer au compte Pro</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity style={[styles.emptyBtn, { backgroundColor: tab.color }]} onPress={onPublish}>
+          <Ionicons name="add" size={16} color="#fff" />
+          <Text style={styles.emptyBtnText}>{msg.cta}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -144,6 +153,8 @@ type ViewMode = 'grid' | 'list' | 'map';
 
 export default function AlimentaireScreen() {
   const router = useRouter();
+  const { user } = useAuthStore();
+  const isPro = !!user?.is_partner;
   const [activeTab, setActiveTab] = useState('dons');
   const [items, setItems] = useState<Item[]>([]);
   const [deals, setDeals] = useState<any[]>([]);
@@ -247,6 +258,11 @@ export default function AlimentaireScreen() {
                 <Text style={[styles.subTabText, active && { color: tab.color, fontWeight: Typography.heavy as any }]}>
                   {tab.label}
                 </Text>
+                {tab.proOnly && (
+                  <View style={styles.proBadge}>
+                    <Text style={styles.proBadgeText}>Pro</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -271,7 +287,24 @@ export default function AlimentaireScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={currentTab.color} colors={[currentTab.color]} />
           }
         >
-          <EmptyState tab={currentTab} onPublish={() => router.push('/post' as any)} />
+          <EmptyState
+          tab={currentTab}
+          isPro={isPro}
+          onPublish={() => {
+            if (currentTab.proOnly && !isPro) {
+              Alert.alert(
+                'Compte Pro requis',
+                `La section "${currentTab.label}" est réservée aux professionnels (commerçants, producteurs, associations). Passez au compte Pro pour publier ici.`,
+                [
+                  { text: 'Plus tard', style: 'cancel' },
+                  { text: 'Passer Pro', onPress: () => router.push('/(pro)/upgrade' as any) },
+                ]
+              );
+            } else {
+              router.push('/post' as any);
+            }
+          }}
+        />
         </ScrollView>
       ) : (
         <FlatList
@@ -342,6 +375,18 @@ const styles = StyleSheet.create({
     fontSize: Typography.sm,
     color: colors.textTertiary,
     fontWeight: Typography.medium as any,
+  },
+  proBadge: {
+    backgroundColor: '#1A73E8',
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  proBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: Typography.heavy as any,
+    letterSpacing: 0.3,
   },
 
   // Grid

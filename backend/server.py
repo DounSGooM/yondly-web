@@ -990,6 +990,14 @@ async def create_item(
     item_data: ItemCreate,
     current_user: dict = Depends(get_current_user)
 ):
+    # Pro-only categories
+    PRO_CATEGORIES = {"Circuit court", "Producteur local"}
+    if item_data.category in PRO_CATEGORIES and not current_user.get("is_partner"):
+        raise HTTPException(
+            status_code=403,
+            detail="Cette catégorie est réservée aux comptes Pro (commerçants, producteurs)."
+        )
+
     # Use user's location if not provided in item
     if not item_data.location:
         if current_user.get("location"):
