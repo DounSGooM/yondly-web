@@ -557,33 +557,11 @@ async def register(user_data: UserRegister):
         "co2_saved": 0.0,
         "beneficiary_id": generate_beneficiary_id(),
         "created_at": datetime.utcnow(),
-        "verified_email": False
+        "verified_email": True
     }
-    
+
     await db.users.insert_one(user_dict)
-    
-    # Generate 6-digit verification code
-    import random
-    code = f"{random.randint(100000, 999999)}"
-    await db.email_verifications.insert_one({
-        "email": user_data.email,
-        "code": code,
-        "expires_at": datetime.utcnow() + timedelta(minutes=10),
-        "created_at": datetime.utcnow()
-    })
-    
-    # Send verification email in a thread so it doesn't block the response
-    import asyncio
-    async def _send_email_bg():
-        try:
-            from email_service import send_verification_email
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, send_verification_email, user_data.email, code)
-            logger.info(f"Verification email sent to {user_data.email}")
-        except Exception as e:
-            logger.error(f"Failed to send verification email: {e}")
-    asyncio.create_task(_send_email_bg())
-    
+
     # Track user signup event
     try:
         from analytics_routes import track_event_internal
@@ -595,11 +573,16 @@ async def register(user_data: UserRegister):
         )
     except:
         pass
-    
+
+    # Return JWT directly — email verification bypassed
+    access_token = create_access_token(data={"sub": user_id})
+    user_dict.pop("password_hash", None)
+    user_dict.pop("_id", None)
+
     return {
-        "requires_verification": True,
-        "email": user_data.email,
-        "message": "Un code de vérification a été envoyé à votre adresse email."
+        "requires_verification": False,
+        "user": user_dict,
+        "access_token": access_token,
     }
 
 class VerifyEmailRequest(BaseModel):
@@ -765,27 +748,11 @@ async def login(credentials: UserLogin):
     if not verify_password(credentials.password, user.get("password_hash", "")):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     
-    # Check email verification (skip for social login accounts)
-    if not user.get("verified_email", True) and not user.get("auth_provider"):
-        # Resend verification code
-        import random
-        code = f"{random.randint(100000, 999999)}"
-        await db.email_verifications.delete_many({"email": credentials.email})
-        await db.email_verifications.insert_one({
-            "email": credentials.email,
-            "code": code,
-            "expires_at": datetime.utcnow() + timedelta(minutes=10),
-            "created_at": datetime.utcnow()
-        })
-        try:
-            from email_service import send_verification_email
-            send_verification_email(credentials.email, code)
-        except:
-            pass
-        raise HTTPException(
-            status_code=403,
-            detail="Email non vérifié. Un nouveau code a été envoyé."
-        )
+    # Email verification check disabled — all accounts can log in
+    # (Re-enable when SMTP is properly configured)
+    # Mark as verified if not already, so future logins work
+    if not user.get("verified_email"):
+        await db.users.update_one({"id": user["id"]}, {"$set": {"verified_email": True}})
     
     access_token = create_access_token(data={"sub": user["id"]})
     
@@ -1023,6 +990,14 @@ async def create_item(
     item_data: ItemCreate,
     current_user: dict = Depends(get_current_user)
 ):
+    # Pro-only categories
+    PRO_CATEGORIES = {"Circuit court", "Producteur local"}
+    if item_data.category in PRO_CATEGORIES and not current_user.get("is_partner"):
+        raise HTTPException(
+            status_code=403,
+            detail="Cette catégorie est réservée aux comptes Pro (commerçants, producteurs)."
+        )
+
     # Use user's location if not provided in item
     if not item_data.location:
         if current_user.get("location"):
