@@ -200,45 +200,6 @@ export default function AccueilScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ── Stats territoire ── */}
-      {stats && (
-        <View style={styles.statsSection}>
-          <View style={styles.statsSectionHeader}>
-            <Ionicons name="leaf" size={15} color={colors.primary} />
-            <Text style={styles.statsSectionTitle}>Impact local — 30 derniers jours</Text>
-          </View>
-          <View style={styles.kpiGrid}>
-            <KpiCard icon="basket" value={formatNum(stats.paniers_sauves)} label="Paniers sauvés" color={colors.accent} bg={colors.surface} />
-            <KpiCard icon="leaf" value={`${formatNum(stats.kg_nourriture_sauves)} kg`} label="Nourriture sauvée" color={colors.primary} bg={colors.surface} />
-            <KpiCard icon="cloud-outline" value={formatCO2(stats.co2_economise_kg)} label="CO₂ économisé" color="#27AE60" bg={colors.surface} />
-            <KpiCard icon="storefront" value={String(stats.producteurs_actifs)} label="Producteurs locaux" color="#9B59B6" bg={colors.surface} />
-          </View>
-          <View style={styles.kpiRow2}>
-            <View style={styles.kpiWide}>
-              <Ionicons name="people" size={14} color={colors.textSecondary} />
-              <Text style={styles.kpiWideText}>
-                <Text style={styles.kpiWideValue}>{formatNum(stats.utilisateurs_actifs)}</Text>
-                {' '}habitants actifs
-              </Text>
-            </View>
-            <View style={styles.kpiWide}>
-              <Ionicons name="swap-horizontal" size={14} color={colors.textSecondary} />
-              <Text style={styles.kpiWideText}>
-                <Text style={styles.kpiWideValue}>{formatNum(stats.objets_reemployes)}</Text>
-                {' '}objets réemployés
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={styles.statsLink}
-            onPress={() => router.push('/territoire/dashboard' as any)}
-          >
-            <Text style={styles.statsLinkText}>Voir le dashboard territoire complet</Text>
-            <Ionicons name="chevron-forward" size={14} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-      )}
-
       {/* ── Carte ── */}
       <View style={styles.mapSection}>
         <View style={styles.mapHeader}>
@@ -295,6 +256,45 @@ export default function AccueilScreen() {
           <ActivityRow key={item.id} item={item} />
         ))}
       </View>
+
+      {/* ── Stats territoire ── */}
+      {stats && (
+        <View style={[styles.statsSection, { marginTop: Spacing.xl }]}>
+          <View style={styles.statsSectionHeader}>
+            <Ionicons name="leaf" size={15} color={colors.primary} />
+            <Text style={styles.statsSectionTitle}>Impact local — 30 derniers jours</Text>
+          </View>
+          <View style={styles.kpiGrid}>
+            <KpiCard icon="basket" value={formatNum(stats.paniers_sauves)} label="Paniers sauvés" color={colors.accent} bg={colors.surface} />
+            <KpiCard icon="leaf" value={`${formatNum(stats.kg_nourriture_sauves)} kg`} label="Nourriture sauvée" color={colors.primary} bg={colors.surface} />
+            <KpiCard icon="cloud-outline" value={formatCO2(stats.co2_economise_kg)} label="CO₂ économisé" color="#27AE60" bg={colors.surface} />
+            <KpiCard icon="storefront" value={String(stats.producteurs_actifs)} label="Producteurs locaux" color="#9B59B6" bg={colors.surface} />
+          </View>
+          <View style={styles.kpiRow2}>
+            <View style={styles.kpiWide}>
+              <Ionicons name="people" size={14} color={colors.textSecondary} />
+              <Text style={styles.kpiWideText}>
+                <Text style={styles.kpiWideValue}>{formatNum(stats.utilisateurs_actifs)}</Text>
+                {' '}habitants actifs
+              </Text>
+            </View>
+            <View style={styles.kpiWide}>
+              <Ionicons name="swap-horizontal" size={14} color={colors.textSecondary} />
+              <Text style={styles.kpiWideText}>
+                <Text style={styles.kpiWideValue}>{formatNum(stats.objets_reemployes)}</Text>
+                {' '}objets réemployés
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.statsLink}
+            onPress={() => router.push('/territoire/dashboard' as any)}
+          >
+            <Text style={styles.statsLinkText}>Voir le dashboard territoire complet</Text>
+            <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={{ height: 100 }} />
     </ScrollView>
