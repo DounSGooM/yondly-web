@@ -9,27 +9,32 @@ import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
+  Platform,
+  Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { Item } from '../../src/types';
 import InteractiveMap from '../../src/components/InteractiveMap';
-import ItemGridCard from '../../src/components/ItemGridCard';
 import MarketHeader from '../../src/components/MarketHeader';
 import * as Location from 'expo-location';
 import { colors, Typography, Spacing, BorderRadius, Shadows } from '../../src/theme';
 import { API_URL } from '../../src/config/api';
 
+const { width: SCREEN_W } = Dimensions.get('window');
+
+// ─── Sub-tabs ────────────────────────────────────────────────────────────────
+
 const SUB_TABS = [
-  { key: 'dons',       label: 'Dons',        icon: 'leaf',        color: colors.primary },
-  { key: 'antigaspi',  label: 'Anti-gaspi',  icon: 'timer',       color: colors.accent },
-  { key: 'producteurs',label: 'Producteurs', icon: 'storefront',  color: '#059669' },
-  { key: 'surplus',    label: 'Surplus',     icon: 'flower',      color: '#7c3aed' },
-  { key: 'circuits',   label: 'Circuits',    icon: 'bicycle',     color: '#0284c7' },
+  { key: 'dons',        label: 'Dons',        icon: 'leaf',        color: colors.primary,  bg: colors.primaryLight },
+  { key: 'antigaspi',   label: 'Anti-gaspi',  icon: 'timer',       color: colors.accent,   bg: colors.accentLight },
+  { key: 'producteurs', label: 'Producteurs', icon: 'storefront',  color: '#059669',        bg: '#ECFDF5' },
+  { key: 'surplus',     label: 'Surplus',     icon: 'flower',      color: '#7C3AED',        bg: '#F5F3FF' },
+  { key: 'circuits',    label: 'Circuits',    icon: 'bicycle',     color: '#0284C7',        bg: '#F0F9FF' },
 ];
 
-type ViewMode = 'grid' | 'list' | 'map';
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function timeLeft(expiresAt: string): string {
   const diff = new Date(expiresAt).getTime() - Date.now();
@@ -39,51 +44,107 @@ function timeLeft(expiresAt: string): string {
   return h > 0 ? `${h}h ${m}m` : `${m} min`;
 }
 
-function DealCard({ deal, onPress }: { deal: any; onPress: () => void }) {
-  const discountPct = deal.original_price_cents && deal.price_cents
-    ? Math.round(((deal.original_price_cents - deal.price_cents) / deal.original_price_cents) * 100)
-    : 0;
-  const urgent = deal.expires_at && (new Date(deal.expires_at).getTime() - Date.now()) < 6 * 3600000;
+function isUrgent(expiresAt: string): boolean {
+  return new Date(expiresAt).getTime() - Date.now() < 6 * 3600000;
+}
+
+// ─── Food Card ───────────────────────────────────────────────────────────────
+
+function FoodCard({ item, onPress, accentColor }: { item: any; onPress: () => void; accentColor: string }) {
+  const isFree = item.price_cents == null || item.price_cents === 0;
+  const hasTimer = !!item.expires_at;
+  const urgent = hasTimer && isUrgent(item.expires_at);
 
   return (
-    <TouchableOpacity style={styles.dealCard} onPress={onPress} activeOpacity={0.85}>
-      <View style={styles.dealImgBox}>
-        {deal.photos?.length > 0 ? (
-          <Image source={{ uri: deal.photos[0] }} style={styles.dealImg} resizeMode="cover" />
+    <TouchableOpacity style={styles.foodCard} onPress={onPress} activeOpacity={0.88}>
+      {/* Image */}
+      <View style={styles.foodCardImg}>
+        {item.photos?.length > 0 ? (
+          <Image source={{ uri: item.photos[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : (
-          <View style={[styles.dealImg, styles.dealImgPlaceholder]}>
-            <Ionicons name="storefront-outline" size={28} color={colors.border} />
+          <View style={[StyleSheet.absoluteFill, styles.foodCardImgPlaceholder]}>
+            <Ionicons name="nutrition-outline" size={36} color={colors.border} />
           </View>
         )}
-        {discountPct > 0 && (
-          <View style={styles.discountPill}>
-            <Text style={styles.discountText}>-{discountPct}%</Text>
+
+        {/* Top badges */}
+        <View style={styles.foodCardBadges}>
+          <View style={[styles.priceBadge, { backgroundColor: isFree ? colors.primary : accentColor }]}>
+            <Text style={styles.priceBadgeText}>{isFree ? 'Gratuit' : `${(item.price_cents / 100).toFixed(2)} €`}</Text>
           </View>
-        )}
-        {deal.expires_at && (
-          <View style={[styles.timerPill, urgent && { backgroundColor: colors.error }]}>
-            <Ionicons name="time-outline" size={10} color="#fff" />
-            <Text style={styles.timerText}>{timeLeft(deal.expires_at)}</Text>
+        </View>
+
+        {/* Timer */}
+        {hasTimer && (
+          <View style={[styles.timerBadge, urgent && { backgroundColor: colors.error }]}>
+            <Ionicons name="time-outline" size={11} color="#fff" />
+            <Text style={styles.timerText}>{timeLeft(item.expires_at)}</Text>
           </View>
         )}
       </View>
-      <View style={styles.dealInfo}>
-        <Text style={styles.dealTitle} numberOfLines={2}>{deal.title}</Text>
-        <Text style={styles.dealStore} numberOfLines={1}>{deal.store_name || deal.seller_name}</Text>
-        <View style={styles.dealPriceRow}>
-          <Text style={styles.dealPrice}>
-            {deal.price_cents != null ? `${(deal.price_cents / 100).toFixed(2)} €` : 'Gratuit'}
-          </Text>
-          {discountPct > 0 && deal.original_price_cents && (
-            <Text style={styles.dealOriginalPrice}>
-              {(deal.original_price_cents / 100).toFixed(2)} €
+
+      {/* Info */}
+      <View style={styles.foodCardBody}>
+        <Text style={styles.foodCardTitle} numberOfLines={2}>{item.title}</Text>
+
+        {(item.seller_name || item.store_name) && (
+          <View style={styles.foodCardMeta}>
+            <Ionicons name="person-circle-outline" size={13} color={colors.textTertiary} />
+            <Text style={styles.foodCardMetaText} numberOfLines={1}>
+              {item.seller_name || item.store_name}
             </Text>
-          )}
-        </View>
+          </View>
+        )}
+
+        {item.city && (
+          <View style={styles.foodCardMeta}>
+            <Ionicons name="location-outline" size={13} color={colors.textTertiary} />
+            <Text style={styles.foodCardMetaText}>{item.city}</Text>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={[styles.foodCardBtn, { backgroundColor: accentColor + '15', borderColor: accentColor + '40' }]}
+          onPress={onPress}
+        >
+          <Text style={[styles.foodCardBtnText, { color: accentColor }]}>Voir l'annonce</Text>
+          <Ionicons name="arrow-forward" size={13} color={accentColor} />
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
 }
+
+// ─── Empty State ─────────────────────────────────────────────────────────────
+
+function EmptyState({ tab, onPublish }: { tab: typeof SUB_TABS[0]; onPublish: () => void }) {
+  const MESSAGES: Record<string, { title: string; sub: string; cta: string }> = {
+    dons:        { title: 'Aucun don alimentaire', sub: 'Partagez vos surplus de cuisine ou de jardin avec vos voisins.', cta: 'Faire un don' },
+    antigaspi:   { title: 'Aucun panier anti-gaspi', sub: 'Les commerçants locaux peuvent proposer leurs invendus ici.', cta: 'Proposer un panier' },
+    producteurs: { title: 'Aucun producteur local', sub: 'Inscrivez votre exploitation pour toucher des acheteurs locaux.', cta: 'Référencer mon exploitation' },
+    surplus:     { title: 'Aucun surplus de jardin', sub: 'Vos tomates poussent trop vite ? Partagez-les ici !', cta: 'Partager mon surplus' },
+    circuits:    { title: 'Aucun circuit court', sub: 'Référencez vos points de vente en circuits courts.', cta: 'Ajouter un circuit' },
+  };
+  const msg = MESSAGES[tab.key];
+
+  return (
+    <View style={styles.empty}>
+      <View style={[styles.emptyIconBox, { backgroundColor: tab.bg }]}>
+        <Ionicons name={tab.icon as any} size={40} color={tab.color} />
+      </View>
+      <Text style={styles.emptyTitle}>{msg.title}</Text>
+      <Text style={styles.emptySub}>{msg.sub}</Text>
+      <TouchableOpacity style={[styles.emptyBtn, { backgroundColor: tab.color }]} onPress={onPublish}>
+        <Ionicons name="add" size={16} color="#fff" />
+        <Text style={styles.emptyBtnText}>{msg.cta}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── Main Screen ─────────────────────────────────────────────────────────────
+
+type ViewMode = 'grid' | 'list' | 'map';
 
 export default function AlimentaireScreen() {
   const router = useRouter();
@@ -96,13 +157,10 @@ export default function AlimentaireScreen() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
-  useEffect(() => {
-    getUserLocation();
-  }, []);
+  const currentTab = SUB_TABS.find(t => t.key === activeTab)!;
 
-  useEffect(() => {
-    load();
-  }, [activeTab, userLocation]);
+  useEffect(() => { getUserLocation(); }, []);
+  useEffect(() => { load(); }, [activeTab, userLocation]);
 
   const getUserLocation = async () => {
     try {
@@ -121,19 +179,26 @@ export default function AlimentaireScreen() {
         if (userLocation) { params.lat = userLocation.lat; params.lng = userLocation.lng; }
         const res = await axios.get(`${API_URL}/deals`, { params });
         setDeals(res.data);
+        setItems([]);
       } else {
         const params: any = { type: 'donation' };
         if (userLocation) { params.lat = userLocation.lat; params.lng = userLocation.lng; }
         if (activeTab === 'producteurs') params.category = 'Producteur local';
-        if (activeTab === 'surplus') params.category = 'Surplus jardin';
-        if (activeTab === 'circuits') params.category = 'Circuit court';
+        if (activeTab === 'surplus')     params.category = 'Surplus jardin';
+        if (activeTab === 'circuits')    params.category = 'Circuit court';
         const res = await axios.get(`${API_URL}/items`, { params });
         const now = new Date();
         setItems(res.data.filter((i: Item) => !i.locked_until || new Date(i.locked_until) < now));
+        setDeals([]);
       }
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, [activeTab, userLocation]);
+
+  const displayItems = activeTab === 'antigaspi' ? deals : items;
+  const filtered = displayItems.filter(i =>
+    !searchQuery || i.title?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const toggleViewMode = () => {
     if (viewMode === 'grid') setViewMode('list');
@@ -147,17 +212,9 @@ export default function AlimentaireScreen() {
     return 'grid-outline';
   };
 
-  const activeTabData = SUB_TABS.find(t => t.key === activeTab)!;
-
-  const filteredItems = items.filter(i =>
-    !searchQuery || i.title?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-  const filteredDeals = deals.filter(d =>
-    !searchQuery || d.title?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   return (
     <View style={styles.container}>
+      {/* ── Header ── */}
       <MarketHeader
         title="Alimentaire"
         subtitle="Autour de moi…"
@@ -167,18 +224,22 @@ export default function AlimentaireScreen() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onMessagePress={() => router.push('/messages' as any)}
-        accentColor={activeTabData.color}
+        accentColor={currentTab.color}
       />
 
-      {/* Sub-tabs */}
-      <View style={styles.subTabsWrapper}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subTabs}>
+      {/* ── Sub-tabs ── */}
+      <View style={styles.subTabsBar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.subTabsContent}
+        >
           {SUB_TABS.map((tab) => {
             const active = activeTab === tab.key;
             return (
               <TouchableOpacity
                 key={tab.key}
-                style={[styles.subTab, active && { borderBottomColor: tab.color, borderBottomWidth: 2 }]}
+                style={[styles.subTab, active && { backgroundColor: tab.bg, borderColor: tab.color + '50' }]}
                 onPress={() => setActiveTab(tab.key)}
                 activeOpacity={0.75}
               >
@@ -187,7 +248,7 @@ export default function AlimentaireScreen() {
                   size={15}
                   color={active ? tab.color : colors.textTertiary}
                 />
-                <Text style={[styles.subTabText, active && { color: tab.color, fontWeight: Typography.semibold as any }]}>
+                <Text style={[styles.subTabText, active && { color: tab.color, fontWeight: Typography.heavy as any }]}>
                   {tab.label}
                 </Text>
               </TouchableOpacity>
@@ -196,156 +257,231 @@ export default function AlimentaireScreen() {
         </ScrollView>
       </View>
 
+      {/* ── Content ── */}
       {loading ? (
         <View style={styles.loader}>
-          <ActivityIndicator size="large" color={activeTabData.color} />
+          <ActivityIndicator size="large" color={currentTab.color} />
         </View>
-      ) : activeTab === 'antigaspi' ? (
-        viewMode === 'map' ? (
-          <InteractiveMap
-            items={filteredDeals}
-            userLocation={userLocation}
-            onItemPress={(id: string) => router.push(`/item-detail?id=${id}` as any)}
-          />
-        ) : (
-          <FlatList
-            data={filteredDeals}
-            renderItem={({ item }) => (
-              <DealCard deal={item} onPress={() => router.push(`/item-detail?id=${item.id}` as any)} />
-            )}
-            keyExtractor={(item) => item.id}
-            numColumns={2}
-            columnWrapperStyle={styles.gridRow}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} colors={[colors.accent]} />
-            }
-            ListEmptyComponent={<EmptyState icon="timer-outline" title="Aucun deal disponible" sub="Revenez plus tard pour des offres anti-gaspi" />}
-          />
-        )
       ) : viewMode === 'map' ? (
         <InteractiveMap
-          items={filteredItems}
+          items={filtered}
           userLocation={userLocation}
-          onItemPress={(id: string) => router.push(`/item-detail?id=${id}` as any)}
+          onItemPress={(id) => router.push(`/item-detail?id=${id}` as any)}
         />
+      ) : filtered.length === 0 ? (
+        <ScrollView
+          contentContainerStyle={{ flex: 1 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={currentTab.color} colors={[currentTab.color]} />
+          }
+        >
+          <EmptyState tab={currentTab} onPublish={() => router.push('/post' as any)} />
+        </ScrollView>
       ) : (
         <FlatList
           key={viewMode}
-          data={filteredItems}
-          renderItem={({ item }) => (
-            <View style={{ flex: viewMode === 'grid' ? 0.5 : 1 }}>
-              <ItemGridCard item={item} layout={viewMode === 'list' ? 'list' : 'grid'} />
-            </View>
-          )}
-          keyExtractor={(item) => item.id}
+          data={filtered}
           numColumns={viewMode === 'grid' ? 2 : 1}
+          keyExtractor={(item) => item.id}
           columnWrapperStyle={viewMode === 'grid' ? styles.gridRow : undefined}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={activeTabData.color} colors={[activeTabData.color]} />
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={currentTab.color} colors={[currentTab.color]} />
           }
-          ListEmptyComponent={
-            <EmptyState
-              icon={`${activeTabData.icon}-outline` as any}
-              title={`Aucun contenu — ${activeTabData.label}`}
-              sub="Soyez le premier à partager ici !"
-            />
-          }
+          renderItem={({ item }) => (
+            viewMode === 'grid' ? (
+              <View style={styles.gridItem}>
+                <FoodCard
+                  item={item}
+                  accentColor={currentTab.color}
+                  onPress={() => router.push(`/item-detail?id=${item.id}` as any)}
+                />
+              </View>
+            ) : (
+              <FoodCard
+                item={item}
+                accentColor={currentTab.color}
+                onPress={() => router.push(`/item-detail?id=${item.id}` as any)}
+              />
+            )
+          )}
         />
       )}
     </View>
   );
 }
 
-function EmptyState({ icon, title, sub }: { icon: string; title: string; sub: string }) {
-  return (
-    <View style={styles.empty}>
-      <Ionicons name={icon as any} size={56} color={colors.border} />
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptySub}>{sub}</Text>
-    </View>
-  );
-}
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
+const CARD_H_IMG = 140;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  subTabsWrapper: {
+  // Sub-tabs
+  subTabsBar: {
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
+    paddingVertical: Spacing.sm,
   },
-  subTabs: {
-    paddingHorizontal: Spacing.md,
-    gap: 0,
+  subTabsContent: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.sm,
   },
   subTab: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    backgroundColor: colors.surfaceAlt,
   },
   subTabText: {
     fontSize: Typography.sm,
     color: colors.textTertiary,
+    fontWeight: Typography.medium as any,
   },
 
-  gridRow: { justifyContent: 'space-between', gap: Spacing.md },
-  listContent: { padding: Spacing.lg, paddingBottom: 100 },
+  // Grid
+  gridRow: { gap: Spacing.md, paddingHorizontal: Spacing.lg },
+  gridItem: { flex: 1 },
+  listContent: { padding: Spacing.lg, paddingBottom: 100, gap: Spacing.md },
 
-  // Deal card
-  dealCard: {
-    flex: 0.5,
+  // Food Card
+  foodCard: {
     backgroundColor: colors.surface,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     overflow: 'hidden',
     ...Shadows.sm,
   },
-  dealImgBox: { position: 'relative' },
-  dealImg: { width: '100%', aspectRatio: 1 },
-  dealImgPlaceholder: {
+  foodCardImg: {
+    height: CARD_H_IMG,
     backgroundColor: colors.surfaceAlt,
+    position: 'relative',
+  },
+  foodCardImgPlaceholder: {
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.primaryLight,
   },
-  discountPill: {
+  foodCardBadges: {
     position: 'absolute',
-    top: 6,
-    left: 6,
-    backgroundColor: colors.accent,
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    top: 8,
+    left: 8,
+    flexDirection: 'row',
+    gap: 4,
   },
-  discountText: { color: '#fff', fontSize: 10, fontWeight: Typography.heavy as any },
-  timerPill: {
+  priceBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+  priceBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: Typography.heavy as any,
+  },
+  timerBadge: {
     position: 'absolute',
-    bottom: 6,
-    right: 6,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: BorderRadius.sm,
+    bottom: 8,
+    right: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    paddingHorizontal: 6,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 7,
     paddingVertical: 3,
+    borderRadius: BorderRadius.full,
   },
-  timerText: { color: '#fff', fontSize: 10, fontWeight: Typography.semibold as any },
-  dealInfo: { padding: Spacing.sm },
-  dealTitle: { fontSize: Typography.sm, fontWeight: Typography.semibold as any, color: colors.textPrimary, marginBottom: 2 },
-  dealStore: { fontSize: Typography.xs, color: colors.textTertiary, marginBottom: Spacing.xs },
-  dealPriceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-  dealPrice: { fontSize: Typography.base, fontWeight: Typography.heavy as any, color: colors.accent },
-  dealOriginalPrice: { fontSize: Typography.xs, color: colors.textTertiary, textDecorationLine: 'line-through' },
+  timerText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: Typography.semibold as any,
+  },
+  foodCardBody: {
+    padding: Spacing.md,
+    gap: 4,
+  },
+  foodCardTitle: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.heavy as any,
+    color: colors.textPrimary,
+    lineHeight: 18,
+    marginBottom: 2,
+  },
+  foodCardMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  foodCardMetaText: {
+    fontSize: Typography.xs,
+    color: colors.textTertiary,
+    flex: 1,
+  },
+  foodCardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    marginTop: Spacing.sm,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  foodCardBtnText: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.semibold as any,
+  },
 
-  empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: Spacing.xl },
-  emptyTitle: { fontSize: Typography.lg, fontWeight: Typography.semibold as any, color: colors.textSecondary, marginTop: Spacing.lg },
-  emptySub: { fontSize: Typography.sm, color: colors.textTertiary, marginTop: Spacing.sm, textAlign: 'center' },
+  // Empty state
+  empty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xl * 1.5,
+    paddingTop: 60,
+    gap: Spacing.md,
+  },
+  emptyIconBox: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  emptyTitle: {
+    fontSize: Typography.lg,
+    fontWeight: Typography.heavy as any,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  emptySub: {
+    fontSize: Typography.sm,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  emptyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.full,
+    marginTop: Spacing.sm,
+    ...Shadows.sm,
+  },
+  emptyBtnText: {
+    color: '#fff',
+    fontSize: Typography.sm,
+    fontWeight: Typography.heavy as any,
+  },
 });
