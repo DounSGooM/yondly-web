@@ -670,6 +670,21 @@ class ResetPasswordRequest(BaseModel):
     code: str
     new_password: str
 
+@api_router.post("/auth/admin-reset-password")
+async def admin_reset_password(data: dict):
+    """Temporary admin endpoint — remove after use."""
+    if data.get("secret") != "yondly-reset-2024":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    user = await db.users.find_one({"email": data.get("email")})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    new_hash = hash_password(data.get("password", "Yondly2024!"))
+    await db.users.update_one(
+        {"email": data.get("email")},
+        {"$set": {"password_hash": new_hash, "verified_email": True}}
+    )
+    return {"message": "Password reset OK"}
+
 @api_router.post("/auth/forgot-password")
 async def forgot_password(data: ForgotPasswordRequest):
     """Send a password reset code to the user's email."""
