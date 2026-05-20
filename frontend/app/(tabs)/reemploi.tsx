@@ -18,12 +18,16 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { Item } from '../../src/types';
 import FilterModal, { FilterState } from '../../src/components/FilterModal';
+import FoodMapCTA from '../../src/components/FoodMapCTA';
 import { useAuthStore } from '../../src/store/authStore';
+import { MOCK_MAP_POINTS } from '../../src/data/mockMapPoints';
 import * as Location from 'expo-location';
 import { colors, Typography, Spacing, BorderRadius, Shadows } from '../../src/theme';
 import { API_URL } from '../../src/config/api';
 
 const { width: SCREEN_W } = Dimensions.get('window');
+
+const REUSE_POINT_COUNT = MOCK_MAP_POINTS.filter(p => p.category === 'reemploi').length;
 
 // ─── Sub-tabs ────────────────────────────────────────────────────────────────
 
@@ -32,7 +36,7 @@ const SUB_TABS = [
   { key: 'dons',      label: 'Dons',                   icon: 'gift',        color: colors.primary, bg: colors.primaryLight, canPublish: true  },
   { key: 'echange',   label: 'Échange',                icon: 'swap-horizontal', color: '#7C3AED',  bg: '#F5F3FF', canPublish: true  },
   { key: 'services',  label: 'Services',               icon: 'construct',   color: '#0284C7',      bg: '#F0F9FF', canPublish: true  },
-  { key: 'pros',      label: 'Friperies & Recycleries',icon: 'storefront',  color: '#059669',      bg: '#ECFDF5', canPublish: false },
+  { key: 'pros',      label: 'Ressourceries',          icon: 'storefront',  color: '#059669',      bg: '#ECFDF5', canPublish: false },
 ];
 
 const CONDITION_LABELS: Record<string, { label: string; color: string }> = {
@@ -111,13 +115,19 @@ function ReemploiCard({
 
 // ─── Empty State ─────────────────────────────────────────────────────────────
 
-function EmptyState({ tab, onPublish }: { tab: typeof SUB_TABS[0]; onPublish?: () => void }) {
+interface EmptyStateProps {
+  tab: typeof SUB_TABS[0];
+  onPublish?: () => void;
+  onViewMap?: () => void;
+}
+
+function EmptyState({ tab, onPublish, onViewMap }: EmptyStateProps) {
   const MESSAGES: Record<string, { title: string; sub: string; cta: string }> = {
-    vente:    { title: 'Aucun article en vente',        sub: 'Donnez une seconde vie à vos objets en les vendant près de chez vous.', cta: 'Mettre en vente' },
-    dons:     { title: 'Aucun don disponible',          sub: 'Vos objets inutilisés peuvent rendre service à quelqu\'un près de vous.', cta: 'Donner un objet' },
-    echange:  { title: 'Aucune proposition d\'échange', sub: 'Proposez un objet en échange d\'un autre et évitez le gaspillage.', cta: 'Proposer un échange' },
-    services: { title: 'Aucun service disponible',      sub: 'Proposez vos compétences : réparation, bricolage, couture…', cta: 'Proposer un service' },
-    pros:     { title: 'Aucune boutique référencée',    sub: 'Les friperies, recycleries et ressourceries locales apparaîtront ici.', cta: '' },
+    vente:    { title: 'Aucun article en vente autour de vous',   sub: 'Consultez la carte locale ou publiez un objet pour lui offrir une seconde vie.', cta: 'Mettre en vente' },
+    dons:     { title: 'Aucun don disponible',                    sub: 'Vos objets inutilisés peuvent rendre service à quelqu\'un près de vous.', cta: 'Donner un objet' },
+    echange:  { title: 'Aucune proposition d\'échange',           sub: 'Proposez un objet en échange d\'un autre et évitez le gaspillage.', cta: 'Proposer un échange' },
+    services: { title: 'Aucun service disponible',                sub: 'Proposez vos compétences : réparation, bricolage, couture…', cta: 'Proposer un service' },
+    pros:     { title: 'Aucune boutique référencée',              sub: 'Les friperies, recycleries et ressourceries locales apparaîtront ici.', cta: '' },
   };
   const msg = MESSAGES[tab.key];
 
@@ -128,17 +138,27 @@ function EmptyState({ tab, onPublish }: { tab: typeof SUB_TABS[0]; onPublish?: (
       </View>
       <Text style={styles.emptyTitle}>{msg.title}</Text>
       <Text style={styles.emptySub}>{msg.sub}</Text>
-      {onPublish && (
+
+      {onPublish && msg.cta ? (
         <TouchableOpacity style={[styles.emptyBtn, { backgroundColor: tab.color }]} onPress={onPublish}>
           <Ionicons name="add" size={16} color="#fff" />
           <Text style={styles.emptyBtnText}>{msg.cta}</Text>
         </TouchableOpacity>
-      )}
+      ) : null}
+
+      {onViewMap ? (
+        <TouchableOpacity style={styles.emptyMapBtn} onPress={onViewMap}>
+          <Ionicons name="map-outline" size={15} color={colors.primary} />
+          <Text style={styles.emptyMapBtnText}>Voir la carte réemploi</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
+
+const CARTE_REEMPLOI = '/carte?initialCategory=reemploi';
 
 const TYPE_MAP: Record<string, string> = {
   vente:    'sale',
@@ -369,6 +389,7 @@ export default function ReemploiScreen() {
           <EmptyState
             tab={currentTab}
             onPublish={currentTab.canPublish ? () => router.push('/post' as any) : undefined}
+            onViewMap={() => router.push(CARTE_REEMPLOI as any)}
           />
         </ScrollView>
       ) : (
@@ -380,6 +401,12 @@ export default function ReemploiScreen() {
           columnWrapperStyle={viewMode === 'grid' ? styles.gridRow : undefined}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <FoodMapCTA
+              category="reemploi"
+              count={REUSE_POINT_COUNT}
+            />
+          }
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={currentTab.color} colors={[currentTab.color]} />
           }
@@ -568,4 +595,12 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full, marginTop: Spacing.sm, ...Shadows.card,
   },
   emptyBtnText: { color: '#fff', fontSize: Typography.sm, fontWeight: Typography.heavy as any },
+  emptyMapBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: Spacing.lg, paddingVertical: 10,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1, borderColor: colors.primary + '40',
+    backgroundColor: colors.primaryLight,
+  },
+  emptyMapBtnText: { fontSize: Typography.sm, color: colors.primary, fontWeight: Typography.semibold as any },
 });
