@@ -301,7 +301,7 @@ export default function ReemploiScreen() {
         </View>
       </View>
 
-      {/* ── Sub-tabs ── */}
+      {/* ── Sub-tabs : style underline, aucun pill ── */}
       <View style={styles.subTabsBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subTabsContent}>
           {SUB_TABS.map((tab) => {
@@ -309,16 +309,11 @@ export default function ReemploiScreen() {
             return (
               <TouchableOpacity
                 key={tab.key}
-                style={[styles.subTab, active && { backgroundColor: tab.bg, borderColor: tab.color + '50' }]}
+                style={[styles.subTab, active && { borderBottomColor: tab.color }]}
                 onPress={() => setActiveTab(tab.key)}
-                activeOpacity={0.75}
+                activeOpacity={0.7}
               >
-                <Ionicons
-                  name={(active ? tab.icon : `${tab.icon}-outline`) as any}
-                  size={14}
-                  color={active ? tab.color : colors.textTertiary}
-                />
-                <Text style={[styles.subTabText, active && { color: tab.color, fontWeight: Typography.heavy as any }]}>
+                <Text style={[styles.subTabText, active && { color: tab.color, fontWeight: Typography.bold as any }]}>
                   {tab.label}
                 </Text>
               </TouchableOpacity>
@@ -327,7 +322,7 @@ export default function ReemploiScreen() {
         </ScrollView>
       </View>
 
-      {/* ── Category chips (not for pros) ── */}
+      {/* ── Category chips : fond doux, couleur de l'onglet actif ── */}
       {CATEGORIES.length > 0 && (
         <View style={styles.chipsBar}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
@@ -336,12 +331,21 @@ export default function ReemploiScreen() {
               return (
                 <TouchableOpacity
                   key={cat.name}
-                  style={[styles.chip, active && { backgroundColor: currentTab.color, borderColor: currentTab.color }]}
+                  style={[
+                    styles.chip,
+                    active && { backgroundColor: currentTab.color + '18', borderColor: currentTab.color + '55' },
+                  ]}
                   onPress={() => setSelectedCategory(cat.name)}
-                  activeOpacity={0.75}
+                  activeOpacity={0.7}
                 >
-                  <Ionicons name={cat.icon as any} size={12} color={active ? '#fff' : colors.textSecondary} />
-                  <Text style={[styles.chipText, active && { color: '#fff' }]}>{cat.name}</Text>
+                  <Ionicons
+                    name={cat.icon as any}
+                    size={13}
+                    color={active ? currentTab.color : colors.textTertiary}
+                  />
+                  <Text style={[styles.chipText, active && { color: currentTab.color, fontWeight: Typography.semibold as any }]}>
+                    {cat.name}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -508,26 +512,50 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
-    paddingVertical: Spacing.sm,
   },
-  subTabsContent: { paddingHorizontal: Spacing.lg, gap: Spacing.sm },
+  subTabsContent: {
+    paddingHorizontal: Spacing.lg,
+    gap: 0,
+  },
   subTab: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: BorderRadius.full, borderWidth: 1,
-    borderColor: 'transparent', backgroundColor: colors.surfaceAlt,
+    paddingHorizontal: Spacing.md,
+    paddingTop: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 2.5,
+    borderBottomColor: 'transparent',
   },
-  subTabText: { fontSize: Typography.sm, color: colors.textTertiary, fontWeight: Typography.medium as any },
+  subTabText: {
+    fontSize: Typography.sm,
+    color: colors.textTertiary,
+    fontWeight: Typography.medium as any,
+  },
 
-  chipsBar: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  chipsContent: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.sm },
-  chip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: BorderRadius.full, borderWidth: 1,
-    borderColor: colors.border, backgroundColor: colors.surfaceAlt,
+  chipsBar: {
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
   },
-  chipText: { fontSize: Typography.xs, fontWeight: Typography.semibold as any, color: colors.textSecondary },
+  chipsContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 10,
+    gap: Spacing.sm,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    backgroundColor: colors.surface,
+  },
+  chipText: {
+    fontSize: Typography.xs,
+    fontWeight: Typography.medium as any,
+    color: colors.textTertiary,
+  },
 
   filterPills: {
     flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
