@@ -68,5 +68,5 @@ export const ZONE_LABELS = [
   'Grand Poitiers',
   'Haut-Poitou',
   'Vallées du Clain',
-  'Tout le territoire PAT',
+  'Tout le territoire',
 ];

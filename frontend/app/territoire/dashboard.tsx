@@ -166,7 +166,7 @@ export default function TerritoireDashboard() {
         </TouchableOpacity>
         <View>
           <Text style={styles.headerTitle}>Impact territoire</Text>
-          <Text style={styles.headerSubtitle}>Grand Poitiers — PAT 2022-2026</Text>
+          <Text style={styles.headerSubtitle}>Grand Poitiers 2022-2026</Text>
         </View>
         <TouchableOpacity onPress={handleShare} style={styles.iconBtn}>
           <Ionicons name="share-outline" size={24} color="#4C7B4B" />
@@ -303,11 +303,11 @@ export default function TerritoireDashboard() {
           </View>
         </View>
 
-        {/* ── Badge PAT ── */}
+        {/* ── Badge partenaire ── */}
         <View style={styles.patCard}>
           <Ionicons name="leaf" size={24} color="#27500A" />
           <View style={{ flex: 1 }}>
-            <Text style={styles.patTitle}>Partenaire PAT Grand Poitiers</Text>
+            <Text style={styles.patTitle}>Partenaire Grand Poitiers</Text>
             <Text style={styles.patSubtitle}>
               Données contribuant au suivi du Projet Alimentaire Territorial 2022-2026
             </Text>
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
   evoUpText: { color: '#27500A' },
   evoDownText: { color: '#791F1F' },
 
-  // PAT badge
+  // badge partenaire
   patCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#EAF3DE', borderRadius: 16, marginHorizontal: 16, marginBottom: 12, padding: 16 },
   patTitle: { fontSize: 14, fontWeight: '600', color: '#27500A', marginBottom: 2 },
   patSubtitle: { fontSize: 12, color: '#4C7B4B', lineHeight: 16 },

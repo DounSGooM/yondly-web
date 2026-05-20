@@ -50,7 +50,6 @@ type Producteur = {
   // Impact
   kg_vendus_local?: number;
   co2_economise_kg?: number;
-  // PAT
   pat_partenaire?: boolean;
 };
 
@@ -220,7 +219,7 @@ export default function ProducteurDetailScreen() {
             {producteur.pat_partenaire && (
               <View style={styles.patBadge}>
                 <Ionicons name="leaf" size={14} color="#27500A" />
-                <Text style={styles.patBadgeText}>Partenaire PAT Grand Poitiers</Text>
+                <Text style={styles.patBadgeText}>Partenaire Grand Poitiers</Text>
               </View>
             )}
             <Text style={styles.producteurNom}>{producteur.nom}</Text>
