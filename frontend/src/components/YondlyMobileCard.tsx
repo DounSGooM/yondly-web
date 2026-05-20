@@ -101,7 +101,7 @@ export default function YondlyMobileCard() {
           <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
           <View style={styles.suggestText}>
             <Text style={styles.suggestTitle}>Proposer un arrêt dans ma commune</Text>
-            <Text style={styles.suggestSub}>On essaie de couvrir tout le territoire PAT</Text>
+            <Text style={styles.suggestSub}>On essaie de couvrir tout le territoire</Text>
           </View>
           <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
         </TouchableOpacity>

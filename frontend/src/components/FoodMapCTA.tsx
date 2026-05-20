@@ -26,7 +26,7 @@ export default function FoodMapCTA({
   const defaultSubtitle = category === 'reemploi'
     ? 'Ressourceries, réparation, seconde main et dons près de chez vous.'
     : count != null
-      ? `${count} points sur le territoire PAT`
+      ? `${count} points sur le territoire`
       : 'Producteurs, marchés, dons…';
 
   return (
