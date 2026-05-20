@@ -19,6 +19,7 @@ import axios from 'axios';
 import { Item } from '../../src/types';
 import FilterModal, { FilterState } from '../../src/components/FilterModal';
 import FoodMapCTA from '../../src/components/FoodMapCTA';
+import CategoryDropdown from '../../src/components/CategoryDropdown';
 import { useAuthStore } from '../../src/store/authStore';
 import { MOCK_MAP_POINTS } from '../../src/data/mockMapPoints';
 import * as Location from 'expo-location';
@@ -322,34 +323,15 @@ export default function ReemploiScreen() {
         </ScrollView>
       </View>
 
-      {/* ── Category chips : fond doux, couleur de l'onglet actif ── */}
+      {/* ── Filtre catégorie : dropdown déroulant ── */}
       {CATEGORIES.length > 0 && (
-        <View style={styles.chipsBar}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
-            {CATEGORIES.map((cat) => {
-              const active = selectedCategory === cat.name;
-              return (
-                <TouchableOpacity
-                  key={cat.name}
-                  style={[
-                    styles.chip,
-                    active && { backgroundColor: currentTab.color + '18', borderColor: currentTab.color + '55' },
-                  ]}
-                  onPress={() => setSelectedCategory(cat.name)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={cat.icon as any}
-                    size={13}
-                    color={active ? currentTab.color : colors.textTertiary}
-                  />
-                  <Text style={[styles.chipText, active && { color: currentTab.color, fontWeight: Typography.semibold as any }]}>
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+        <View style={styles.filterRow}>
+          <CategoryDropdown
+            categories={CATEGORIES}
+            selected={selectedCategory}
+            onSelect={setSelectedCategory}
+            accentColor={currentTab.color}
+          />
         </View>
       )}
 
@@ -530,31 +512,14 @@ const styles = StyleSheet.create({
     fontWeight: Typography.medium as any,
   },
 
-  chipsBar: {
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 10,
     backgroundColor: colors.background,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
-  },
-  chipsContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: 10,
-    gap: Spacing.sm,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    backgroundColor: colors.surface,
-  },
-  chipText: {
-    fontSize: Typography.xs,
-    fontWeight: Typography.medium as any,
-    color: colors.textTertiary,
   },
 
   filterPills: {
