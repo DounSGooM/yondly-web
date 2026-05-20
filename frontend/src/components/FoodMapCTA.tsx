@@ -7,10 +7,27 @@ import { colors, Typography, Spacing, BorderRadius, Shadows } from '../theme';
 interface FoodMapCTAProps {
   count?: number;
   category?: string;
+  title?: string;
+  subtitle?: string;
 }
 
-export default function FoodMapCTA({ count, category = 'alimentaire' }: FoodMapCTAProps) {
+export default function FoodMapCTA({
+  count,
+  category = 'alimentaire',
+  title,
+  subtitle,
+}: FoodMapCTAProps) {
   const router = useRouter();
+
+  const defaultTitle = category === 'reemploi'
+    ? 'Explorer les ressources de réemploi locales'
+    : 'Voir la carte alimentaire';
+
+  const defaultSubtitle = category === 'reemploi'
+    ? 'Ressourceries, réparation, seconde main et dons près de chez vous.'
+    : count != null
+      ? `${count} points sur le territoire PAT`
+      : 'Producteurs, marchés, dons…';
 
   return (
     <TouchableOpacity
@@ -22,10 +39,8 @@ export default function FoodMapCTA({ count, category = 'alimentaire' }: FoodMapC
         <Ionicons name="map" size={22} color={colors.primary} />
       </View>
       <View style={styles.text}>
-        <Text style={styles.title}>Voir la carte alimentaire</Text>
-        <Text style={styles.sub}>
-          {count != null ? `${count} points sur le territoire PAT` : 'Producteurs, marchés, dons…'}
-        </Text>
+        <Text style={styles.title}>{title ?? defaultTitle}</Text>
+        <Text style={styles.sub}>{subtitle ?? defaultSubtitle}</Text>
       </View>
       <View style={styles.arrow}>
         <Ionicons name="chevron-forward" size={18} color={colors.primary} />
