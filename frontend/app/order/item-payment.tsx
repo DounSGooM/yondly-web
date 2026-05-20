@@ -16,6 +16,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStripe } from '../../src/utils/stripe';
 
 import { API_URL } from '../../src/config/api';
+import { colors, Typography, Spacing, BorderRadius, Shadows } from '../../src/theme';
+
+// Doit correspondre à MINIMUM_PAYABLE_CENTS côté backend
+const MINIMUM_PAYABLE_CENTS = 300;
 
 type PaymentMethod = 'apple_pay' | 'wallet' | 'card';
 
@@ -77,6 +81,20 @@ export default function ItemPaymentScreen() {
             if (item.type !== 'sale') {
                 Alert.alert('Erreur', 'Cet article n\'est pas en vente');
                 router.back();
+                return;
+            }
+
+            // Bloquer le paiement si l'article est en dessous du seuil
+            if ((item.price_cents ?? 0) < MINIMUM_PAYABLE_CENTS) {
+                setOrderPreview({
+                    item,
+                    amount_cents: item.price_cents,
+                    platform_fee_cents: 0,
+                    total_cents: item.price_cents,
+                    orderId: '',
+                    client_secret: '',
+                });
+                setLoading(false);
                 return;
             }
 
@@ -224,6 +242,49 @@ export default function ItemPaymentScreen() {
     }
 
     const canPayWithWallet = walletBalance >= orderPreview.total_cents;
+    const isBelowMinimum = (orderPreview.amount_cents ?? 0) < MINIMUM_PAYABLE_CENTS;
+
+    // ── Article en dessous du seuil : paiement non disponible ──
+    if (isBelowMinimum) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                        <Ionicons name="arrow-back" size={24} color="#333" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Paiement</Text>
+                    <View style={styles.backButton} />
+                </View>
+                <View style={styles.belowMinContainer}>
+                    <View style={styles.belowMinIcon}>
+                        <Ionicons name="information-circle-outline" size={44} color={colors.textTertiary} />
+                    </View>
+                    <Text style={styles.belowMinTitle}>Paiement non disponible</Text>
+                    <Text style={styles.belowMinDesc}>
+                        Le paiement sécurisé est disponible à partir de{' '}
+                        <Text style={styles.belowMinAmount}>
+                            {(MINIMUM_PAYABLE_CENTS / 100).toFixed(2).replace('.', ',')} €
+                        </Text>
+                        .{'\n\n'}
+                        Pour les petits objets, privilégiez un don gratuit ou un échange direct.
+                    </Text>
+                    <View style={styles.belowMinAlternatives}>
+                        <View style={styles.belowMinRow}>
+                            <Ionicons name="gift-outline" size={18} color={colors.primary} />
+                            <Text style={styles.belowMinRowText}>Proposez-le en don — c'est rapide et gratuit</Text>
+                        </View>
+                        <View style={styles.belowMinRow}>
+                            <Ionicons name="swap-horizontal-outline" size={18} color="#7C3AED" />
+                            <Text style={styles.belowMinRowText}>Ou échangez-le contre autre chose</Text>
+                        </View>
+                    </View>
+                    <TouchableOpacity style={styles.belowMinBtn} onPress={() => router.back()}>
+                        <Text style={styles.belowMinBtnText}>Retour à l'article</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -564,5 +625,71 @@ const styles = StyleSheet.create({
         color: '#999',
         textAlign: 'center',
         marginTop: 12,
+    },
+
+    // Écran seuil minimum
+    belowMinContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 32,
+        gap: 16,
+    },
+    belowMinIcon: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: colors.surfaceAlt,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 8,
+    },
+    belowMinTitle: {
+        fontSize: 20,
+        fontWeight: Typography.bold as any,
+        color: colors.textPrimary,
+        textAlign: 'center',
+    },
+    belowMinDesc: {
+        fontSize: 15,
+        color: colors.textSecondary,
+        textAlign: 'center',
+        lineHeight: 22,
+    },
+    belowMinAmount: {
+        fontWeight: Typography.bold as any,
+        color: colors.textPrimary,
+    },
+    belowMinAlternatives: {
+        width: '100%',
+        backgroundColor: colors.surface,
+        borderRadius: BorderRadius.lg,
+        padding: Spacing.lg,
+        gap: 12,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        marginTop: 8,
+    },
+    belowMinRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    belowMinRowText: {
+        fontSize: 14,
+        color: colors.textSecondary,
+        flex: 1,
+    },
+    belowMinBtn: {
+        marginTop: 8,
+        paddingHorizontal: 32,
+        paddingVertical: 13,
+        borderRadius: BorderRadius.full,
+        backgroundColor: colors.primary,
+    },
+    belowMinBtnText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: Typography.semibold as any,
     },
 });

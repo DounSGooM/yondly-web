@@ -17,7 +17,7 @@ import asyncio
 
 # Import models and utils
 from models import *
-from stripe_utils import calculate_platform_fee, generate_handoff_code, get_stripe_config, hash_handoff_code
+from stripe_utils import calculate_platform_fee, generate_handoff_code, get_stripe_config, hash_handoff_code, MINIMUM_PAYABLE_CENTS
 from analytics_models import hash_user_id
 from push_service import send_push_notification
 from co2_estimator import estimate_co2_with_ai, get_base_co2_estimate, calculate_environmental_equivalents
@@ -1803,6 +1803,14 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
     # For donations, price is 0
     is_donation = item["type"] == "donation"
     price_cents = 0 if is_donation else item.get("price_cents", 0)
+
+    # Refuser les ventes en dessous du seuil minimum (Stripe non rentable + mauvaise UX)
+    if not is_donation and price_cents < MINIMUM_PAYABLE_CENTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Le paiement sécurisé est disponible à partir de {MINIMUM_PAYABLE_CENTS / 100:.2f} €. "
+                   f"Pour les petits objets, privilégiez un don ou un échange."
+        )
     
     # Check for private accepted offer (Negotiation)
     if not is_donation:
