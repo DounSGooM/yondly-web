@@ -11,7 +11,7 @@ jobs:
   generate:
     name: Générer et pousser en brouillon
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
