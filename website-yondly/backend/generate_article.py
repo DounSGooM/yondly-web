@@ -191,16 +191,28 @@ def generate_article(topic: dict) -> dict:
     return article
 
 
-def post_draft(article: dict) -> dict:
+def post_draft(article: dict, retries: int = 4, backoff: int = 10) -> dict:
+    """POST avec retry pour absorber les cold starts Cloud Run (503)."""
     url = f"{BLOG_API_URL}/blog"
-    response = requests.post(
-        url,
-        json=article,
-        headers={"x-admin-key": BLOG_ADMIN_KEY, "Content-Type": "application/json"},
-        timeout=15,
-    )
+    print(f"→ POST {url}")
+    import time
+    for attempt in range(1, retries + 1):
+        response = requests.post(
+            url,
+            json=article,
+            headers={"x-admin-key": BLOG_ADMIN_KEY, "Content-Type": "application/json"},
+            timeout=30,
+        )
+        if response.ok:
+            return response.json()
+        print(f"  Tentative {attempt}/{retries} — {response.status_code}: {response.text[:200]}")
+        if attempt < retries and response.status_code in (503, 502, 504):
+            wait = backoff * attempt
+            print(f"  Attente {wait}s avant retry (cold start)…")
+            time.sleep(wait)
+        else:
+            response.raise_for_status()
     response.raise_for_status()
-    return response.json()
 
 
 # ─── Entrypoint ────────────────────────────────────────────────────────────────
