@@ -2,7 +2,6 @@ name: Générer un article de blog Yondly
 
 on:
   schedule:
-    # Tous les 2 jours à 8h00 UTC (10h Paris)
     - cron: '0 8 */2 * *'
   workflow_dispatch:
 
@@ -11,8 +10,6 @@ jobs:
     name: Générer et pousser en brouillon
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout
@@ -24,23 +21,12 @@ jobs:
           python-version: '3.11'
 
       - name: Installer les dépendances
-        run: pip install anthropic requests
+        run: pip install anthropic pymongo certifi
 
       - name: Générer l'article
         working-directory: website-yondly/backend
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          BLOG_API_URL:      ${{ secrets.BLOG_API_URL }}
-          BLOG_ADMIN_KEY:    ${{ secrets.BLOG_ADMIN_KEY }}
+          MONGO_URL:         ${{ secrets.MONGO_URL }}
+          DB_NAME:           ${{ secrets.DB_NAME }}
         run: python generate_article.py
-
-      - name: Commit le brouillon si l'API était indisponible
-        working-directory: website-yondly/backend
-        run: |
-          if [ -f generated_draft.json ]; then
-            git config user.name  "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add generated_draft.json
-            git diff --cached --quiet || git commit -m "draft(blog): article généré automatiquement (en attente d'import API)"
-            git push
-          fi
