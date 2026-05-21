@@ -113,21 +113,31 @@ Angle éditorial : {topic['angle']}
 Contraintes :
 - Longueur : 600 à 900 mots
 - Ton : chaleureux, pratique, ancré dans la vie de quartier
-- Structure avec des sous-titres (## en markdown)
-- 3 à 5 sections minimum
+- 3 à 5 sections avec des sous-titres <h2>
+- Contenu en HTML (utilise <h2>, <p>, <ul>, <li>, <strong>)
 - Termine par un appel à l'action discret lié à Yondly
 - Date de l'article : {today}
 
-Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ou après, avec exactement ces champs :
-{{
-  "title": "Titre accrocheur de l'article (60 caractères max)",
-  "slug": "titre-en-kebab-case-sans-accents",
-  "excerpt": "Résumé de 2 phrases maximum pour la liste d'articles",
-  "content": "Contenu complet en HTML (utilise <h2>, <p>, <ul>, <strong>, etc.)",
-  "read_time": "X min",
-  "keywords": "mot-clé1, mot-clé2, mot-clé3"
-}}
-"""
+Utilise le tool create_blog_article pour retourner l'article structuré."""
+
+# ─── Tool definition ───────────────────────────────────────────────────────────────
+
+ARTICLE_TOOL = {
+    "name": "create_blog_article",
+    "description": "Crée un article de blog structuré pour Yondly",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "title":     {"type": "string", "description": "Titre accrocheur (60 caractères max)"},
+            "slug":      {"type": "string", "description": "Slug kebab-case sans accents"},
+            "excerpt":   {"type": "string", "description": "Résumé de 2 phrases max"},
+            "content":   {"type": "string", "description": "Contenu HTML complet"},
+            "read_time": {"type": "string", "description": "Temps de lecture ex: '5 min'"},
+            "keywords":  {"type": "string", "description": "Mots-clés séparés par des virgules"},
+        },
+        "required": ["title", "slug", "excerpt", "content", "read_time", "keywords"],
+    },
+}
 
 # ─── Génération ────────────────────────────────────────────────────────────────
 
@@ -156,18 +166,21 @@ def generate_article(topic: dict) -> dict:
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=4096,
+        tools=[ARTICLE_TOOL],
+        tool_choice={"type": "any"},
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": build_prompt(topic)}],
     )
 
-    raw = message.content[0].text.strip()
+    # Extraire le résultat du tool_use (JSON garanti valide par le SDK)
+    article = None
+    for block in message.content:
+        if block.type == "tool_use" and block.name == "create_blog_article":
+            article = block.input
+            break
 
-    start = raw.find('{')
-    end   = raw.rfind('}')
-    if start == -1 or end == -1:
-        raise ValueError(f"Réponse Claude non parseable : {raw[:300]}")
-
-    article = json.loads(raw[start:end + 1])
+    if not article:
+        raise ValueError("Claude n'a pas utilisé le tool create_blog_article")
 
     article["slug"]      = slugify(article.get("slug", article.get("title", "article")))
     article["category"]  = topic["category"]
@@ -191,7 +204,6 @@ def save_to_mongo(article: dict) -> str:
     client = pymongo.MongoClient(MONGO_URL, tlsCAFile=certifi.where(), tls=True)
     db     = client[DB_NAME]
 
-    # Vérifier unicité du slug
     if db.blog.find_one({"slug": article["slug"]}):
         article["slug"] = article["slug"] + "-" + article["id"][:8]
 
