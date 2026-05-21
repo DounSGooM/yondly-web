@@ -193,12 +193,15 @@ def generate_article(topic: dict) -> dict:
 
 def post_draft(article: dict) -> dict:
     url = f"{BLOG_API_URL}/blog"
+    print(f"→ POST {url}")
     response = requests.post(
         url,
         json=article,
         headers={"x-admin-key": BLOG_ADMIN_KEY, "Content-Type": "application/json"},
         timeout=15,
     )
+    if not response.ok:
+        print(f"❌ Erreur backend {response.status_code}: {response.text}")
     response.raise_for_status()
     return response.json()
 
