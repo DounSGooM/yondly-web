@@ -97,7 +97,7 @@ export default function TerritoireDashboard() {
       });
       setStats(response.data);
     } catch (error) {
-      console.error('Erreur dashboard territoire:', error);
+      if (__DEV__) console.warn('[Dashboard] /territoire/stats indisponible, données de démo utilisées:', error);
       // Données de démo pour le pitch
       setStats({
         paniers_sauves: 142,
@@ -138,7 +138,7 @@ export default function TerritoireDashboard() {
           `Données Yondly — yondly.app`,
       });
     } catch (error) {
-      console.error('Erreur partage:', error);
+      if (__DEV__) console.warn('[Dashboard] Erreur partage:', error);
     }
   };
 
