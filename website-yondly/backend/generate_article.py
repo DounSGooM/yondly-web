@@ -192,28 +192,42 @@ def generate_article(topic: dict) -> dict:
     return article
 
 
-def post_draft(article: dict, retries: int = 4, backoff: int = 10) -> dict:
-    """POST avec retry pour absorber les cold starts Cloud Run (503)."""
+DRAFT_FILE = "generated_draft.json"
+
+def save_draft_file(article: dict) -> None:
+    """Sauvegarde l'article dans un fichier JSON (toujours exécuté)."""
+    with open(DRAFT_FILE, "w", encoding="utf-8") as f:
+        json.dump(article, f, ensure_ascii=False, indent=2)
+    print(f"✓ Article sauvegardé dans {DRAFT_FILE}")
+
+
+def post_draft(article: dict, retries: int = 3, backoff: int = 10) -> dict | None:
+    """Tente de poster l'article via l'API. Retourne None si indisponible."""
     url = f"{BLOG_API_URL}/blog"
     print(f"→ POST {url}")
-    import time
     for attempt in range(1, retries + 1):
-        response = requests.post(
-            url,
-            json=article,
-            headers={"x-admin-key": BLOG_ADMIN_KEY, "Content-Type": "application/json"},
-            timeout=30,
-        )
-        if response.ok:
-            return response.json()
-        print(f"  Tentative {attempt}/{retries} — {response.status_code}: {response.text[:200]}")
-        if attempt < retries and response.status_code in (503, 502, 504):
-            wait = backoff * attempt
-            print(f"  Attente {wait}s avant retry (cold start)…")
-            time.sleep(wait)
-        else:
-            response.raise_for_status()
-    response.raise_for_status()
+        try:
+            response = requests.post(
+                url,
+                json=article,
+                headers={"x-admin-key": BLOG_ADMIN_KEY, "Content-Type": "application/json"},
+                timeout=30,
+            )
+            if response.ok:
+                return response.json()
+            print(f"  Tentative {attempt}/{retries} — {response.status_code}")
+            if attempt < retries and response.status_code in (503, 502, 504):
+                wait = backoff * attempt
+                print(f"  Attente {wait}s…")
+                time.sleep(wait)
+            else:
+                break
+        except Exception as e:
+            print(f"  Tentative {attempt}/{retries} — erreur réseau : {e}")
+            if attempt < retries:
+                time.sleep(backoff * attempt)
+    print("⚠️  API indisponible — l'article est sauvegardé dans le fichier, il sera commité dans le repo.")
+    return None
 
 
 # ─── Entrypoint ────────────────────────────────────────────────────────────────
@@ -230,6 +244,13 @@ if __name__ == "__main__":
     print(f"  Slug : {article['slug']}")
     print(f"  Catégorie : {article['category']}")
 
+    # Sauvegarde fichier (toujours)
+    save_draft_file(article)
+
+    # Tentative API (optionnelle)
     result = post_draft(article)
-    print(f"✓ Brouillon publié en base (id={result.get('id', '?')})")
-    print(f"  → Relire sur /admin/blog avant publication")
+    if result:
+        print(f"✓ Brouillon publié en base (id={result.get('id', '?')})")
+        print(f"  → Relire sur /admin/blog avant publication")
+    else:
+        print(f"✓ Article dans {DRAFT_FILE} — sera commité dans le repo par le workflow.")
