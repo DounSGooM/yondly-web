@@ -172,12 +172,13 @@ def generate_article(topic: dict) -> dict:
 
     raw = message.content[0].text.strip()
 
-    # Extraire le JSON même si Claude ajoute du texte autour
-    match = re.search(r"\{.*\}", raw, re.DOTALL)
-    if not match:
+    # Extraire le JSON robustement (find/rfind évite les limites du regex sur grandes chaînes)
+    start = raw.find('{')
+    end   = raw.rfind('}')
+    if start == -1 or end == -1:
         raise ValueError(f"Réponse Claude non parseable : {raw[:300]}")
 
-    article = json.loads(match.group())
+    article = json.loads(raw[start:end + 1])
 
     # Normaliser le slug
     article["slug"] = slugify(article.get("slug", article.get("title", "article")))
