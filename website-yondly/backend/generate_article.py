@@ -164,7 +164,7 @@ def generate_article(topic: dict) -> dict:
 
     message = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=2000,
+        max_tokens=4096,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": build_prompt(topic)}],
     )
