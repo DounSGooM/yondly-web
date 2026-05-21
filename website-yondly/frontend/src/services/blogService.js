@@ -5,7 +5,7 @@ const API_URL = 'https://yondly-backend-951855414282.europe-west1.run.app/api/bl
 const ADMIN_KEY = 'SECRET_KEY_YONDLY_ADMIN_2025';
 
 export const blogService = {
-    // Public
+    // ── Public ──────────────────────────────────────────────────────────────
     getAll: async () => {
         const response = await axios.get(API_URL);
         return response.data;
@@ -16,7 +16,14 @@ export const blogService = {
         return response.data;
     },
 
-    // Admin
+    // ── Admin ────────────────────────────────────────────────────────────────
+    getDrafts: async () => {
+        const response = await axios.get(`${API_URL}/drafts`, {
+            headers: { 'x-admin-key': ADMIN_KEY }
+        });
+        return response.data;
+    },
+
     create: async (data) => {
         const response = await axios.post(API_URL, data, {
             headers: { 'x-admin-key': ADMIN_KEY }
@@ -26,6 +33,13 @@ export const blogService = {
 
     update: async (id, data) => {
         const response = await axios.put(`${API_URL}/${id}`, data, {
+            headers: { 'x-admin-key': ADMIN_KEY }
+        });
+        return response.data;
+    },
+
+    publish: async (id) => {
+        const response = await axios.put(`${API_URL}/${id}`, { published: true }, {
             headers: { 'x-admin-key': ADMIN_KEY }
         });
         return response.data;

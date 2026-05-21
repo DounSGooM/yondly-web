@@ -131,7 +131,8 @@ class BlogPostCreate(BaseModel):
     read_time: str
     date: str
     keywords: str
-    
+    published: bool = True  # False pour les brouillons IA
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -144,7 +145,8 @@ class BlogPostCreate(BaseModel):
                 "author": "Sophie",
                 "read_time": "5 min",
                 "date": "10 Oct 2025",
-                "keywords": "déchets, écologie"
+                "keywords": "déchets, écologie",
+                "published": True
             }
         }
 
@@ -159,6 +161,7 @@ class BlogPostUpdate(BaseModel):
     read_time: Optional[str] = None
     date: Optional[str] = None
     keywords: Optional[str] = None
+    published: Optional[bool] = None  # Permet de publier/dépublier
 
 class BlogPost(BaseModel):
     id: str = Field(default_factory=generate_id)
@@ -172,4 +175,5 @@ class BlogPost(BaseModel):
     read_time: str
     date: str
     keywords: str
+    published: bool = True  # Articles existants sans ce champ = publiés
     created_at: datetime = Field(default_factory=get_current_time)

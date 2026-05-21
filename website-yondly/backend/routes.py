@@ -277,9 +277,18 @@ ADMIN_KEY = os.environ.get("ADMIN_KEY", "SECRET_KEY_YONDLY_ADMIN_2025")
 
 @router.get("/blog", response_model=List[BlogPost])
 async def get_blog_posts():
-    """Get all blog posts (public)"""
-    posts = await db.blog.find().sort("created_at", -1).to_list(1000)
+    """Articles publiés uniquement (public). Les brouillons sont exclus."""
+    # {"$ne": False} = publiés explicitement OU sans champ published (anciens articles)
+    posts = await db.blog.find({"published": {"$ne": False}}).sort("created_at", -1).to_list(1000)
     return [BlogPost(**post) for post in posts]
+
+@router.get("/blog/drafts", response_model=List[BlogPost])
+async def get_blog_drafts(x_admin_key: Optional[str] = Header(None)):
+    """Brouillons IA en attente de validation (admin uniquement)."""
+    if x_admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    drafts = await db.blog.find({"published": False}).sort("created_at", -1).to_list(100)
+    return [BlogPost(**d) for d in drafts]
 
 @router.get("/blog/{slug}", response_model=BlogPost)
 async def get_blog_post(slug: str):
