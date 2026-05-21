@@ -1,22 +1,17 @@
 """
 Génération automatique d'articles de blog Yondly via Claude API.
 
-Usage:
-    python generate_article.py
-
 Variables d'environnement requises:
-    ANTHROPIC_API_KEY   - Clé API Anthropic
-    BLOG_API_URL        - URL de base du backend blog (ex: https://yondly-backend-xxx.run.app/api)
-    BLOG_ADMIN_KEY      - Clé admin blog (x-admin-key)
-
-L'article est créé en brouillon (published=False).
-Il apparaît dans /admin/blog pour relecture avant publication.
+    ANTHROPIC_API_KEY  - Clé API Anthropic
+    MONGO_URL          - Connection string MongoDB Atlas
+    DB_NAME            - Nom de la base de données
 """
 
 import os
 import sys
 import json
 import re
+import time
 import requests
 from datetime import datetime
 import anthropic
@@ -24,11 +19,10 @@ import anthropic
 # ─── Config ───────────────────────────────────────────────────────────────────
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-BLOG_API_URL      = os.environ.get("BLOG_API_URL", "https://yondly-backend-951855414282.europe-west1.run.app/api")
-BLOG_ADMIN_KEY    = os.environ.get("BLOG_ADMIN_KEY", "SECRET_KEY_YONDLY_ADMIN_2025")
+MONGO_URL         = os.environ.get("MONGO_URL", "")
+DB_NAME           = os.environ.get("DB_NAME", "")
 
 # ─── Sujets en rotation ────────────────────────────────────────────────────────
-# Sélection cyclique selon le numéro de semaine ISO pour varier les thèmes.
 
 TOPICS = [
     {
@@ -93,14 +87,13 @@ TOPICS = [
     },
 ]
 
-# Images Unsplash curatées par catégorie
 IMAGES = {
-    "Anti-gaspi":    "https://images.unsplash.com/photo-1542838132-92c53300491e?w=1200&q=80",
-    "Réemploi":      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&q=80",
+    "Anti-gaspi":     "https://images.unsplash.com/photo-1542838132-92c53300491e?w=1200&q=80",
+    "Réemploi":       "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&q=80",
     "Circuits courts":"https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=1200&q=80",
-    "Écologie":      "https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=1200&q=80",
-    "Territoire":    "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=1200&q=80",
-    "Solidarité":    "https://images.unsplash.com/photo-1593113630400-ea4288922559?w=1200&q=80",
+    "Écologie":       "https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=1200&q=80",
+    "Territoire":     "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=1200&q=80",
+    "Solidarité":     "https://images.unsplash.com/photo-1593113630400-ea4288922559?w=1200&q=80",
 }
 DEFAULT_IMAGE = "https://images.unsplash.com/photo-1542838132-92c53300491e?w=1200&q=80"
 
@@ -159,7 +152,6 @@ def slugify(text: str) -> str:
 
 def generate_article(topic: dict) -> dict:
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
     print(f"→ Génération d'un article sur : {topic['theme']}")
 
     message = client.messages.create(
@@ -171,7 +163,6 @@ def generate_article(topic: dict) -> dict:
 
     raw = message.content[0].text.strip()
 
-    # Extraire le JSON robustement (find/rfind évite les limites du regex sur grandes chaînes)
     start = raw.find('{')
     end   = raw.rfind('}')
     if start == -1 or end == -1:
@@ -179,55 +170,35 @@ def generate_article(topic: dict) -> dict:
 
     article = json.loads(raw[start:end + 1])
 
-    # Normaliser le slug
-    article["slug"] = slugify(article.get("slug", article.get("title", "article")))
-
-    # Compléter les champs fixes
-    article["category"] = topic["category"]
-    article["author"]   = "Équipe Yondly"
-    article["image"]    = IMAGES.get(topic["category"], DEFAULT_IMAGE)
-    article["date"]     = datetime.now().strftime("%d %b %Y")
-    article["published"] = False  # Brouillon — relecture avant publication
+    article["slug"]      = slugify(article.get("slug", article.get("title", "article")))
+    article["category"]  = topic["category"]
+    article["author"]    = "Équipe Yondly"
+    article["image"]     = IMAGES.get(topic["category"], DEFAULT_IMAGE)
+    article["date"]      = datetime.now().strftime("%d %b %Y")
+    article["published"] = False
 
     return article
 
 
-DRAFT_FILE = "generated_draft.json"
+def save_to_mongo(article: dict) -> str:
+    """Insère directement dans MongoDB Atlas, sans passer par Cloud Run."""
+    import pymongo
+    import certifi
+    import uuid
 
-def save_draft_file(article: dict) -> None:
-    """Sauvegarde l'article dans un fichier JSON (toujours exécuté)."""
-    with open(DRAFT_FILE, "w", encoding="utf-8") as f:
-        json.dump(article, f, ensure_ascii=False, indent=2)
-    print(f"✓ Article sauvegardé dans {DRAFT_FILE}")
+    article["id"]         = str(uuid.uuid4())
+    article["created_at"] = datetime.utcnow()
 
+    client = pymongo.MongoClient(MONGO_URL, tlsCAFile=certifi.where(), tls=True)
+    db     = client[DB_NAME]
 
-def post_draft(article: dict, retries: int = 3, backoff: int = 10) -> dict | None:
-    """Tente de poster l'article via l'API. Retourne None si indisponible."""
-    url = f"{BLOG_API_URL}/blog"
-    print(f"→ POST {url}")
-    for attempt in range(1, retries + 1):
-        try:
-            response = requests.post(
-                url,
-                json=article,
-                headers={"x-admin-key": BLOG_ADMIN_KEY, "Content-Type": "application/json"},
-                timeout=30,
-            )
-            if response.ok:
-                return response.json()
-            print(f"  Tentative {attempt}/{retries} — {response.status_code}")
-            if attempt < retries and response.status_code in (503, 502, 504):
-                wait = backoff * attempt
-                print(f"  Attente {wait}s…")
-                time.sleep(wait)
-            else:
-                break
-        except Exception as e:
-            print(f"  Tentative {attempt}/{retries} — erreur réseau : {e}")
-            if attempt < retries:
-                time.sleep(backoff * attempt)
-    print("⚠️  API indisponible — l'article est sauvegardé dans le fichier, il sera commité dans le repo.")
-    return None
+    # Vérifier unicité du slug
+    if db.blog.find_one({"slug": article["slug"]}):
+        article["slug"] = article["slug"] + "-" + article["id"][:8]
+
+    db.blog.insert_one(article)
+    client.close()
+    return article["id"]
 
 
 # ─── Entrypoint ────────────────────────────────────────────────────────────────
@@ -236,21 +207,17 @@ if __name__ == "__main__":
     if not ANTHROPIC_API_KEY:
         print("❌ ANTHROPIC_API_KEY manquant")
         sys.exit(1)
+    if not MONGO_URL or not DB_NAME:
+        print("❌ MONGO_URL ou DB_NAME manquant")
+        sys.exit(1)
 
     topic   = pick_topic()
     article = generate_article(topic)
 
     print(f"✓ Article généré : \"{article['title']}\"")
-    print(f"  Slug : {article['slug']}")
-    print(f"  Catégorie : {article['category']}")
+    print(f"  Slug     : {article['slug']}")
+    print(f"  Catégorie: {article['category']}")
 
-    # Sauvegarde fichier (toujours)
-    save_draft_file(article)
-
-    # Tentative API (optionnelle)
-    result = post_draft(article)
-    if result:
-        print(f"✓ Brouillon publié en base (id={result.get('id', '?')})")
-        print(f"  → Relire sur /admin/blog avant publication")
-    else:
-        print(f"✓ Article dans {DRAFT_FILE} — sera commité dans le repo par le workflow.")
+    article_id = save_to_mongo(article)
+    print(f"✓ Brouillon inséré en base (id={article_id})")
+    print(f"  → Relire sur /admin/blog avant publication")
