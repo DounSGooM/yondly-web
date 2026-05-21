@@ -5,13 +5,14 @@ on:
     # Tous les 2 jours à 8h00 UTC (10h Paris)
     - cron: '0 8 */2 * *'
   workflow_dispatch:
-    # Déclenchement manuel depuis l'onglet Actions sur GitHub
 
 jobs:
   generate:
     name: Générer et pousser en brouillon
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -32,3 +33,14 @@ jobs:
           BLOG_API_URL:      ${{ secrets.BLOG_API_URL }}
           BLOG_ADMIN_KEY:    ${{ secrets.BLOG_ADMIN_KEY }}
         run: python generate_article.py
+
+      - name: Commit le brouillon si l'API était indisponible
+        working-directory: website-yondly/backend
+        run: |
+          if [ -f generated_draft.json ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add generated_draft.json
+            git diff --cached --quiet || git commit -m "draft(blog): article généré automatiquement (en attente d'import API)"
+            git push
+          fi
