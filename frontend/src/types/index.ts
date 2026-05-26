@@ -133,7 +133,7 @@ export interface PublicList {
   created_at: string;
 }
 
-export type ItemType = 'donation' | 'sale' | 'rent';
+export type ItemType = 'donation' | 'sale' | 'rent' | 'exchange' | 'service';
 export type FoodType = 'non_perishable' | 'fresh_produce';
 export type ItemCondition = 'new' | 'good' | 'repair';
 export type ItemStatus = 'active' | 'reserved' | 'completed' | 'expired';
