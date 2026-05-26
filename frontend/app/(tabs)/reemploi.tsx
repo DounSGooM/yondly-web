@@ -374,7 +374,7 @@ export default function ReemploiScreen() {
         >
           <EmptyState
             tab={currentTab}
-            onPublish={currentTab.canPublish ? () => router.push('/post' as any) : undefined}
+            onPublish={currentTab.canPublish ? () => router.push('/post/market' as any) : undefined}
             onViewMap={() => router.push(CARTE_REEMPLOI as any)}
           />
         </ScrollView>

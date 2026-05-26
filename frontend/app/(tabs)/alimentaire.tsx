@@ -337,7 +337,7 @@ export default function AlimentaireScreen() {
         >
           <EmptyState
             tab={currentTab}
-            onPublish={currentTab.canPublish ? () => router.push('/post' as any) : undefined}
+            onPublish={currentTab.canPublish ? () => router.push('/post/food' as any) : undefined}
           />
         </ScrollView>
       ) : (
