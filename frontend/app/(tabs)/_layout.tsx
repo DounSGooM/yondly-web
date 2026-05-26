@@ -35,7 +35,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         <View style={styles.fabWrapper}>
           <TouchableOpacity
             style={styles.fab}
-            onPress={() => router.push('/post')}
+            onPress={() => router.push('/post/market' as any)}
             activeOpacity={0.85}
           >
             <Ionicons name="add" size={28} color="#fff" />
