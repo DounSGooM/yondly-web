@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MONGO_URL = os.getenv('MONGO_URL', "mongodb+srv://kribean_db_user:csCjFDK8i24KOfSG@cluster0.yllddco.mongodb.net/?appName=Cluster0&retryWrites=true&w=majority")
+MONGO_URL = os.getenv('MONGO_URL', os.environ["MONGO_URL"])
 DB_NAME = os.getenv('DB_NAME', 'loop')
 
 print(f"Connecting to {MONGO_URL}...")
