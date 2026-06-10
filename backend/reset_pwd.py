@@ -3,7 +3,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import bcrypt
 
-MONGO_URL = os.getenv("MONGO_URL", "mongodb+srv://kribean_db_user:csCjFDK8i24KOfSG@cluster0.yllddco.mongodb.net/?appName=Cluster0&retryWrites=true&w=majority")
+MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.getenv("DB_NAME", "loop")
 
 async def test():

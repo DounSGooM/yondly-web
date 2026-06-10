@@ -1,10 +1,11 @@
+import os
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 from passlib.context import CryptContext
 import uuid
 import datetime
 
-MONGO_URL = "mongodb+srv://kribean_db_user:csCjFDK8i24KOfSG@cluster0.yllddco.mongodb.net/?appName=Cluster0&retryWrites=true&w=majority"
+MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = "loop"
 
 # Security

@@ -1,8 +1,11 @@
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Header
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 import csv
+import html
 import io
+import os
+import secrets
 from datetime import datetime
 
 from models import (
@@ -21,6 +24,18 @@ db = None
 def set_db(database):
     global db
     db = database
+
+
+# ============ ADMIN AUTH ============
+
+ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
+
+def require_admin(x_admin_key: Optional[str]):
+    """Valide la clé admin. Refuse tout si ADMIN_KEY n'est pas configurée."""
+    if not ADMIN_KEY:
+        raise HTTPException(status_code=503, detail="ADMIN_KEY non configurée côté serveur")
+    if not x_admin_key or not secrets.compare_digest(x_admin_key, ADMIN_KEY):
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
 
 
 # ============ WAITLIST ROUTES ============
@@ -44,9 +59,11 @@ async def create_waitlist_entry(data: WaitlistCreate):
 @router.get("/waitlist", response_model=List[WaitlistEntry])
 async def get_waitlist_entries(
     status: Optional[str] = Query(None, description="Filter by status"),
-    city: Optional[str] = Query(None, description="Filter by city")
+    city: Optional[str] = Query(None, description="Filter by city"),
+    x_admin_key: Optional[str] = Header(None)
 ):
     """Get all waitlist entries (admin)"""
+    require_admin(x_admin_key)
     query = {}
     if status:
         query["status"] = status
@@ -58,8 +75,9 @@ async def get_waitlist_entries(
 
 
 @router.get("/waitlist/export")
-async def export_waitlist_csv():
+async def export_waitlist_csv(x_admin_key: Optional[str] = Header(None)):
     """Export waitlist as CSV"""
+    require_admin(x_admin_key)
     entries = await db.waitlist.find().sort("created_at", -1).to_list(10000)
     
     output = io.StringIO()
@@ -92,8 +110,9 @@ async def export_waitlist_csv():
 
 
 @router.get("/waitlist/stats")
-async def get_waitlist_stats():
+async def get_waitlist_stats(x_admin_key: Optional[str] = Header(None)):
     """Get waitlist statistics"""
+    require_admin(x_admin_key)
     total = await db.waitlist.count_documents({})
     by_status = {}
     for status in ["particulier", "pro", "association"]:
@@ -137,12 +156,12 @@ async def create_partner_entry(data: PartnerCreate, background_tasks: Background
     <html>
     <body>
         <h3>Nouvelle demande partenaire</h3>
-        <p><strong>Type:</strong> {data.type}</p>
-        <p><strong>Nom:</strong> {data.name}</p>
-        <p><strong>Ville:</strong> {data.city}</p>
-        <p><strong>Email:</strong> {data.email}</p>
+        <p><strong>Type:</strong> {html.escape(data.type)}</p>
+        <p><strong>Nom:</strong> {html.escape(data.name)}</p>
+        <p><strong>Ville:</strong> {html.escape(data.city or "")}</p>
+        <p><strong>Email:</strong> {html.escape(data.email)}</p>
         <p><strong>Message:</strong></p>
-        <pre>{data.message}</pre>
+        <pre>{html.escape(data.message or "")}</pre>
     </body>
     </html>
     """
@@ -154,9 +173,11 @@ async def create_partner_entry(data: PartnerCreate, background_tasks: Background
 @router.get("/partners", response_model=List[PartnerEntry])
 async def get_partner_entries(
     type: Optional[str] = Query(None, description="Filter by type (pro/association)"),
-    city: Optional[str] = Query(None, description="Filter by city")
+    city: Optional[str] = Query(None, description="Filter by city"),
+    x_admin_key: Optional[str] = Header(None)
 ):
     """Get all partner requests (admin)"""
+    require_admin(x_admin_key)
     query = {}
     if type:
         query["type"] = type
@@ -169,9 +190,11 @@ async def get_partner_entries(
 
 @router.get("/partners/export")
 async def export_partners_csv(
-    type: Optional[str] = Query(None, description="Filter by type (pro/association)")
+    type: Optional[str] = Query(None, description="Filter by type (pro/association)"),
+    x_admin_key: Optional[str] = Header(None)
 ):
     """Export partners as CSV"""
+    require_admin(x_admin_key)
     query = {}
     if type:
         query["type"] = type
@@ -227,15 +250,17 @@ async def create_contact_entry(data: ContactCreate):
 
 
 @router.get("/contact", response_model=List[ContactEntry])
-async def get_contact_entries():
+async def get_contact_entries(x_admin_key: Optional[str] = Header(None)):
     """Get all contact messages (admin)"""
+    require_admin(x_admin_key)
     entries = await db.contacts.find().sort("created_at", -1).to_list(10000)
     return [ContactEntry(**entry) for entry in entries]
 
 
 @router.get("/contact/export")
-async def export_contacts_csv():
+async def export_contacts_csv(x_admin_key: Optional[str] = Header(None)):
     """Export contacts as CSV"""
+    require_admin(x_admin_key)
     entries = await db.contacts.find().sort("created_at", -1).to_list(10000)
     
     output = io.StringIO()
@@ -270,10 +295,6 @@ async def export_contacts_csv():
 # ============ BLOG ROUTES ============
 
 from models import BlogPost, BlogPostCreate, BlogPostUpdate
-from fastapi import Header
-
-import os
-ADMIN_KEY = os.environ.get("ADMIN_KEY", "SECRET_KEY_YONDLY_ADMIN_2025")
 
 @router.get("/blog", response_model=List[BlogPost])
 async def get_blog_posts():
@@ -285,8 +306,7 @@ async def get_blog_posts():
 @router.get("/blog/drafts", response_model=List[BlogPost])
 async def get_blog_drafts(x_admin_key: Optional[str] = Header(None)):
     """Brouillons IA en attente de validation (admin uniquement)."""
-    if x_admin_key != ADMIN_KEY:
-        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    require_admin(x_admin_key)
     drafts = await db.blog.find({"published": False}).sort("created_at", -1).to_list(100)
     return [BlogPost(**d) for d in drafts]
 
@@ -304,9 +324,8 @@ async def create_blog_post(
     x_admin_key: Optional[str] = Header(None)
 ):
     """Create a new blog post (admin only)"""
-    if x_admin_key != ADMIN_KEY:
-        raise HTTPException(status_code=403, detail="Accès non autorisé")
-    
+    require_admin(x_admin_key)
+
     # Check slug uniqueness
     existing = await db.blog.find_one({"slug": data.slug})
     if existing:
@@ -323,9 +342,8 @@ async def update_blog_post(
     x_admin_key: Optional[str] = Header(None)
 ):
     """Update a blog post (admin only)"""
-    if x_admin_key != ADMIN_KEY:
-        raise HTTPException(status_code=403, detail="Accès non autorisé")
-        
+    require_admin(x_admin_key)
+
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
     
     if "slug" in update_data:
@@ -353,9 +371,8 @@ async def delete_blog_post(
     x_admin_key: Optional[str] = Header(None)
 ):
     """Delete a blog post (admin only)"""
-    if x_admin_key != ADMIN_KEY:
-        raise HTTPException(status_code=403, detail="Accès non autorisé")
-        
+    require_admin(x_admin_key)
+
     result = await db.blog.delete_one({"id": id})
     
     if result.deleted_count == 0:

@@ -5,7 +5,7 @@ from datetime import datetime
 import uuid
 
 # User provided URL + params
-MONGO_URL = "mongodb+srv://kribean_db_user:csCjFDK8i24KOfSG@cluster0.yllddco.mongodb.net/?appName=Cluster0&retryWrites=true&w=majority"
+MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = "yondly_website"
 
 print(f"Connecting to: {MONGO_URL.split('@')[1]}")
