@@ -200,6 +200,33 @@ export default function AccueilScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* ── Bandeau impact communautaire ── */}
+      {stats && (
+        <TouchableOpacity
+          style={styles.impactBanner}
+          onPress={() => router.push('/territoire/dashboard' as any)}
+          activeOpacity={0.92}
+        >
+          <View style={styles.impactBannerLeft}>
+            <Text style={styles.impactBannerEmoji}>🌍</Text>
+            <View style={styles.impactBannerText}>
+              <Text style={styles.impactBannerTitle}>Ce mois à Grand Poitiers</Text>
+              <Text style={styles.impactBannerSub}>
+                <Text style={styles.impactBannerNum}>{formatNum(stats.paniers_sauves)}</Text> paniers sauvés ·{' '}
+                <Text style={styles.impactBannerNum}>{formatCO2(stats.co2_economise_kg)}</Text> de CO₂ évités
+              </Text>
+            </View>
+          </View>
+          <View style={styles.impactBannerRight}>
+            <View style={styles.impactBannerPill}>
+              <View style={styles.liveDotSmall} />
+              <Text style={styles.impactBannerPillText}>{formatNum(stats.utilisateurs_actifs)} actifs</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.6)" />
+          </View>
+        </TouchableOpacity>
+      )}
+
       {/* ── Carte ── */}
       <View style={styles.mapSection}>
         <View style={styles.mapHeader}>
@@ -374,6 +401,64 @@ const styles = StyleSheet.create({
     gap: 5, paddingVertical: Spacing.md, borderRadius: BorderRadius.lg,
   },
   quickBtnText: { fontSize: Typography.xs, fontWeight: Typography.semibold as any },
+
+  impactBanner: {
+    marginHorizontal: Spacing.xl,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    ...Shadows.card,
+  },
+  impactBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  impactBannerEmoji: { fontSize: 28 },
+  impactBannerText: { flex: 1 },
+  impactBannerTitle: {
+    fontSize: Typography.xs,
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: Typography.semibold as any,
+    marginBottom: 2,
+  },
+  impactBannerSub: {
+    fontSize: Typography.sm,
+    color: 'rgba(255,255,255,0.9)',
+    flexWrap: 'wrap',
+  },
+  impactBannerNum: {
+    fontWeight: Typography.heavy as any,
+    color: '#fff',
+  },
+  impactBannerRight: {
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  impactBannerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+  },
+  liveDotSmall: {
+    width: 6, height: 6, borderRadius: 3,
+    backgroundColor: '#7CFC00',
+  },
+  impactBannerPillText: {
+    fontSize: 10,
+    color: '#fff',
+    fontWeight: Typography.semibold as any,
+  },
 
   activitySection: {
     marginHorizontal: Spacing.xl,
