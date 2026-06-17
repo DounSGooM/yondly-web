@@ -77,7 +77,7 @@ class UserUpdate(BaseModel):
 
 class ItemCreate(BaseModel):
     store_id: Optional[str] = None
-    type: Literal['donation', 'sale', 'rent']
+    type: Literal['donation', 'sale', 'rent', 'exchange', 'service']
     food_type: Optional[Literal['non_perishable', 'fresh_produce']] = None
     title: str
     description: Optional[str] = None
@@ -93,11 +93,16 @@ class ItemCreate(BaseModel):
     deposit_cents: Optional[int] = None  # For rentals
     max_duration_days: Optional[int] = None  # For rentals
     allow_offers: bool = False
+    # Exchange
+    wanted_item: Optional[str] = None
+    # Service
+    service_duration: Optional[str] = None
+    service_availability: Optional[str] = None
 
 class Item(BaseModel):
     id: str
     store_id: Optional[str] = None
-    type: Literal['donation', 'sale', 'rent']
+    type: Literal['donation', 'sale', 'rent', 'exchange', 'service']
     food_type: Optional[Literal['non_perishable', 'fresh_produce']] = None
     title: str
     description: Optional[str] = None
@@ -113,6 +118,9 @@ class Item(BaseModel):
     deposit_cents: Optional[int] = None
     max_duration_days: Optional[int] = None
     allow_offers: bool = False
+    wanted_item: Optional[str] = None
+    service_duration: Optional[str] = None
+    service_availability: Optional[str] = None
     status: Literal['active', 'reserved', 'completed', 'expired'] = 'active'
     owner_id: str
     owner: Optional[User] = None

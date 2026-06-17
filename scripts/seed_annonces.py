@@ -28,8 +28,6 @@ token = resp.json()["access_token"]
 headers = {"Authorization": f"Bearer {token}"}
 print(f"✓ Connecté en tant que {EMAIL}\n")
 
-# ─── Annonces ─────────────────────────────────────────────────────────────────
-
 LOCATION = {"lat": 46.5802, "lng": 0.3404}  # Poitiers centre
 
 ITEMS = [
@@ -37,7 +35,7 @@ ITEMS = [
     {
         "type": "sale",
         "title": "Vélo de ville — état impeccable",
-        "description": "Vélo adulte 7 vitesses, cadre aluminium, freins à disque. Utilisé 2 saisons, révisé récemment. Idéal pour les trajets quotidiens.",
+        "description": "Vélo adulte 7 vitesses, cadre aluminium, freins à disque. Utilisé 2 saisons, révisé récemment.",
         "category": "Véhicules",
         "condition": "good",
         "price_cents": 8900,
@@ -59,7 +57,7 @@ ITEMS = [
     {
         "type": "sale",
         "title": "Canapé 3 places tissu gris",
-        "description": "Canapé confortable 3 places, tissu gris chiné, pieds bois. Dimensions : 210 x 85 cm. À venir chercher sur place.",
+        "description": "Canapé confortable 3 places, tissu gris chiné, pieds bois. 210 x 85 cm. À venir chercher sur place.",
         "category": "Mobilier",
         "condition": "good",
         "price_cents": 15000,
@@ -68,43 +66,46 @@ ITEMS = [
         "location": LOCATION,
     },
 
-    # ── Dons ─────────────────────────────────────────────────────────────────
+    # ── Dons alimentaires ────────────────────────────────────────────────────
     {
         "type": "donation",
+        "food_type": "non_perishable",
+        "title": "Conserves et pâtes — à donner rapidement",
+        "description": "Lot de conserves (tomates, lentilles, pois chiches) et paquets de pâtes. Dates OK. À récupérer cette semaine.",
+        "category": "Alimentaire",
+        "photos": [],
+        "location": LOCATION,
+        "urgency_hours": 72,
+    },
+    {
+        "type": "donation",
+        "food_type": "fresh_produce",
+        "title": "Légumes du jardin — courgettes et tomates",
+        "description": "Surplus de mon potager : courgettes, tomates cerises, quelques concombres. Cueillis ce matin, à récupérer aujourd'hui.",
+        "category": "Alimentaire",
+        "photos": [],
+        "location": LOCATION,
+        "urgency_hours": 24,
+    },
+
+    # ── Dons objets ──────────────────────────────────────────────────────────
+    {
+        "type": "donation",
+        "food_type": "non_perishable",
         "title": "Livres de cuisine — lot de 8",
-        "description": "Lot de 8 livres de cuisine (cuisine française, végétarienne, pâtisserie). Très bon état, non annotés. À récupérer rapidement.",
+        "description": "Lot de 8 livres de cuisine (française, végétarienne, pâtisserie). Très bon état.",
         "category": "Livres",
         "condition": "good",
         "photos": [],
         "location": LOCATION,
-        "urgency_days": 7,
-    },
-    {
-        "type": "donation",
-        "title": "Vêtements enfant 3-5 ans",
-        "description": "Sac de vêtements mixte 3-5 ans : pulls, pantalons, t-shirts. Bon état général, lavés et prêts à donner.",
-        "category": "Vêtements",
-        "condition": "good",
-        "photos": [],
-        "location": LOCATION,
-        "urgency_days": 14,
-    },
-    {
-        "type": "donation",
-        "title": "Matériel de jardinage",
-        "description": "Pelles, râteaux, sécateur, arrosoir. Je n'ai plus de jardin. Tout fonctionne, à prendre ensemble ou séparément.",
-        "category": "Jardin",
-        "condition": "good",
-        "photos": [],
-        "location": LOCATION,
-        "urgency_days": 30,
+        "urgency_hours": 168,
     },
 
     # ── Échanges ─────────────────────────────────────────────────────────────
     {
         "type": "exchange",
         "title": "Machine à café Nespresso",
-        "description": "Machine Nespresso Essenza Mini, couleur rouge, fonctionne parfaitement. Je cherche à l'échanger contre une machine à café à grain ou filtre.",
+        "description": "Machine Nespresso Essenza Mini, couleur rouge, fonctionne parfaitement. Cherche machine à café à grain ou filtre.",
         "category": "Maison",
         "condition": "good",
         "photos": [],
@@ -113,8 +114,8 @@ ITEMS = [
     },
     {
         "type": "exchange",
-        "title": "Trottinette électrique Xiaomi",
-        "description": "Trottinette Xiaomi M365, autonomie 25 km, bon état. Ouverte à l'échange contre vélo électrique ou autre moyen de transport.",
+        "title": "Trottinette électrique Xiaomi M365",
+        "description": "Autonomie 25 km, bon état général. Ouvert à l'échange contre vélo ou autre moyen de transport doux.",
         "category": "Véhicules",
         "condition": "good",
         "photos": [],
@@ -126,7 +127,7 @@ ITEMS = [
     {
         "type": "service",
         "title": "Cours de guitare — débutants bienvenus",
-        "description": "Je propose des cours de guitare acoustique pour débutants et intermédiaires. Pédagogie bienveillante, à votre rythme. Déplacement possible dans Poitiers.",
+        "description": "Je propose des cours de guitare acoustique pour débutants et intermédiaires. Déplacement possible dans Poitiers.",
         "category": "Cours particuliers",
         "photos": [],
         "location": LOCATION,
@@ -136,22 +137,22 @@ ITEMS = [
     {
         "type": "service",
         "title": "Aide déménagement — camionnette incluse",
-        "description": "Je propose mon aide pour les déménagements avec ma camionnette 12m³. Disponible les week-ends. Tarif à convenir selon distance.",
+        "description": "Aide pour déménagements avec camionnette 12m³. Disponible les week-ends. Tarif à convenir.",
         "category": "Aide déménagement",
         "photos": [],
         "location": LOCATION,
-        "service_duration": "Demi-journée ou journée complète",
+        "service_duration": "Demi-journée ou journée",
         "service_availability": "Samedi et dimanche",
     },
     {
         "type": "service",
         "title": "Garde de chien — promenades quotidiennes",
-        "description": "Je garde votre chien pendant vos vacances ou absences (max 2 chiens). Grand jardin, promenades matin et soir. Références disponibles.",
+        "description": "Je garde votre chien pendant vos absences. Grand jardin, promenades matin et soir. Max 2 chiens.",
         "category": "Garde d'animaux",
         "photos": [],
         "location": LOCATION,
         "service_duration": "À la journée ou semaine",
-        "service_availability": "Toute l'année, disponibilité à confirmer",
+        "service_availability": "Toute l'année",
     },
 ]
 
@@ -164,7 +165,7 @@ for item in ITEMS:
         print(f"  ✓ [{item['type'].upper()}] {item['title']}")
         success += 1
     else:
-        print(f"  ✗ [{item['type'].upper()}] {item['title']} → {r.status_code} {r.text[:80]}")
+        print(f"  ✗ [{item['type'].upper()}] {item['title']} → {r.status_code} {r.text[:120]}")
         errors += 1
 
 print(f"\n{'='*50}")
