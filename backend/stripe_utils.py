@@ -2,6 +2,10 @@ import os
 import random
 import string
 
+# Paiement sécurisé disponible uniquement au-dessus de ce seuil.
+# En dessous, l'article doit passer en don ou échange sans intégration Stripe.
+MINIMUM_PAYABLE_CENTS = 300  # 3,00 €
+
 def calculate_platform_fee(amount_cents: int, user_level: str = 'Graine') -> dict:
     """
     Calculate platform fee in EUR cents based on Gamification levels.

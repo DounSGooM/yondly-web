@@ -18,12 +18,17 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { Item } from '../../src/types';
 import FilterModal, { FilterState } from '../../src/components/FilterModal';
+import FoodMapCTA from '../../src/components/FoodMapCTA';
+import CategoryDropdown from '../../src/components/CategoryDropdown';
 import { useAuthStore } from '../../src/store/authStore';
+import { MOCK_MAP_POINTS } from '../../src/data/mockMapPoints';
 import * as Location from 'expo-location';
 import { colors, Typography, Spacing, BorderRadius, Shadows } from '../../src/theme';
 import { API_URL } from '../../src/config/api';
 
 const { width: SCREEN_W } = Dimensions.get('window');
+
+const REUSE_POINT_COUNT = MOCK_MAP_POINTS.filter(p => p.category === 'reemploi').length;
 
 // ─── Sub-tabs ────────────────────────────────────────────────────────────────
 
@@ -32,7 +37,7 @@ const SUB_TABS = [
   { key: 'dons',      label: 'Dons',                   icon: 'gift',        color: colors.primary, bg: colors.primaryLight, canPublish: true  },
   { key: 'echange',   label: 'Échange',                icon: 'swap-horizontal', color: '#7C3AED',  bg: '#F5F3FF', canPublish: true  },
   { key: 'services',  label: 'Services',               icon: 'construct',   color: '#0284C7',      bg: '#F0F9FF', canPublish: true  },
-  { key: 'pros',      label: 'Friperies & Recycleries',icon: 'storefront',  color: '#059669',      bg: '#ECFDF5', canPublish: false },
+  { key: 'pros',      label: 'Ressourceries',          icon: 'storefront',  color: '#059669',      bg: '#ECFDF5', canPublish: false },
 ];
 
 const CONDITION_LABELS: Record<string, { label: string; color: string }> = {
@@ -111,13 +116,19 @@ function ReemploiCard({
 
 // ─── Empty State ─────────────────────────────────────────────────────────────
 
-function EmptyState({ tab, onPublish }: { tab: typeof SUB_TABS[0]; onPublish?: () => void }) {
+interface EmptyStateProps {
+  tab: typeof SUB_TABS[0];
+  onPublish?: () => void;
+  onViewMap?: () => void;
+}
+
+function EmptyState({ tab, onPublish, onViewMap }: EmptyStateProps) {
   const MESSAGES: Record<string, { title: string; sub: string; cta: string }> = {
-    vente:    { title: 'Aucun article en vente',        sub: 'Donnez une seconde vie à vos objets en les vendant près de chez vous.', cta: 'Mettre en vente' },
-    dons:     { title: 'Aucun don disponible',          sub: 'Vos objets inutilisés peuvent rendre service à quelqu\'un près de vous.', cta: 'Donner un objet' },
-    echange:  { title: 'Aucune proposition d\'échange', sub: 'Proposez un objet en échange d\'un autre et évitez le gaspillage.', cta: 'Proposer un échange' },
-    services: { title: 'Aucun service disponible',      sub: 'Proposez vos compétences : réparation, bricolage, couture…', cta: 'Proposer un service' },
-    pros:     { title: 'Aucune boutique référencée',    sub: 'Les friperies, recycleries et ressourceries locales apparaîtront ici.', cta: '' },
+    vente:    { title: 'Aucun article en vente autour de vous',   sub: 'Consultez la carte locale ou publiez un objet pour lui offrir une seconde vie.', cta: 'Mettre en vente' },
+    dons:     { title: 'Aucun don disponible',                    sub: 'Vos objets inutilisés peuvent rendre service à quelqu\'un près de vous.', cta: 'Donner un objet' },
+    echange:  { title: 'Aucune proposition d\'échange',           sub: 'Proposez un objet en échange d\'un autre et évitez le gaspillage.', cta: 'Proposer un échange' },
+    services: { title: 'Aucun service disponible',                sub: 'Proposez vos compétences : réparation, bricolage, couture…', cta: 'Proposer un service' },
+    pros:     { title: 'Aucune boutique référencée',              sub: 'Les friperies, recycleries et ressourceries locales apparaîtront ici.', cta: '' },
   };
   const msg = MESSAGES[tab.key];
 
@@ -128,17 +139,27 @@ function EmptyState({ tab, onPublish }: { tab: typeof SUB_TABS[0]; onPublish?: (
       </View>
       <Text style={styles.emptyTitle}>{msg.title}</Text>
       <Text style={styles.emptySub}>{msg.sub}</Text>
-      {onPublish && (
+
+      {onPublish && msg.cta ? (
         <TouchableOpacity style={[styles.emptyBtn, { backgroundColor: tab.color }]} onPress={onPublish}>
           <Ionicons name="add" size={16} color="#fff" />
           <Text style={styles.emptyBtnText}>{msg.cta}</Text>
         </TouchableOpacity>
-      )}
+      ) : null}
+
+      {onViewMap ? (
+        <TouchableOpacity style={styles.emptyMapBtn} onPress={onViewMap}>
+          <Ionicons name="map-outline" size={15} color={colors.primary} />
+          <Text style={styles.emptyMapBtnText}>Voir la carte réemploi</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
+
+const CARTE_REEMPLOI = '/carte?initialCategory=reemploi';
 
 const TYPE_MAP: Record<string, string> = {
   vente:    'sale',
@@ -281,7 +302,7 @@ export default function ReemploiScreen() {
         </View>
       </View>
 
-      {/* ── Sub-tabs ── */}
+      {/* ── Sub-tabs : style underline, aucun pill ── */}
       <View style={styles.subTabsBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subTabsContent}>
           {SUB_TABS.map((tab) => {
@@ -289,16 +310,11 @@ export default function ReemploiScreen() {
             return (
               <TouchableOpacity
                 key={tab.key}
-                style={[styles.subTab, active && { backgroundColor: tab.bg, borderColor: tab.color + '50' }]}
+                style={[styles.subTab, active && { borderBottomColor: tab.color }]}
                 onPress={() => setActiveTab(tab.key)}
-                activeOpacity={0.75}
+                activeOpacity={0.7}
               >
-                <Ionicons
-                  name={(active ? tab.icon : `${tab.icon}-outline`) as any}
-                  size={14}
-                  color={active ? tab.color : colors.textTertiary}
-                />
-                <Text style={[styles.subTabText, active && { color: tab.color, fontWeight: Typography.heavy as any }]}>
+                <Text style={[styles.subTabText, active && { color: tab.color, fontWeight: Typography.bold as any }]}>
                   {tab.label}
                 </Text>
               </TouchableOpacity>
@@ -307,25 +323,15 @@ export default function ReemploiScreen() {
         </ScrollView>
       </View>
 
-      {/* ── Category chips (not for pros) ── */}
+      {/* ── Filtre catégorie : dropdown déroulant ── */}
       {CATEGORIES.length > 0 && (
-        <View style={styles.chipsBar}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
-            {CATEGORIES.map((cat) => {
-              const active = selectedCategory === cat.name;
-              return (
-                <TouchableOpacity
-                  key={cat.name}
-                  style={[styles.chip, active && { backgroundColor: currentTab.color, borderColor: currentTab.color }]}
-                  onPress={() => setSelectedCategory(cat.name)}
-                  activeOpacity={0.75}
-                >
-                  <Ionicons name={cat.icon as any} size={12} color={active ? '#fff' : colors.textSecondary} />
-                  <Text style={[styles.chipText, active && { color: '#fff' }]}>{cat.name}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+        <View style={styles.filterRow}>
+          <CategoryDropdown
+            categories={CATEGORIES}
+            selected={selectedCategory}
+            onSelect={setSelectedCategory}
+            accentColor={currentTab.color}
+          />
         </View>
       )}
 
@@ -368,7 +374,8 @@ export default function ReemploiScreen() {
         >
           <EmptyState
             tab={currentTab}
-            onPublish={currentTab.canPublish ? () => router.push('/post' as any) : undefined}
+            onPublish={currentTab.canPublish ? () => router.push('/post/market' as any) : undefined}
+            onViewMap={() => router.push(CARTE_REEMPLOI as any)}
           />
         </ScrollView>
       ) : (
@@ -380,6 +387,12 @@ export default function ReemploiScreen() {
           columnWrapperStyle={viewMode === 'grid' ? styles.gridRow : undefined}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <FoodMapCTA
+              category="reemploi"
+              count={REUSE_POINT_COUNT}
+            />
+          }
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={currentTab.color} colors={[currentTab.color]} />
           }
@@ -481,26 +494,33 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
-    paddingVertical: Spacing.sm,
   },
-  subTabsContent: { paddingHorizontal: Spacing.lg, gap: Spacing.sm },
+  subTabsContent: {
+    paddingHorizontal: Spacing.lg,
+    gap: 0,
+  },
   subTab: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: BorderRadius.full, borderWidth: 1,
-    borderColor: 'transparent', backgroundColor: colors.surfaceAlt,
+    paddingHorizontal: Spacing.md,
+    paddingTop: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 2.5,
+    borderBottomColor: 'transparent',
   },
-  subTabText: { fontSize: Typography.sm, color: colors.textTertiary, fontWeight: Typography.medium as any },
+  subTabText: {
+    fontSize: Typography.sm,
+    color: colors.textTertiary,
+    fontWeight: Typography.medium as any,
+  },
 
-  chipsBar: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  chipsContent: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.sm },
-  chip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: BorderRadius.full, borderWidth: 1,
-    borderColor: colors.border, backgroundColor: colors.surfaceAlt,
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 10,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
   },
-  chipText: { fontSize: Typography.xs, fontWeight: Typography.semibold as any, color: colors.textSecondary },
 
   filterPills: {
     flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
@@ -568,4 +588,12 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full, marginTop: Spacing.sm, ...Shadows.card,
   },
   emptyBtnText: { color: '#fff', fontSize: Typography.sm, fontWeight: Typography.heavy as any },
+  emptyMapBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: Spacing.lg, paddingVertical: 10,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1, borderColor: colors.primary + '40',
+    backgroundColor: colors.primaryLight,
+  },
+  emptyMapBtnText: { fontSize: Typography.sm, color: colors.primary, fontWeight: Typography.semibold as any },
 });

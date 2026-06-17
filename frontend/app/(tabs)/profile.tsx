@@ -16,6 +16,7 @@ import { Image } from 'react-native';
 import axios from 'axios';
 import { useAuthStore } from '../../src/store/authStore';
 import { getLevelBadge, getLevelProgress, getNextLevel } from '../../src/utils/levelBadges';
+import { calculateCO2Impact, formatCO2, getCO2Equivalents } from '../../src/utils/co2Calculator';
 import { API_URL } from '../../src/config/api';
 import { colors, Typography, Spacing, BorderRadius, Shadows } from '../../src/theme';
 
@@ -25,6 +26,13 @@ interface UserStats {
   total_transactions: number;
   active_listings: number;
   people_helped: number;
+}
+
+interface ImpactData {
+  basketsCount: number;
+  donationsCount: number;
+  salesCount: number;
+  rentalsCount: number;
 }
 
 // ─── Menu item ────────────────────────────────────────────────────────────────
@@ -74,10 +82,11 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout, refreshUser, isLoading, token } = useAuthStore();
   const [stats, setStats] = useState<UserStats | null>(null);
+  const [impactData, setImpactData] = useState<ImpactData>({ basketsCount: 0, donationsCount: 0, salesCount: 0, rentalsCount: 0 });
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    if (user) fetchStats();
+    if (user) { fetchStats(); fetchImpact(); }
   }, [user]);
 
   const fetchStats = async () => {
@@ -89,11 +98,20 @@ export default function ProfileScreen() {
     } catch {}
   };
 
+  const fetchImpact = async () => {
+    try {
+      const { data } = await axios.get(`${API_URL}/users/me/impact`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setImpactData(data);
+    } catch {}
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
     try {
       if (refreshUser) await refreshUser();
-      if (user) await fetchStats();
+      if (user) await Promise.all([fetchStats(), fetchImpact()]);
     } catch {}
     finally { setRefreshing(false); }
   };
@@ -135,7 +153,10 @@ export default function ProfileScreen() {
     );
   }
 
-  const co2Saved = user.co2_saved || 0;
+  const co2Saved = user.co2_saved ?? calculateCO2Impact(
+    impactData.basketsCount, impactData.donationsCount, impactData.salesCount, impactData.rentalsCount
+  ).totalCO2SavedKg;
+  const equivalents = getCO2Equivalents(co2Saved);
   const badge = getLevelBadge(user.level || 'Graine');
   const progress = getLevelProgress(co2Saved);
   const nextLevel = getNextLevel(co2Saved);
@@ -198,12 +219,80 @@ export default function ProfileScreen() {
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: colors.primary }]}>
-            {co2Saved >= 1 ? `${Math.round(co2Saved)} kg` : `${Math.round(co2Saved * 1000)} g`}
-          </Text>
-          <Text style={styles.statLabel}>CO₂ économisé</Text>
+          <Text style={styles.statValue}>{stats?.people_helped ?? '—'}</Text>
+          <Text style={styles.statLabel}>Personnes aidées</Text>
         </View>
       </View>
+
+      {/* ─── Impact card ──────────────────────────────────────────────── */}
+      <TouchableOpacity
+        style={styles.impactCard}
+        onPress={() => router.push('/profile/impact' as any)}
+        activeOpacity={0.92}
+      >
+        {/* Header */}
+        <View style={styles.impactHeader}>
+          <View style={styles.impactHeaderLeft}>
+            <Ionicons name="leaf" size={16} color="#fff" />
+            <Text style={styles.impactHeaderText}>Ma contribution écologique</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.7)" />
+        </View>
+
+        {/* Big CO₂ */}
+        <View style={styles.impactCo2Row}>
+          <Text style={styles.impactCo2Value}>{formatCO2(co2Saved)}</Text>
+          <Text style={styles.impactCo2Label}>de CO₂{'\n'}économisé</Text>
+        </View>
+
+        {/* Equivalences */}
+        <View style={styles.impactEquivRow}>
+          <View style={styles.impactEquivItem}>
+            <Text style={styles.impactEquivEmoji}>🚗</Text>
+            <Text style={styles.impactEquivValue}>{equivalents.carKm}</Text>
+            <Text style={styles.impactEquivLabel}>km voiture</Text>
+          </View>
+          <View style={styles.impactEquivSep} />
+          <View style={styles.impactEquivItem}>
+            <Text style={styles.impactEquivEmoji}>🌳</Text>
+            <Text style={styles.impactEquivValue}>{equivalents.treeDays}</Text>
+            <Text style={styles.impactEquivLabel}>jours d'arbre</Text>
+          </View>
+          <View style={styles.impactEquivSep} />
+          <View style={styles.impactEquivItem}>
+            <Text style={styles.impactEquivEmoji}>📱</Text>
+            <Text style={styles.impactEquivValue}>{equivalents.smartphoneCharges}</Text>
+            <Text style={styles.impactEquivLabel}>recharges</Text>
+          </View>
+        </View>
+
+        {/* Activity pills */}
+        {(impactData.basketsCount > 0 || impactData.donationsCount > 0 ||
+          impactData.salesCount > 0 || impactData.rentalsCount > 0) && (
+          <View style={styles.impactPills}>
+            {impactData.basketsCount > 0 && (
+              <View style={styles.impactPill}>
+                <Text style={styles.impactPillText}>🧺 {impactData.basketsCount} paniers</Text>
+              </View>
+            )}
+            {impactData.donationsCount > 0 && (
+              <View style={styles.impactPill}>
+                <Text style={styles.impactPillText}>🎁 {impactData.donationsCount} dons</Text>
+              </View>
+            )}
+            {impactData.salesCount > 0 && (
+              <View style={styles.impactPill}>
+                <Text style={styles.impactPillText}>♻️ {impactData.salesCount} objets</Text>
+              </View>
+            )}
+            {impactData.rentalsCount > 0 && (
+              <View style={styles.impactPill}>
+                <Text style={styles.impactPillText}>🔄 {impactData.rentalsCount} locations</Text>
+              </View>
+            )}
+          </View>
+        )}
+      </TouchableOpacity>
 
       {/* ─── Level card ───────────────────────────────────────────────── */}
       <TouchableOpacity style={styles.levelCard} onPress={() => router.push('/profile/impact' as any)} activeOpacity={0.9}>
@@ -451,6 +540,94 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     backgroundColor: colors.borderLight,
+  },
+
+  // ── Impact card ───────────────────────────────────────────────────────────
+  impactCard: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    backgroundColor: colors.primary,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    ...Shadows.card,
+  },
+  impactHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.lg,
+  },
+  impactHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  impactHeaderText: {
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold as any,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  impactCo2Row: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  impactCo2Value: {
+    fontSize: 48,
+    fontWeight: Typography.bold as any,
+    color: '#fff',
+    lineHeight: 52,
+  },
+  impactCo2Label: {
+    fontSize: Typography.sm,
+    color: 'rgba(255,255,255,0.75)',
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  impactEquivRow: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
+  },
+  impactEquivItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  impactEquivSep: {
+    width: 1,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  impactEquivEmoji: {
+    fontSize: 18,
+  },
+  impactEquivValue: {
+    fontSize: Typography.base,
+    fontWeight: Typography.bold as any,
+    color: '#fff',
+  },
+  impactEquivLabel: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  impactPills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+  },
+  impactPill: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+  },
+  impactPillText: {
+    fontSize: Typography.xs,
+    color: '#fff',
+    fontWeight: Typography.semibold as any,
   },
 
   // ── Level card ────────────────────────────────────────────────────────────

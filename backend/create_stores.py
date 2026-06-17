@@ -14,7 +14,7 @@ for line in env_path.read_text().splitlines():
         key, val = line.split('=', 1)
         os.environ[key.strip()] = val.strip()
 
-client = MongoClient(os.environ['MONGO_URL'], tls=True, tlsAllowInvalidCertificates=True)
+client = MongoClient(os.environ['MONGO_URL'], tls=True)
 db = client[os.environ['DB_NAME']]
 
 print("🏪 Creating Stores in Poitiers...\n")

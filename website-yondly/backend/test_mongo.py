@@ -3,7 +3,7 @@ from pymongo import MongoClient
 import certifi
 
 # User provided URL + params I added
-MONGO_URL = "mongodb+srv://kribean_db_user:csCjFDK8i24KOfSG@cluster0.yllddco.mongodb.net/?appName=Cluster0&retryWrites=true&w=majority"
+MONGO_URL = os.environ["MONGO_URL"]
 
 print(f"Testing connection to: {MONGO_URL.split('@')[1]}")
 

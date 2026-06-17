@@ -6,7 +6,7 @@ import os
 
 # Connect to MongoDB
 # Ensure we use the remote URI
-MONGO_URL = os.getenv("MONGO_URL", "mongodb+srv://kribean_db_user:csCjFDK8i24KOfSG@cluster0.yllddco.mongodb.net/?appName=Cluster0&retryWrites=true&w=majority")
+MONGO_URL = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(MONGO_URL)
 db = client.loop # DB name is "loop"
 

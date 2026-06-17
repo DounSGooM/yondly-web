@@ -120,25 +120,6 @@ Contraintes :
 
 Utilise le tool create_blog_article pour retourner l'article structuré."""
 
-# ─── Tool definition ───────────────────────────────────────────────────────────────
-
-ARTICLE_TOOL = {
-    "name": "create_blog_article",
-    "description": "Crée un article de blog structuré pour Yondly",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "title":     {"type": "string", "description": "Titre accrocheur (60 caractères max)"},
-            "slug":      {"type": "string", "description": "Slug kebab-case sans accents"},
-            "excerpt":   {"type": "string", "description": "Résumé de 2 phrases max"},
-            "content":   {"type": "string", "description": "Contenu HTML complet"},
-            "read_time": {"type": "string", "description": "Temps de lecture ex: '5 min'"},
-            "keywords":  {"type": "string", "description": "Mots-clés séparés par des virgules"},
-        },
-        "required": ["title", "slug", "excerpt", "content", "read_time", "keywords"],
-    },
-}
-
 # ─── Génération ────────────────────────────────────────────────────────────────
 
 def pick_topic() -> dict:
@@ -157,6 +138,24 @@ def slugify(text: str) -> str:
     text = re.sub(r"[^a-z0-9\s-]", "", text)
     text = re.sub(r"[\s-]+", "-", text).strip("-")
     return text
+
+
+ARTICLE_TOOL = {
+    "name": "create_blog_article",
+    "description": "Crée un article de blog structuré pour Yondly",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "title":    {"type": "string", "description": "Titre accrocheur (60 caractères max)"},
+            "slug":     {"type": "string", "description": "Slug kebab-case sans accents"},
+            "excerpt":  {"type": "string", "description": "Résumé de 2 phrases max"},
+            "content":  {"type": "string", "description": "Contenu HTML complet"},
+            "read_time":{"type": "string", "description": "Temps de lecture ex: '5 min'"},
+            "keywords": {"type": "string", "description": "Mots-clés séparés par des virgules"},
+        },
+        "required": ["title", "slug", "excerpt", "content", "read_time", "keywords"],
+    },
+}
 
 
 def generate_article(topic: dict) -> dict:

@@ -21,8 +21,7 @@ load_dotenv()
 # Connect to MongoDB
 client = MongoClient(
     os.environ['MONGO_URL'],
-    tls=True,
-    tlsAllowInvalidCertificates=True
+    tls=True
 )
 db = client[os.environ['DB_NAME']]
 

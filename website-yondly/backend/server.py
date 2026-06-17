@@ -19,7 +19,7 @@ import certifi
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url, tlsCAFile=certifi.where(), tls=True, tlsAllowInvalidCertificates=True)
+client = AsyncIOMotorClient(mongo_url, tlsCAFile=certifi.where(), tls=True)
 db = client[os.environ['DB_NAME']]
 
 # Set db for routes
@@ -70,10 +70,21 @@ api_router.include_router(yondly_router)
 # Include the router in the main app
 app.include_router(api_router)
 
+# Origines autorisées — surcharger via CORS_ORIGINS="https://a.com,https://b.com"
+DEFAULT_ORIGINS = [
+    "https://www.yondly.app",
+    "https://yondly.app",
+    "https://yondly.vercel.app",
+    "http://localhost:3000",
+]
+cors_origins = [
+    o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()
+] or DEFAULT_ORIGINS
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

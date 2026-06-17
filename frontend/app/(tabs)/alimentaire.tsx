@@ -21,15 +21,23 @@ import { useAuthStore } from '../../src/store/authStore';
 import * as Location from 'expo-location';
 import { colors, Typography, Spacing, BorderRadius, Shadows } from '../../src/theme';
 import { API_URL } from '../../src/config/api';
+import FoodMapCTA from '../../src/components/FoodMapCTA';
+import YondlyMobileCard from '../../src/components/YondlyMobileCard';
+import { MOCK_MAP_POINTS } from '../../src/data/mockMapPoints';
+import { FOOD_FILTER_TYPES } from '../../src/types/map';
 
 const { width: SCREEN_W } = Dimensions.get('window');
+
+const FOOD_POINT_COUNT = MOCK_MAP_POINTS.filter(p => FOOD_FILTER_TYPES.includes(p.type)).length;
 
 // ─── Sub-tabs ────────────────────────────────────────────────────────────────
 
 const SUB_TABS = [
-  { key: 'dons',     label: 'Dons & Surplus',  icon: 'leaf',       color: colors.primary, bg: colors.primaryLight, canPublish: true  },
-  { key: 'antigaspi',label: 'Anti-gaspi',      icon: 'timer',      color: colors.accent,  bg: colors.accentLight,  canPublish: false },
-  { key: 'circuits', label: 'Circuits courts', icon: 'storefront', color: '#059669',       bg: '#ECFDF5',           canPublish: false },
+  { key: 'dons',     label: 'Dons & Surplus',   icon: 'leaf',          color: colors.primary,  bg: colors.primaryLight, canPublish: true  },
+  { key: 'antigaspi',label: 'Anti-gaspi',        icon: 'timer',         color: colors.accent,   bg: colors.accentLight,  canPublish: false },
+  { key: 'circuits', label: 'Circuits courts',   icon: 'storefront',    color: '#059669',        bg: '#ECFDF5',           canPublish: false },
+  { key: 'aide',     label: 'Aide alimentaire',  icon: 'heart',         color: '#DC2626',        bg: '#FEF2F2',           canPublish: false },
+  { key: 'mobile',   label: 'Yondly Mobile',     icon: 'bus',           color: colors.primary,  bg: colors.primaryLight, canPublish: false },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -55,7 +63,6 @@ function FoodCard({ item, onPress, accentColor }: { item: any; onPress: () => vo
 
   return (
     <TouchableOpacity style={styles.foodCard} onPress={onPress} activeOpacity={0.88}>
-      {/* Image */}
       <View style={styles.foodCardImg}>
         {item.photos?.length > 0 ? (
           <Image source={{ uri: item.photos[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -65,14 +72,12 @@ function FoodCard({ item, onPress, accentColor }: { item: any; onPress: () => vo
           </View>
         )}
 
-        {/* Top badges */}
         <View style={styles.foodCardBadges}>
           <View style={[styles.priceBadge, { backgroundColor: isFree ? colors.primary : accentColor }]}>
             <Text style={styles.priceBadgeText}>{isFree ? 'Gratuit' : `${(item.price_cents / 100).toFixed(2)} €`}</Text>
           </View>
         </View>
 
-        {/* Timer */}
         {hasTimer && (
           <View style={[styles.timerBadge, urgent && { backgroundColor: colors.error }]}>
             <Ionicons name="time-outline" size={11} color="#fff" />
@@ -81,7 +86,6 @@ function FoodCard({ item, onPress, accentColor }: { item: any; onPress: () => vo
         )}
       </View>
 
-      {/* Info */}
       <View style={styles.foodCardBody}>
         <Text style={styles.foodCardTitle} numberOfLines={2}>{item.title}</Text>
 
@@ -113,15 +117,41 @@ function FoodCard({ item, onPress, accentColor }: { item: any; onPress: () => vo
   );
 }
 
-// ─── Empty State ─────────────────────────────────────────────────────────────
+// ─── Empty States ─────────────────────────────────────────────────────────────
 
 function EmptyState({ tab, onPublish }: { tab: typeof SUB_TABS[0]; onPublish?: () => void }) {
-  const MESSAGES: Record<string, { title: string; sub: string; cta: string }> = {
-    dons:     { title: 'Aucun don ni surplus', sub: 'Partagez vos surplus de cuisine ou de jardin avec vos voisins.', cta: 'Faire un don' },
-    antigaspi:{ title: 'Aucun panier anti-gaspi', sub: 'Les commerçants locaux peuvent proposer leurs invendus ici.', cta: 'Proposer un panier' },
-    circuits: { title: 'Aucun circuit court', sub: 'Producteurs, épiceries, AMAP… référencez vos points de vente locaux.', cta: 'Référencer mon circuit' },
+  const router = useRouter();
+
+  const MESSAGES: Record<string, { title: string; sub: string; cta?: string; mapCTA?: boolean }> = {
+    dons:     {
+      title: 'Aucun don ni surplus',
+      sub: 'Partagez vos surplus de cuisine ou de jardin avec vos voisins.',
+      cta: 'Faire un don',
+      mapCTA: true,
+    },
+    antigaspi: {
+      title: 'Aucun panier anti-gaspi',
+      sub: 'Les commerçants locaux peuvent proposer leurs invendus ici.',
+      cta: 'Proposer un panier',
+      mapCTA: true,
+    },
+    circuits: {
+      title: 'Aucun circuit court référencé',
+      sub: 'Producteurs, épiceries, AMAP… référencez vos points de vente locaux.',
+      cta: 'Référencer mon circuit',
+      mapCTA: true,
+    },
+    aide: {
+      title: 'Aucune structure référencée',
+      sub: 'Épiceries solidaires, banques alimentaires, associations d\'aide. Ces points sont visibles sur la carte.',
+      mapCTA: true,
+    },
+    mobile: {
+      title: 'Aucun passage prévu',
+      sub: 'Le planning Yondly Mobile est en cours de mise à jour pour votre zone.',
+    },
   };
-  const msg = MESSAGES[tab.key];
+  const msg = MESSAGES[tab.key] ?? { title: '', sub: '' };
 
   return (
     <View style={styles.empty}>
@@ -130,10 +160,19 @@ function EmptyState({ tab, onPublish }: { tab: typeof SUB_TABS[0]; onPublish?: (
       </View>
       <Text style={styles.emptyTitle}>{msg.title}</Text>
       <Text style={styles.emptySub}>{msg.sub}</Text>
-      {onPublish && (
+      {onPublish && msg.cta && (
         <TouchableOpacity style={[styles.emptyBtn, { backgroundColor: tab.color }]} onPress={onPublish}>
           <Ionicons name="add" size={16} color="#fff" />
           <Text style={styles.emptyBtnText}>{msg.cta}</Text>
+        </TouchableOpacity>
+      )}
+      {msg.mapCTA && (
+        <TouchableOpacity
+          style={styles.emptyMapBtn}
+          onPress={() => router.push('/carte?initialCategory=alimentaire' as any)}
+        >
+          <Ionicons name="map-outline" size={15} color={colors.primary} />
+          <Text style={styles.emptyMapBtnText}>Voir sur la carte</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -142,7 +181,7 @@ function EmptyState({ tab, onPublish }: { tab: typeof SUB_TABS[0]; onPublish?: (
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
-type ViewMode = 'grid' | 'list' | 'map';
+type ViewMode = 'grid' | 'list';
 
 export default function AlimentaireScreen() {
   const router = useRouter();
@@ -156,9 +195,13 @@ export default function AlimentaireScreen() {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   const currentTab = SUB_TABS.find(t => t.key === activeTab)!;
+  const showCTA = activeTab !== 'mobile';
 
   useEffect(() => { getUserLocation(); }, []);
-  useEffect(() => { load(); }, [activeTab, userLocation]);
+  useEffect(() => {
+    if (activeTab !== 'mobile') load();
+    else { setLoading(false); setItems([]); setDeals([]); }
+  }, [activeTab, userLocation]);
 
   const getUserLocation = async () => {
     try {
@@ -181,9 +224,8 @@ export default function AlimentaireScreen() {
       } else {
         const params: any = { type: 'donation' };
         if (userLocation) { params.lat = userLocation.lat; params.lng = userLocation.lng; }
-        // 'circuits' fetches producers + local shops (circuits courts)
         if (activeTab === 'circuits') params.category = 'Circuit court';
-        // 'dons' fetches all donations (food + garden surplus)
+        if (activeTab === 'aide') params.category = 'Aide alimentaire';
         const res = await axios.get(`${API_URL}/items`, { params });
         const now = new Date();
         setItems(res.data.filter((i: Item) => !i.locked_until || new Date(i.locked_until) < now));
@@ -198,18 +240,6 @@ export default function AlimentaireScreen() {
     !searchQuery || i.title?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const toggleViewMode = () => {
-    if (viewMode === 'grid') setViewMode('list');
-    else if (viewMode === 'list') setViewMode('map');
-    else setViewMode('grid');
-  };
-
-  const getViewIcon = () => {
-    if (viewMode === 'grid') return 'list-outline';
-    if (viewMode === 'list') return 'map-outline';
-    return 'grid-outline';
-  };
-
   return (
     <View style={styles.container}>
       {/* ── Header ── */}
@@ -217,29 +247,43 @@ export default function AlimentaireScreen() {
         <View style={styles.headerTop}>
           <Text style={styles.headerTitle}>Alimentaire</Text>
           <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.headerBtn} onPress={toggleViewMode}>
-              <Ionicons name={getViewIcon() as any} size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
+            {activeTab !== 'mobile' && activeTab !== 'aide' && (
+              <TouchableOpacity
+                style={styles.headerBtn}
+                onPress={() => setViewMode(v => v === 'grid' ? 'list' : 'grid')}
+              >
+                <Ionicons
+                  name={viewMode === 'grid' ? 'list-outline' : 'grid-outline'}
+                  size={20}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.headerBtn} onPress={() => router.push('/messages' as any)}>
-              <Ionicons name="chatbubble-outline" size={20} color={colors.textSecondary} />
+              <Ionicons name="chatbubbles-outline" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
         </View>
-        <View style={styles.searchBar}>
-          <Ionicons name="search-outline" size={16} color={colors.textTertiary} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Rechercher un produit…"
-            placeholderTextColor={colors.textTertiary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={16} color={colors.textTertiary} />
-            </TouchableOpacity>
-          )}
-        </View>
+        {activeTab !== 'mobile' && (
+          <View style={styles.searchRow}>
+            <View style={styles.searchBar}>
+              <Ionicons name="search-outline" size={16} color={colors.textTertiary} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Rechercher…"
+                placeholderTextColor={colors.textTertiary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={16} color={colors.textTertiary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
       </View>
 
       {/* ── Sub-tabs ── */}
@@ -273,7 +317,9 @@ export default function AlimentaireScreen() {
       </View>
 
       {/* ── Content ── */}
-      {loading ? (
+      {activeTab === 'mobile' ? (
+        <YondlyMobileCard />
+      ) : loading ? (
         <View style={styles.loader}>
           <ActivityIndicator size="large" color={currentTab.color} />
         </View>
@@ -281,13 +327,18 @@ export default function AlimentaireScreen() {
         <ScrollView
           contentContainerStyle={{ flex: 1 }}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={currentTab.color} colors={[currentTab.color]} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => { setRefreshing(true); load(); }}
+              tintColor={currentTab.color}
+              colors={[currentTab.color]}
+            />
           }
         >
           <EmptyState
-          tab={currentTab}
-          onPublish={currentTab.canPublish ? () => router.push('/post' as any) : undefined}
-        />
+            tab={currentTab}
+            onPublish={currentTab.canPublish ? () => router.push('/post/food' as any) : undefined}
+          />
         </ScrollView>
       ) : (
         <FlatList
@@ -299,7 +350,15 @@ export default function AlimentaireScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={currentTab.color} colors={[currentTab.color]} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => { setRefreshing(true); load(); }}
+              tintColor={currentTab.color}
+              colors={[currentTab.color]}
+            />
+          }
+          ListHeaderComponent={
+            showCTA ? <FoodMapCTA count={FOOD_POINT_COUNT} category="alimentaire" /> : null
           }
           renderItem={({ item }) => (
             viewMode === 'grid' ? (
@@ -335,12 +394,12 @@ const styles = StyleSheet.create({
   // Header
   header: {
     backgroundColor: colors.surface,
-    paddingTop: Platform.OS === 'ios' ? 56 : 40,
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
-    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Platform.OS === 'ios' ? 56 : Spacing.lg,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.sm,
   },
   headerTop: {
     flexDirection: 'row',
@@ -348,8 +407,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   headerTitle: {
-    fontSize: Typography.xxl,
-    fontWeight: Typography.heavy as any,
+    fontSize: Typography.xl,
+    fontWeight: Typography.bold as any,
     color: colors.textPrimary,
   },
   headerActions: {
@@ -357,20 +416,26 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   headerBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.full,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  searchBar: {
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    gap: Spacing.sm,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
     borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Platform.OS === 'ios' ? 9 : 7,
+    paddingVertical: Platform.OS === 'ios' ? 9 : 6,
     gap: Spacing.sm,
     borderWidth: 1,
     borderColor: colors.borderLight,
@@ -408,18 +473,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sm,
     color: colors.textTertiary,
     fontWeight: Typography.medium as any,
-  },
-  proBadge: {
-    backgroundColor: '#1A73E8',
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  proBadgeText: {
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: Typography.heavy as any,
-    letterSpacing: 0.3,
   },
 
   // Grid
@@ -557,5 +610,21 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: Typography.sm,
     fontWeight: Typography.heavy as any,
+  },
+  emptyMapBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.primary + '40',
+    backgroundColor: colors.primaryLight,
+  },
+  emptyMapBtnText: {
+    fontSize: Typography.sm,
+    color: colors.primary,
+    fontWeight: Typography.semibold as any,
   },
 });

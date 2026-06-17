@@ -6,6 +6,7 @@ import Footer from '../components/layout/Footer';
 import SEO from '../components/shared/SEO';
 import { blogService } from '../services/blogService';
 import { Button } from '../components/ui/button';
+import DOMPurify from 'dompurify';
 
 const BlogPost = () => {
     const { slug } = useParams();
@@ -41,9 +42,9 @@ const BlogPost = () => {
 
     if (!post) return null;
 
-    // Function to inject HTML content safely (for this demo)
+    // HTML assaini avant injection — bloque tout script/handler stocké en base
     const createMarkup = () => {
-        return { __html: post.content };
+        return { __html: DOMPurify.sanitize(post.content) };
     };
 
     const shareUrl = `https://yondly.vercel.app/blog/${post.slug}`;
