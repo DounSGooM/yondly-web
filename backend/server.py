@@ -1922,10 +1922,12 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
             except Exception as stripe_e:
                 print(f"Stripe error: {stripe_e}")
                 
-        order_dict["client_secret"] = client_secret  # Add client_secret for frontend
-        
+        # NB: client_secret n'est PAS une colonne de la table orders (et ne doit
+        # pas être stocké). On l'ajoute uniquement à la réponse après l'insert,
+        # sinon PostgREST rejette l'insert avec un 400 (colonne inconnue).
         await db.orders.insert_one(order_dict)
         order_dict.pop("_id", None)  # Remove MongoDB _id for JSON serialization
+        order_dict["client_secret"] = client_secret  # Add client_secret for frontend (réponse uniquement)
         
         # Notify seller/donor about new reservation
         if is_donation:
