@@ -12,7 +12,6 @@ import sys
 import json
 import re
 import time
-import requests
 from datetime import datetime
 import anthropic
 
@@ -204,7 +203,6 @@ def save_to_mongo(article: dict) -> str:
     client = pymongo.MongoClient(MONGO_URL, tlsCAFile=certifi.where(), tls=True)
     db     = client[DB_NAME]
 
-    # Vérifier unicité du slug
     if db.blog.find_one({"slug": article["slug"]}):
         article["slug"] = article["slug"] + "-" + article["id"][:8]
 
