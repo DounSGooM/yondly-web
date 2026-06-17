@@ -706,13 +706,38 @@ async def forgot_password(data: ForgotPasswordRequest):
         "created_at": datetime.utcnow()
     })
     
-    try:
-        from email_service import send_password_reset_email
-        send_password_reset_email(data.email, code)
-    except Exception as e:
-        logger.error(f"Failed to send password reset email: {e}")
-        raise HTTPException(status_code=500, detail="Erreur lors de l'envoi de l'email")
-    
+    html_content = f"""
+    <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5; padding: 20px;">
+            <div style="max-width: 480px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="background: #4C7B4B; padding: 32px; text-align: center;">
+                    <h1 style="color: #fff; margin: 0; font-size: 28px; letter-spacing: 0.5px;">Yondly</h1>
+                    <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Réinitialisation du mot de passe</p>
+                </div>
+                <div style="padding: 32px; text-align: center;">
+                    <p style="color: #333; font-size: 16px; margin: 0 0 8px;">Vous avez demandé à réinitialiser votre mot de passe. Voici votre code :</p>
+                    <div style="background: #f0f7f0; border: 2px solid #4C7B4B; border-radius: 12px; padding: 20px; margin: 24px 0;">
+                        <span style="font-size: 36px; font-weight: bold; color: #4C7B4B; letter-spacing: 8px;">{code}</span>
+                    </div>
+                    <p style="color: #888; font-size: 13px; margin: 0;">Ce code expire dans <strong>10 minutes</strong>.</p>
+                    <p style="color: #888; font-size: 13px; margin: 8px 0 0;">Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
+                </div>
+                <div style="background: #f9f9f9; padding: 16px; text-align: center; border-top: 1px solid #eee;">
+                    <p style="color: #aaa; font-size: 12px; margin: 0;">&copy; Yondly — yondly.app</p>
+                </div>
+            </div>
+        </body>
+    </html>
+    """
+    sent = await send_brevo_email(
+        to_email=data.email,
+        to_name=user.get("name", ""),
+        subject="Réinitialisation de votre mot de passe Yondly",
+        html_content=html_content,
+    )
+    if not sent:
+        raise HTTPException(status_code=500, detail="Erreur lors de l'envoi de l'email. Vérifiez la configuration BREVO_API_KEY.")
+
     return {"message": "Si ce compte existe, un code de réinitialisation a été envoyé."}
 
 @api_router.post("/auth/reset-password")
@@ -1868,8 +1893,9 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
     try:
         client_secret = None
         
-        # Check if we have real Stripe keys or placeholders
-        if stripe_config['secret_key'].startswith('sk_test_') and len(stripe_config['secret_key']) > 20:
+        # Check if we have real Stripe keys or placeholders.
+        # Donations have no payment, so we skip Stripe entirely for them.
+        if not is_donation and stripe_config['secret_key'].startswith('sk_test_') and len(stripe_config['secret_key']) > 20:
             # Real Stripe keys - create actual PaymentIntent
             try:
                 # Prepare Transfer Data if seller is onboarded
@@ -1885,11 +1911,11 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
                 
                 try:
                     payment_intent = stripe.PaymentIntent.create(
-                        amount=item["price_cents"],
+                        amount=price_cents,
                         currency="eur",
                         payment_method_types=["card"],
-                        transfer_data=transfer_data, 
-                        application_fee_amount=fee_cents if transfer_data else None, # Take fee only if transferring
+                        transfer_data=transfer_data,
+                        application_fee_amount=fee_info["platform_fee_cents"] if transfer_data else None, # Take fee only if transferring
                         metadata={
                             "order_id": order_id,
                             "item_id": item["id"],
@@ -1902,7 +1928,7 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
                     if transfer_data:
                         print(f"Stripe Connect failed ({e}), falling back to Direct Charge.")
                         payment_intent = stripe.PaymentIntent.create(
-                            amount=item["price_cents"],
+                            amount=price_cents,
                             currency="eur",
                             payment_method_types=["card"],
                             metadata={
@@ -1921,10 +1947,12 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
             except Exception as stripe_e:
                 print(f"Stripe error: {stripe_e}")
                 
-        order_dict["client_secret"] = client_secret  # Add client_secret for frontend
-        
+        # NB: client_secret n'est PAS une colonne de la table orders (et ne doit
+        # pas être stocké). On l'ajoute uniquement à la réponse après l'insert,
+        # sinon PostgREST rejette l'insert avec un 400 (colonne inconnue).
         await db.orders.insert_one(order_dict)
         order_dict.pop("_id", None)  # Remove MongoDB _id for JSON serialization
+        order_dict["client_secret"] = client_secret  # Add client_secret for frontend (réponse uniquement)
         
         # Notify seller/donor about new reservation
         if is_donation:
