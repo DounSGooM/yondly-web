@@ -41,18 +41,19 @@ def require_admin(x_admin_key: Optional[str]):
 # ============ WAITLIST ROUTES ============
 
 @router.post("/waitlist", response_model=WaitlistEntry, status_code=201)
-async def create_waitlist_entry(data: WaitlistCreate):
+async def create_waitlist_entry(data: WaitlistCreate, background_tasks: BackgroundTasks):
     """Register a new user to the beta waitlist"""
     if not data.rgpd_consent:
         raise HTTPException(status_code=400, detail="Le consentement RGPD est obligatoire")
-    
-    # Check if email already exists
+
     existing = await db.waitlist.find_one({"email": data.email})
     if existing:
         raise HTTPException(status_code=400, detail="Cet email est déjà inscrit à la waitlist")
-    
+
     entry = WaitlistEntry(**data.model_dump())
     await db.waitlist.insert_one(entry.model_dump())
+
+    background_tasks.add_task(send_waitlist_confirmation, data.email, getattr(data, 'city', None))
     return entry
 
 
@@ -239,13 +240,15 @@ async def export_partners_csv(
 # ============ CONTACT ROUTES ============
 
 @router.post("/contact", response_model=ContactEntry, status_code=201)
-async def create_contact_entry(data: ContactCreate):
+async def create_contact_entry(data: ContactCreate, background_tasks: BackgroundTasks):
     """Submit a contact message"""
     if not data.rgpd_consent:
         raise HTTPException(status_code=400, detail="Le consentement RGPD est obligatoire")
-    
+
     entry = ContactEntry(**data.model_dump())
     await db.contacts.insert_one(entry.model_dump())
+
+    background_tasks.add_task(send_contact_confirmation, data.email, data.name, data.message)
     return entry
 
 
