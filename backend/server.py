@@ -254,8 +254,11 @@ async def send_brevo_email(to_email: str, to_name: str, subject: str, html_conte
         print(f"⚠️ Brevo not configured, skipping email to {to_email}")
         return False
     try:
+        # Brevo rejette un "name" vide ("name is missing in to"). On retombe
+        # sur la partie locale de l'email si le nom n'est pas renseigné.
+        recipient = {"email": to_email, "name": to_name or to_email.split("@")[0]}
         email = sib_api_v3_sdk.SendSmtpEmail(
-            to=[{"email": to_email, "name": to_name}],
+            to=[recipient],
             sender={"name": BREVO_SENDER_NAME, "email": BREVO_SENDER_EMAIL},
             subject=subject,
             html_content=html_content
