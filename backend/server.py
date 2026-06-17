@@ -1868,8 +1868,9 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
     try:
         client_secret = None
         
-        # Check if we have real Stripe keys or placeholders
-        if stripe_config['secret_key'].startswith('sk_test_') and len(stripe_config['secret_key']) > 20:
+        # Check if we have real Stripe keys or placeholders.
+        # Donations have no payment, so we skip Stripe entirely for them.
+        if not is_donation and stripe_config['secret_key'].startswith('sk_test_') and len(stripe_config['secret_key']) > 20:
             # Real Stripe keys - create actual PaymentIntent
             try:
                 # Prepare Transfer Data if seller is onboarded
@@ -1885,11 +1886,11 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
                 
                 try:
                     payment_intent = stripe.PaymentIntent.create(
-                        amount=item["price_cents"],
+                        amount=price_cents,
                         currency="eur",
                         payment_method_types=["card"],
-                        transfer_data=transfer_data, 
-                        application_fee_amount=fee_cents if transfer_data else None, # Take fee only if transferring
+                        transfer_data=transfer_data,
+                        application_fee_amount=fee_info["platform_fee_cents"] if transfer_data else None, # Take fee only if transferring
                         metadata={
                             "order_id": order_id,
                             "item_id": item["id"],
@@ -1902,7 +1903,7 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
                     if transfer_data:
                         print(f"Stripe Connect failed ({e}), falling back to Direct Charge.")
                         payment_intent = stripe.PaymentIntent.create(
-                            amount=item["price_cents"],
+                            amount=price_cents,
                             currency="eur",
                             payment_method_types=["card"],
                             metadata={
