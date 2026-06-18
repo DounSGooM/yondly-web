@@ -35,10 +35,11 @@ const SERVICE_CATEGORIES = [
 ];
 
 const TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string; description: string }> = {
-  sale:     { label: 'Vente',   icon: 'pricetag',       color: '#4C7B4B', bg: '#e8f5e9', description: 'Vendez un objet' },
-  donation: { label: 'Don',     icon: 'gift',           color: '#D97706', bg: '#FEF3C7', description: 'Donnez gratuitement' },
-  exchange: { label: 'Échange', icon: 'swap-horizontal', color: '#2563EB', bg: '#DBEAFE', description: 'Échangez un objet' },
-  service:  { label: 'Service', icon: 'hand-right',     color: '#7C3AED', bg: '#EDE9FE', description: 'Proposez votre aide' },
+  sale:     { label: 'Vente',    icon: 'pricetag',       color: '#4C7B4B', bg: '#e8f5e9', description: 'Vendez un objet' },
+  rent:     { label: 'Location', icon: 'key',            color: '#0891B2', bg: '#E0F2FE', description: 'Louez un objet' },
+  donation: { label: 'Don',      icon: 'gift',           color: '#D97706', bg: '#FEF3C7', description: 'Donnez gratuitement' },
+  exchange: { label: 'Échange',  icon: 'swap-horizontal', color: '#2563EB', bg: '#DBEAFE', description: 'Échangez un objet' },
+  service:  { label: 'Service',  icon: 'hand-right',     color: '#7C3AED', bg: '#EDE9FE', description: 'Proposez votre aide' },
 };
 
 type Condition = 'new' | 'good' | 'repair';
@@ -61,6 +62,12 @@ export default function PostMarketScreen() {
   const [condition, setCondition] = useState<Condition>('good');
   const [priceEuros, setPriceEuros] = useState('');
   const [allowOffers, setAllowOffers] = useState(true);
+
+  // Step 2 — location
+  const [rentPeriod, setRentPeriod] = useState<'day' | 'week'>('day');
+  const [rentPriceStr, setRentPriceStr] = useState('');
+  const [rentDeposit, setRentDeposit] = useState('');
+  const [rentMaxDays, setRentMaxDays] = useState('');
 
   // Step 2 — don
   const [urgencyDays, setUrgencyDays] = useState<number>(7);
@@ -138,6 +145,12 @@ export default function PostMarketScreen() {
         const p = parseFloat(priceEuros);
         if (isNaN(p) || p < 3) { Alert.alert('Erreur', 'Prix minimum 3 € pour le paiement sécurisé'); return; }
       }
+      if (type === 'rent') {
+        const p = parseFloat(rentPriceStr);
+        if (isNaN(p) || p <= 0) { Alert.alert('Erreur', 'Veuillez entrer un prix de location'); return; }
+        const perDay = rentPeriod === 'day' ? p : p / 7;
+        if (perDay < 1) { Alert.alert('Erreur', 'Le prix revient à moins de 1 €/jour — veuillez augmenter le tarif'); return; }
+      }
       if (type === 'exchange' && !wantedItem.trim()) { Alert.alert('Erreur', 'Indiquez ce que vous recherchez'); return; }
       if (type === 'service' && !serviceDuration.trim()) { Alert.alert('Erreur', 'Indiquez la durée estimée'); return; }
       setStep(3);
@@ -150,6 +163,12 @@ export default function PostMarketScreen() {
       const limitedPhotos = photos.slice(0, 2);
       const priceCents = type === 'sale' ? Math.round(parseFloat(priceEuros) * 100) : undefined;
 
+      const rentPricePerDayCents = type === 'rent'
+        ? (rentPeriod === 'day'
+            ? Math.round(parseFloat(rentPriceStr) * 100)
+            : Math.round(parseFloat(rentPriceStr) * 100 / 7))
+        : undefined;
+
       const payload: Record<string, unknown> = {
         type,
         title,
@@ -158,7 +177,10 @@ export default function PostMarketScreen() {
         category,
         condition: type !== 'service' ? condition : undefined,
         price_cents: priceCents,
-        allow_offers: type === 'sale' ? allowOffers : undefined,
+        price_per_day_cents: rentPricePerDayCents,
+        deposit_cents: type === 'rent' && rentDeposit ? Math.round(parseFloat(rentDeposit) * 100) : undefined,
+        max_duration_days: type === 'rent' && rentMaxDays ? parseInt(rentMaxDays) : undefined,
+        allow_offers: (type === 'sale' || type === 'rent') ? allowOffers : undefined,
         wanted_item: type === 'exchange' ? wantedItem : undefined,
         urgency_days: type === 'donation' ? urgencyDays : undefined,
         service_duration: type === 'service' ? serviceDuration : undefined,
@@ -379,6 +401,90 @@ export default function PostMarketScreen() {
           </View>
         )}
 
+        {/* ── Step 2 — LOCATION ── */}
+        {step === 2 && type === 'rent' && (
+          <View>
+            <Text style={styles.label}>État de l'objet *</Text>
+            <ConditionPicker value={condition} onChange={setCondition} color={config.color} bg={config.bg} />
+
+            <Text style={styles.label}>Tarif de location *</Text>
+            <View style={styles.pillRow}>
+              {(['day', 'week'] as const).map((p) => (
+                <TouchableOpacity
+                  key={p}
+                  style={[styles.pill, { flex: 1 }, rentPeriod === p && { backgroundColor: config.bg, borderColor: config.color }]}
+                  onPress={() => setRentPeriod(p)}
+                >
+                  <Text style={[styles.pillText, rentPeriod === p && { color: config.color, fontWeight: '600' }]}>
+                    {p === 'day' ? 'Par jour' : 'Par semaine'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={[styles.priceInput, { borderColor: config.color, marginTop: 10 }]}>
+              <TextInput
+                style={[styles.priceInputField, { color: config.color }]}
+                placeholder="0"
+                value={rentPriceStr}
+                onChangeText={setRentPriceStr}
+                keyboardType="numeric"
+              />
+              <Text style={[styles.priceSymbol, { color: config.color }]}>€/{rentPeriod === 'day' ? 'j' : 'sem'}</Text>
+            </View>
+            {rentPriceStr !== '' && parseFloat(rentPriceStr) > 0 && (
+              <View style={[styles.feeInfo, { marginTop: 10 }]}>
+                <Text style={styles.feeTitle}>Équivalent</Text>
+                {rentPeriod === 'day' ? (
+                  <FeeRow label="Par semaine" value={`${(parseFloat(rentPriceStr) * 7).toFixed(2)} €`} />
+                ) : (
+                  <FeeRow label="Par jour" value={`${(parseFloat(rentPriceStr) / 7).toFixed(2)} €`} />
+                )}
+                <Text style={[styles.hint, { marginTop: 6 }]}>Des frais de service s'appliquent à chaque réservation (payé par l'emprunteur).</Text>
+              </View>
+            )}
+
+            <Text style={styles.label}>Caution (optionnelle)</Text>
+            <View style={[styles.priceInput, { borderColor: '#ddd' }]}>
+              <TextInput
+                style={[styles.priceInputField, { color: '#333' }]}
+                placeholder="0"
+                value={rentDeposit}
+                onChangeText={setRentDeposit}
+                keyboardType="numeric"
+              />
+              <Text style={[styles.priceSymbol, { color: '#999' }]}>€</Text>
+            </View>
+            <Text style={styles.hint}>Montant bloqué sur la carte de l'emprunteur. Remboursé à la restitution.</Text>
+
+            <Text style={styles.label}>Durée maximale (optionnelle)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: 30 (en jours)"
+              value={rentMaxDays}
+              onChangeText={setRentMaxDays}
+              keyboardType="numeric"
+            />
+
+            <View style={styles.toggleRow}>
+              <View>
+                <Text style={styles.toggleTitle}>Accepter les offres</Text>
+                <Text style={styles.toggleSubtitle}>L'emprunteur peut négocier le tarif</Text>
+              </View>
+              <Toggle value={allowOffers} onChange={setAllowOffers} color={config.color} />
+            </View>
+
+            <View style={[styles.infoBox, { backgroundColor: config.bg, marginTop: 12 }]}>
+              <Ionicons name="key-outline" size={18} color={config.color} />
+              <Text style={[styles.infoText, { color: config.color }]}>
+                Durée minimale : 1 jour (24h). Le paiement est sécurisé par Stripe et versé après la restitution de l'objet.
+              </Text>
+            </View>
+
+            <Text style={styles.label}>Description</Text>
+            <TextInput style={[styles.input, styles.textArea]} placeholder="État, conditions d'utilisation, restrictions éventuelles..." value={description} onChangeText={setDescription} multiline maxLength={500} />
+          </View>
+        )}
+
         {/* ── Step 2 — SERVICE ── */}
         {step === 2 && type === 'service' && (
           <View>
@@ -441,6 +547,8 @@ export default function PostMarketScreen() {
               <SummaryRow icon="text-outline" label="Titre" value={title} />
               <SummaryRow icon="folder-outline" label="Catégorie" value={category} />
               {type === 'sale' && priceEuros && <SummaryRow icon="cash-outline" label="Prix" value={`${priceEuros} €`} color={config.color} />}
+              {type === 'rent' && rentPriceStr && <SummaryRow icon="cash-outline" label="Tarif" value={`${rentPriceStr} €/${rentPeriod === 'day' ? 'jour' : 'sem.'}`} color={config.color} />}
+              {type === 'rent' && rentDeposit && <SummaryRow icon="shield-outline" label="Caution" value={`${rentDeposit} €`} />}
               {type === 'exchange' && wantedItem && <SummaryRow icon="swap-horizontal-outline" label="Cherche" value={wantedItem} />}
               {type === 'donation' && <SummaryRow icon="time-outline" label="Durée" value={`${urgencyDays} jours`} />}
               {type === 'service' && serviceDuration && <SummaryRow icon="time-outline" label="Durée" value={serviceDuration} />}
