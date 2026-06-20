@@ -1151,3 +1151,28 @@ class AssociationStats(BaseModel):
     this_month_baskets: int = 0  # Baskets claimed this month
     this_month_distributions: int = 0  # Distributions this month
     impact_families: int = 0  # Unique families helped
+
+
+# ─── Partner Subscription Models ─────────────────────────────────────────────
+
+class PartnerSubscribeRequest(BaseModel):
+    tier: Literal['fondateur', 'coup_de_pouce', 'reemploi']
+    business_name: str
+    business_type: Optional[str] = None
+    promo_code: Optional[str] = None
+    description: Optional[str] = None
+
+class PartnerSubscription(BaseModel):
+    id: str
+    user_id: str
+    tier: Literal['fondateur', 'coup_de_pouce', 'reemploi']
+    business_name: str
+    business_type: Optional[str] = None
+    promo_code: Optional[str] = None
+    description: Optional[str] = None
+    logo_url: Optional[str] = None
+    city: Optional[str] = None
+    status: Literal['pending', 'active', 'paused', 'cancelled'] = 'pending'
+    stats: Dict[str, int] = Field(default_factory=lambda: {"impressions": 0, "clicks": 0, "sales_supported": 0})
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    activated_at: Optional[datetime] = None

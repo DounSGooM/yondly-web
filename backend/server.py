@@ -401,6 +401,56 @@ async def partner_request(app: PartnerApplication):
     await db.partners.insert_one(app_dict)
     return {"message": "Application received"}
 
+
+@api_router.post("/partners/subscribe")
+async def partner_subscribe(
+    data: PartnerSubscribeRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Enregistre une demande d'abonnement partenaire (validation manuelle par l'équipe)."""
+    sub_id = str(uuid.uuid4())
+    city = current_user.get("location", {}).get("city") if current_user.get("location") else None
+    sub_dict = {
+        "id": sub_id,
+        "user_id": current_user["id"],
+        "tier": data.tier,
+        "business_name": data.business_name,
+        "business_type": data.business_type,
+        "promo_code": data.promo_code,
+        "description": data.description,
+        "logo_url": None,
+        "city": city,
+        "status": "pending",
+        "stats": {"impressions": 0, "clicks": 0, "sales_supported": 0},
+        "created_at": datetime.utcnow(),
+        "activated_at": None,
+    }
+    await db.partner_subscriptions.insert_one(sub_dict)
+
+    # Marquer is_partner=True et stocker la subscription sur le user
+    sub_dict.pop("_id", None)
+    await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$set": {"is_partner": True, "partner_subscription": sub_dict}}
+    )
+
+    # Notifier l'admin (simple log pour l'instant)
+    print(f"[PARTNER] Nouvelle demande: {data.business_name} ({data.tier}) — user {current_user['id']}")
+
+    return {"message": "Demande reçue", "subscription_id": sub_id}
+
+
+@api_router.get("/partners/active")
+async def get_active_partners(city: Optional[str] = None):
+    """Retourne les partenaires actifs pour le PartenaireLocalSpot."""
+    query: dict = {"status": "active"}
+    if city:
+        query["city"] = {"$regex": city, "$options": "i"}
+    partners = await db.partner_subscriptions.find(query).to_list(50)
+    for p in partners:
+        p.pop("_id", None)
+    return partners
+
 # ============ ADMIN ROUTES (SIMPLE) ============
 
 @api_router.get("/admin/waitlist")
