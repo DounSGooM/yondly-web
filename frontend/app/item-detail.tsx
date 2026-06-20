@@ -57,6 +57,7 @@ export default function ItemDetailScreen() {
   const fetchItem = async () => {
     try {
       const response = await axios.get(`${API_URL}/items/${id}`);
+      console.log('[DEBUG] accepts_cash:', response.data.accepts_cash, '| type:', response.data.type, '| title:', response.data.title);
       setItem(response.data);
       if (response.data.type === 'sale' || response.data.type === 'rent') {
         fetchOffers();
