@@ -544,11 +544,11 @@ export default function ItemDetailScreen() {
           ) : (isDonation || isExchange || isService) ? (
             // Bouton unique pleine largeur (don, échange, service)
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: actionCfg.color }]}
+              style={{ flexDirection: 'row', backgroundColor: actionCfg.color, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, justifyContent: 'center', alignItems: 'center', gap: 8 }}
               onPress={isDonation ? handlePickup : handleContact}
             >
               <Ionicons name={actionCfg.icon as any} size={22} color="#fff" />
-              <Text style={styles.actionButtonText}>{actionCfg.label}</Text>
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>{actionCfg.label}</Text>
             </TouchableOpacity>
           ) : (
             // Vente et Location : bouton secondaire + bouton principal
