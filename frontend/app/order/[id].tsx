@@ -12,6 +12,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import StyledQRCode from '../../src/components/StyledQRCode';
+import CashAdBanner from '../../src/components/CashAdBanner';
 import axios from 'axios';
 import { useAuthStore } from '../../src/store/authStore';
 import { format } from 'date-fns';
@@ -29,6 +30,7 @@ interface Order {
   amount_cents: number;
   platform_fee_cents: number;
   payout_cents: number;
+  payment_method?: string;
   payment_status: string;
   handoff: {
     mode: string;
@@ -123,6 +125,7 @@ export default function OrderDetailScreen() {
       <ScreenHeader title="Commande" />
 
       <ScrollView style={styles.content}>
+        {order.payment_method === 'cash' && <CashAdBanner />}
         <View style={styles.statusCard}>
           <View style={styles.statusHeader}>
             <Ionicons
@@ -149,6 +152,12 @@ export default function OrderDetailScreen() {
                   ? 'En attente de remise'
                   : 'Paiement initié'}
             </Text>
+            {order.payment_method === 'cash' && (
+              <View style={styles.cashBadge}>
+                <Ionicons name="cash-outline" size={14} color="#92400E" />
+                <Text style={styles.cashBadgeText}>Paiement en espèces</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -369,6 +378,21 @@ const styles = StyleSheet.create({
   },
   statusHeader: {
     alignItems: 'center',
+  },
+  cashBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  cashBadgeText: {
+    fontSize: 12,
+    color: '#92400E',
+    fontWeight: '500',
   },
   statusTitle: {
     fontSize: 20,

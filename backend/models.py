@@ -93,6 +93,7 @@ class ItemCreate(BaseModel):
     deposit_cents: Optional[int] = None  # For rentals
     max_duration_days: Optional[int] = None  # For rentals
     allow_offers: bool = False
+    accepts_cash: bool = False  # Paiement en espèces autorisé (vente uniquement)
     # Exchange
     wanted_item: Optional[str] = None
     # Service
@@ -118,6 +119,7 @@ class Item(BaseModel):
     deposit_cents: Optional[int] = None
     max_duration_days: Optional[int] = None
     allow_offers: bool = False
+    accepts_cash: bool = False
     wanted_item: Optional[str] = None
     service_duration: Optional[str] = None
     service_availability: Optional[str] = None
@@ -142,6 +144,7 @@ class HandoffData(BaseModel):
 
 class OrderCreate(BaseModel):
     item_id: str
+    payment_method: Literal['stripe', 'cash'] = 'stripe'
 
 class Order(BaseModel):
     id: str

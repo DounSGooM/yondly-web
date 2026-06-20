@@ -1831,9 +1831,16 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
     # For donations, price is 0
     is_donation = item["type"] == "donation"
     price_cents = 0 if is_donation else item.get("price_cents", 0)
+    is_cash = order_data.payment_method == "cash"
+
+    # Vérifier que le vendeur accepte le cash si demandé
+    if is_cash and not is_donation:
+        if not item.get("accepts_cash", False):
+            raise HTTPException(status_code=400, detail="Ce vendeur n'accepte pas le paiement en espèces.")
 
     # Refuser les ventes en dessous du seuil minimum (Stripe non rentable + mauvaise UX)
-    if not is_donation and price_cents < MINIMUM_PAYABLE_CENTS:
+    # Exception : paiement en espèces (pas de frais Stripe)
+    if not is_donation and not is_cash and price_cents < MINIMUM_PAYABLE_CENTS:
         raise HTTPException(
             status_code=400,
             detail=f"Le paiement sécurisé est disponible à partir de {MINIMUM_PAYABLE_CENTS / 100:.2f} €. "
@@ -1881,7 +1888,8 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
         "amount_cents": price_cents,
         "platform_fee_cents": fee_info["platform_fee_cents"],
         "payout_cents": fee_info["payout_cents"],
-        "payment_status": "escrowed" if is_donation else "initiated",  # Donations are pre-approved
+        "payment_method": order_data.payment_method,
+        "payment_status": "escrowed" if (is_donation or is_cash) else "initiated",
         "payment_intent_id": None,
         "handoff": {
             "mode": "local",
@@ -1891,14 +1899,14 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
         "dispute_status": None,
         "created_at": datetime.utcnow()
     }
-    
+
     # Create Stripe PaymentIntent
     try:
         client_secret = None
-        
+
         # Check if we have real Stripe keys or placeholders.
-        # Donations have no payment, so we skip Stripe entirely for them.
-        if not is_donation and stripe_config['secret_key'].startswith('sk_test_') and len(stripe_config['secret_key']) > 20:
+        # Donations and cash orders skip Stripe entirely.
+        if not is_donation and not is_cash and stripe_config['secret_key'].startswith('sk_test_') and len(stripe_config['secret_key']) > 20:
             # Real Stripe keys - create actual PaymentIntent
             try:
                 # Prepare Transfer Data if seller is onboarded

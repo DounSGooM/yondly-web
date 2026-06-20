@@ -157,6 +157,7 @@ export interface Item {
   deposit_cents?: number;
   max_duration_days?: number;
   allow_offers: boolean;
+  accepts_cash?: boolean;
   status: ItemStatus;
   owner_id: string;
   created_at: string;
