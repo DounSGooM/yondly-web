@@ -38,7 +38,8 @@ gcloud services enable cloudbuild.googleapis.com
 Créez un fichier `.env.production` (ne pas commiter) :
 
 ```
-MONGO_URL=mongodb+srv://USER:PASSWORD@cluster.mongodb.net/yondly
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_SERVICE_KEY=votre_cle_service_role
 STRIPE_SECRET_KEY=sk_live_xxxxx
 STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 CLOUDINARY_CLOUD_NAME=diujw5anb
@@ -61,7 +62,7 @@ gcloud run deploy yondly-backend \
   --platform managed \
   --region europe-west1 \
   --allow-unauthenticated \
-  --set-env-vars "MONGO_URL=votre_url_mongodb,STRIPE_SECRET_KEY=sk_live_xxx"
+  --set-env-vars "SUPABASE_URL=https://xxxx.supabase.co,SUPABASE_SERVICE_KEY=votre_cle,STRIPE_SECRET_KEY=sk_live_xxx"
 ```
 
 ---
@@ -103,6 +104,6 @@ gcloud run services describe yondly-backend --region europe-west1
 
 ## ⚠️ Important
 
-1. **MongoDB Atlas** : Ajoutez l'IP `0.0.0.0/0` dans Atlas pour que Cloud Run puisse se connecter
+1. **Supabase** : aucune autorisation d'IP n'est nécessaire (connexion via clé service). Appliquez les migrations SQL de `backend/migrations/` avant le premier déploiement
 2. **Stripe Webhook** : Mettez à jour l'URL du webhook dans Stripe Dashboard
 3. **Variables** : Ne mettez JAMAIS les secrets dans le code, utilisez `--set-env-vars`

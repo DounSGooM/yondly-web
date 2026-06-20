@@ -24,25 +24,25 @@ source venv/bin/activate  # Sur Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Configuration MongoDB Atlas (Cloud)
+### Configuration Supabase (Cloud)
 
-Puisque vous avez choisi MongoDB Atlas :
+La base de données est hébergée sur Supabase (PostgreSQL) :
 
-1. Créez un compte sur [MongoDB Atlas](https://www.mongodb.com/cloud/atlas).
-2. Créez un cluster gratuit (M0).
-3. Créez un utilisateur de base de données (Database Access) et notez le mot de passe.
-4. Autorisez l'accès réseau (Network Access) depuis n'importe où (`0.0.0.0/0`) pour simplifier le développement.
-5. Récupérez votre chaîne de connexion (Connect -> Drivers -> Python). Elle ressemble à :
-   `mongodb+srv://<username>:<password>@cluster0.xyz.mongodb.net/?retryWrites=true&w=majority`
+1. Créez un projet sur [Supabase](https://supabase.com/dashboard).
+2. Récupérez l'URL du projet et la clé service dans **Project Settings → API** :
+   - `SUPABASE_URL` (ex. `https://xxxx.supabase.co`)
+   - `SUPABASE_SERVICE_KEY` (clé `service_role`)
+3. Appliquez les migrations SQL présentes dans `backend/migrations/` via l'éditeur SQL Supabase.
 
-Ensuite, lancez le backend avec votre chaîne de connexion :
+Ensuite, lancez le backend avec vos identifiants :
 
 ```bash
-export MONGO_URL="votre_chaine_de_connexion_ici"
+export SUPABASE_URL="https://xxxx.supabase.co"
+export SUPABASE_SERVICE_KEY="votre_cle_service_role"
 ./start_backend.sh
 ```
 
-Ou modifiez directement le fichier `start_backend.sh` pour y mettre votre URL.
+Ou renseignez ces variables dans le fichier `backend/.env` (voir `backend/.env.example`).
 
 
 ### Lancement
