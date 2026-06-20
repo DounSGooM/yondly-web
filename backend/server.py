@@ -1864,16 +1864,14 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
                 price_cents = negotiated_price
                 print(f"Applying negotiated price: {price_cents} (Public: {item.get('price_cents')})")
     
-    # Calculate fees (0 for donations)
-    # Fetch seller to check level for fees
+    # Calculate fees (0 for donations and cash — no Stripe, no commission)
     seller_user = await db.users.find_one({"id": item["owner_id"]})
     seller_level = seller_user.get("level", "Novice") if seller_user else "Novice"
-    
-    # Calculate fees (0 for donations)
-    fee_info = calculate_platform_fee(price_cents, seller_level) if price_cents > 0 else {
-        "platform_fee_cents": 0,
-        "payout_cents": 0
-    }
+
+    if is_cash or is_donation or price_cents == 0:
+        fee_info = {"platform_fee_cents": 0, "payout_cents": 0}
+    else:
+        fee_info = calculate_platform_fee(price_cents, seller_level)
     
     # Generate handoff code
     handoff_code = generate_handoff_code()
@@ -2169,6 +2167,8 @@ async def confirm_handoff(
         "created_at": datetime.utcnow()
     }
     
+    is_cash_order = order.get("payment_method") == "cash"
+
     async with await client.start_session() as session:
         async with session.start_transaction():
             # Update order status
@@ -2181,7 +2181,7 @@ async def confirm_handoff(
                 }},
                 session=session
             )
-            
+
             # Update item status
             if "item_id" in order:
                 await db.items.update_one(
@@ -2189,16 +2189,22 @@ async def confirm_handoff(
                     {"$set": {"status": "completed"}},
                     session=session
                 )
-            
-            # Credit seller wallet
-            await db.users.update_one(
-                {"id": seller_id},
-                {"$inc": {"wallet_balance_cents": payout_amount}},
-                session=session
-            )
-            
-            # Insert transaction
-            await db.transactions.insert_one(tx_dict, session=session)
+
+            # Credit seller wallet only for Stripe payments (cash is paid physically)
+            if not is_cash_order and payout_amount > 0:
+                await db.users.update_one(
+                    {"id": seller_id},
+                    {"$inc": {"wallet_balance_cents": payout_amount}},
+                    session=session
+                )
+                await db.transactions.insert_one(tx_dict, session=session)
+
+    # Award points for cash handoff (CO2 + level handled below)
+    if is_cash_order:
+        await award_points(seller_id, 30)
+        buyer_id_cash = order.get("buyer_id")
+        if buyer_id_cash:
+            await award_points(buyer_id_cash, 15)
 
     # Notify buyer
     await create_notification(
