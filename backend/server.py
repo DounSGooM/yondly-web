@@ -2910,7 +2910,6 @@ async def mark_messages_as_read(item_id: str, current_user: dict = Depends(get_c
         {
             "item_id": item_id,
             "to_id": current_user["id"],
-            "read_by": {"$ne": current_user["id"]}  # Only if not already read
         },
         {
             "$addToSet": {"read_by": current_user["id"]}
