@@ -141,6 +141,41 @@ export default function ItemDetailScreen() {
       setShowBookingCalendar(true);
       return;
     }
+
+    if (item.accepts_cash) {
+      Alert.alert(
+        'Mode de paiement',
+        `Comment souhaitez-vous régler "${item.title}" ?`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: '💳 En ligne (sécurisé)',
+            onPress: () => router.push(`/order/item-payment?itemId=${item.id}` as any),
+          },
+          {
+            text: '💵 En espèces (à la remise)',
+            onPress: async () => {
+              try {
+                const response = await axios.post(
+                  `${API_URL}/orders`,
+                  { item_id: item.id, payment_method: 'cash' },
+                  { headers: { Authorization: `Bearer ${token}` } }
+                );
+                Alert.alert(
+                  '✅ Réservation confirmée',
+                  `Votre réservation est enregistrée. Réglez en espèces lors de la remise.`,
+                  [{ text: 'Voir ma commande', onPress: () => router.push(`/order-detail?id=${response.data.id}` as any) }]
+                );
+              } catch (error: any) {
+                Alert.alert('Erreur', error.response?.data?.detail || 'Erreur lors de la réservation');
+              }
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     router.push(`/order/item-payment?itemId=${item.id}` as any);
   };
 
