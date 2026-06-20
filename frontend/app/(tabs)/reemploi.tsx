@@ -54,7 +54,10 @@ const CONDITION_LABELS: Record<string, { label: string; color: string }> = {
 function ReemploiCard({
   item, accentColor, onPress,
 }: { item: any; accentColor: string; onPress: () => void }) {
-  const isFree = item.price_cents == null || item.price_cents === 0;
+  const isRent = item.type === 'rent';
+  const priceCents = isRent ? (item.price_per_day_cents ?? item.price_cents) : item.price_cents;
+  const isFree = priceCents == null || priceCents === 0;
+  const priceLabel = isFree ? 'Gratuit' : isRent ? `${(priceCents / 100).toFixed(0)} €/j` : `${(priceCents / 100).toFixed(0)} €`;
   const condition = item.condition ? CONDITION_LABELS[item.condition] : null;
 
   return (
@@ -71,9 +74,7 @@ function ReemploiCard({
 
         {/* Price badge */}
         <View style={[styles.priceBadge, { backgroundColor: isFree ? colors.primary : accentColor }]}>
-          <Text style={styles.priceBadgeText}>
-            {isFree ? 'Gratuit' : `${(item.price_cents / 100).toFixed(0)} €`}
-          </Text>
+          <Text style={styles.priceBadgeText}>{priceLabel}</Text>
         </View>
 
         {/* Condition badge */}
@@ -126,6 +127,7 @@ interface EmptyStateProps {
 function EmptyState({ tab, onPublish, onViewMap }: EmptyStateProps) {
   const MESSAGES: Record<string, { title: string; sub: string; cta: string }> = {
     vente:    { title: 'Aucun article en vente autour de vous',   sub: 'Consultez la carte locale ou publiez un objet pour lui offrir une seconde vie.', cta: 'Mettre en vente' },
+    location: { title: 'Aucun article à louer autour de vous',   sub: 'Proposez vos objets à la location et générez des revenus tout en favorisant le réemploi.', cta: 'Proposer une location' },
     dons:     { title: 'Aucun don disponible',                    sub: 'Vos objets inutilisés peuvent rendre service à quelqu\'un près de vous.', cta: 'Donner un objet' },
     echange:  { title: 'Aucune proposition d\'échange',           sub: 'Proposez un objet en échange d\'un autre et évitez le gaspillage.', cta: 'Proposer un échange' },
     services: { title: 'Aucun service disponible',                sub: 'Proposez vos compétences : réparation, bricolage, couture…', cta: 'Proposer un service' },
