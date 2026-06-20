@@ -45,6 +45,8 @@ function MenuItem({
   accent,
   locked,
   badgeCount,
+  iconColor,
+  iconBg,
 }: {
   icon: string;
   label: string;
@@ -53,11 +55,16 @@ function MenuItem({
   accent?: boolean;
   locked?: boolean;
   badgeCount?: number;
+  iconColor?: string;
+  iconBg?: string;
 }) {
+  const resolvedIconColor = iconColor ?? (accent ? colors.primary : colors.textSecondary);
+  const resolvedIconBg = iconBg ?? (accent ? colors.primaryLight : colors.surfaceAlt);
+
   return (
     <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
-      <View style={[styles.menuIconWrap, accent && styles.menuIconWrapAccent]}>
-        <Ionicons name={icon as any} size={20} color={accent ? colors.primary : colors.textSecondary} />
+      <View style={[styles.menuIconWrap, { backgroundColor: resolvedIconBg }]}>
+        <Ionicons name={icon as any} size={20} color={resolvedIconColor} />
       </View>
       <View style={styles.menuTextWrap}>
         <Text style={styles.menuLabel}>{label}</Text>
@@ -161,6 +168,12 @@ export default function ProfileScreen() {
   const progress = getLevelProgress(co2Saved);
   const nextLevel = getNextLevel(co2Saved);
 
+  const walletBalance = (user as any).wallet_balance_cents ?? 0;
+  const points = (user as any).points ?? 0;
+  const isVerified = (user as any).is_verified ?? false;
+  const userCity = (user as any).city ?? null;
+  const hasWallet = walletBalance > 0 || points > 0;
+
   return (
     <ScrollView
       style={styles.container}
@@ -171,6 +184,9 @@ export default function ProfileScreen() {
     >
       {/* ─── Hero ─────────────────────────────────────────────────────── */}
       <View style={styles.hero}>
+        {/* Green banner at top */}
+        <View style={styles.heroBanner} />
+
         {/* Edit button */}
         <TouchableOpacity style={styles.editBtn} onPress={() => router.push('/profile/edit' as any)}>
           <Ionicons name="pencil-outline" size={18} color={colors.primary} />
@@ -192,8 +208,26 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Name + email */}
+        {/* Name */}
         <Text style={styles.heroName}>{user.display_name || 'Utilisateur'}</Text>
+
+        {/* City + verified */}
+        <View style={styles.heroMeta}>
+          {userCity ? (
+            <View style={styles.heroMetaItem}>
+              <Ionicons name="location-outline" size={13} color={colors.textTertiary} />
+              <Text style={styles.heroMetaText}>{userCity}</Text>
+            </View>
+          ) : null}
+          {isVerified ? (
+            <View style={styles.verifiedBadge}>
+              <Ionicons name="checkmark-circle" size={13} color={colors.primary} />
+              <Text style={styles.verifiedText}>Vérifié</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {/* Email */}
         <Text style={styles.heroEmail}>{user.email}</Text>
 
         {/* Rating */}
@@ -220,9 +254,53 @@ export default function ProfileScreen() {
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={styles.statValue}>{stats?.people_helped ?? '—'}</Text>
-          <Text style={styles.statLabel}>Personnes aidées</Text>
+          <Text style={styles.statLabel}>Aidées</Text>
         </View>
       </View>
+
+      {/* ─── Wallet & points card ─────────────────────────────────────── */}
+      {hasWallet ? (
+        <TouchableOpacity
+          style={styles.walletCard}
+          onPress={() => router.push('/profile/wallet' as any)}
+          activeOpacity={0.88}
+        >
+          <View style={styles.walletLeft}>
+            <View style={styles.walletIconWrap}>
+              <Ionicons name="wallet-outline" size={22} color={colors.primary} />
+            </View>
+            <View>
+              <Text style={styles.walletTitle}>Mon portefeuille</Text>
+              <Text style={styles.walletSub}>Solde disponible</Text>
+            </View>
+          </View>
+          <View style={styles.walletRight}>
+            <Text style={styles.walletBalance}>
+              {(walletBalance / 100).toFixed(2).replace('.', ',')} €
+            </Text>
+            {points > 0 ? (
+              <View style={styles.pointsPill}>
+                <Text style={styles.pointsText}>🌱 {points} pts</Text>
+              </View>
+            ) : null}
+          </View>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={styles.walletCardEmpty}
+          onPress={() => router.push('/profile/wallet' as any)}
+          activeOpacity={0.88}
+        >
+          <View style={styles.walletIconWrap}>
+            <Ionicons name="wallet-outline" size={20} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.walletTitle}>Mon portefeuille</Text>
+            <Text style={styles.walletSub}>Gagne des points à chaque transaction</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+        </TouchableOpacity>
+      )}
 
       {/* ─── Impact card ──────────────────────────────────────────────── */}
       <TouchableOpacity
@@ -342,6 +420,22 @@ export default function ProfileScreen() {
             accent
           />
           <MenuItem
+            icon="wallet-outline"
+            label="Portefeuille & points"
+            sublabel={points > 0 ? `${points} points Yondly` : 'Gagne des points à chaque action'}
+            onPress={() => router.push('/profile/wallet' as any)}
+            iconColor={colors.primary}
+            iconBg={colors.primaryLight}
+          />
+          <MenuItem
+            icon="storefront-outline"
+            label="Partenaires locaux"
+            sublabel="Commerces & ressourceries près de toi"
+            onPress={() => router.push('/partner' as any)}
+            iconColor={colors.ressourcerie}
+            iconBg={colors.ressourcerieLight}
+          />
+          <MenuItem
             icon="leaf-outline"
             label="Impact CO₂"
             sublabel="Voir les équivalences"
@@ -364,7 +458,15 @@ export default function ProfileScreen() {
           <MenuItem
             icon="shield-checkmark-outline"
             label="Sécurité et confiance"
+            sublabel={isVerified ? 'Compte vérifié' : 'Vérifier mon identité'}
             onPress={() => router.push('/profile/security' as any)}
+            iconColor={isVerified ? colors.primary : colors.textSecondary}
+            iconBg={isVerified ? colors.primaryLight : colors.surfaceAlt}
+          />
+          <MenuItem
+            icon="notifications-outline"
+            label="Notifications"
+            onPress={() => router.push('/profile/settings' as any)}
           />
           <MenuItem
             icon="settings-outline"
@@ -442,6 +544,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
+    overflow: 'hidden',
+  },
+  heroBanner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: Platform.OS === 'ios' ? 90 : 74,
+    backgroundColor: colors.primary,
+    opacity: 0.08,
   },
   editBtn: {
     position: 'absolute',
@@ -454,6 +566,9 @@ const styles = StyleSheet.create({
   avatarWrap: {
     position: 'relative',
     marginBottom: Spacing.md,
+    borderWidth: 3,
+    borderColor: colors.surface,
+    borderRadius: 48,
   },
   avatarImg: {
     width: 88,
@@ -492,7 +607,36 @@ const styles = StyleSheet.create({
     fontSize: Typography.xl,
     fontWeight: Typography.bold,
     color: colors.textPrimary,
-    marginBottom: 2,
+    marginBottom: 4,
+  },
+  heroMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  heroMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  heroMetaText: {
+    fontSize: Typography.sm,
+    color: colors.textTertiary,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+  verifiedText: {
+    fontSize: Typography.xs,
+    color: colors.primary,
+    fontWeight: Typography.semibold,
   },
   heroEmail: {
     fontSize: Typography.sm,
@@ -540,6 +684,75 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     backgroundColor: colors.borderLight,
+  },
+
+  // ── Wallet ────────────────────────────────────────────────────────────────
+  walletCard: {
+    backgroundColor: colors.surface,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1.5,
+    borderColor: colors.primaryLight,
+    ...Shadows.card,
+  },
+  walletCardEmpty: {
+    backgroundColor: colors.surface,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    ...Shadows.card,
+  },
+  walletLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  walletRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  walletIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: BorderRadius.md,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  walletTitle: {
+    fontSize: Typography.base,
+    fontWeight: Typography.semibold,
+    color: colors.textPrimary,
+  },
+  walletSub: {
+    fontSize: Typography.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  walletBalance: {
+    fontSize: Typography.xl,
+    fontWeight: Typography.bold,
+    color: colors.primary,
+  },
+  pointsPill: {
+    backgroundColor: colors.primaryLight,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  pointsText: {
+    fontSize: Typography.xs,
+    color: colors.primary,
+    fontWeight: Typography.semibold,
   },
 
   // ── Impact card ───────────────────────────────────────────────────────────
