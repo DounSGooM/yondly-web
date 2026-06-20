@@ -35,11 +35,11 @@ const SERVICE_CATEGORIES = [
 ];
 
 const TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string; description: string }> = {
-  sale:     { label: 'Vente',    icon: 'pricetag',       color: '#4C7B4B', bg: '#e8f5e9', description: 'Vendez un objet' },
-  rent:     { label: 'Location', icon: 'key',            color: '#0891B2', bg: '#E0F2FE', description: 'Louez un objet' },
-  donation: { label: 'Don',      icon: 'gift',           color: '#D97706', bg: '#FEF3C7', description: 'Donnez gratuitement' },
-  exchange: { label: 'Échange',  icon: 'swap-horizontal', color: '#2563EB', bg: '#DBEAFE', description: 'Échangez un objet' },
-  service:  { label: 'Service',  icon: 'hand-right',     color: '#7C3AED', bg: '#EDE9FE', description: 'Proposez votre aide' },
+  sale:     { label: 'Vente',    icon: 'pricetag',        color: '#1A73E8', bg: '#EFF6FF', description: 'Vendez un objet' },
+  rent:     { label: 'Location', icon: 'calendar-outline',color: '#B45309', bg: '#FFFBEB', description: 'Louez un objet' },
+  donation: { label: 'Don',      icon: 'gift',            color: '#2D7D46', bg: '#E8F5EC', description: 'Donnez gratuitement' },
+  exchange: { label: 'Échange',  icon: 'swap-horizontal', color: '#7C3AED', bg: '#F5F3FF', description: 'Échangez un objet' },
+  service:  { label: 'Service',  icon: 'hand-right',      color: '#0891B2', bg: '#E0F9FF', description: 'Proposez votre aide' },
 };
 
 type Condition = 'new' | 'good' | 'repair';

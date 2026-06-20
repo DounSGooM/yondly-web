@@ -1,13 +1,36 @@
 export const colors = {
-  // Primary — vert frais
+  // Primary — vert Yondly
   primary: '#2D7D46',
   primaryDark: '#1a5c30',
   primaryLight: '#E8F5EC',
   primaryMid: '#4CAF6A',
 
-  // Accent — orange terre pour l'anti-gaspi / urgence
+  // Accent — orange terre (anti-gaspi / urgence)
   accent: '#E8833A',
   accentLight: '#FDF0E6',
+
+  // ─── Couleurs par service (cohérentes partout dans l'app) ───────────────
+  // Vente
+  sale: '#1A73E8',
+  saleLight: '#EFF6FF',
+  // Location
+  rent: '#B45309',
+  rentLight: '#FFFBEB',
+  // Dons (= primary)
+  donation: '#2D7D46',
+  donationLight: '#E8F5EC',
+  // Échange
+  exchange: '#7C3AED',
+  exchangeLight: '#F5F3FF',
+  // Services
+  service: '#0891B2',
+  serviceLight: '#E0F9FF',
+  // Ressourceries / Circuits courts
+  ressourcerie: '#059669',
+  ressourcerieLight: '#ECFDF5',
+  // Aide / Urgence
+  urgency: '#DC2626',
+  urgencyLight: '#FEF2F2',
 
   // Neutrals
   background: '#F6F7F5',
