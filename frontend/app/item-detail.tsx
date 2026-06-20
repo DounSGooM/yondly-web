@@ -274,8 +274,22 @@ export default function ItemDetailScreen() {
 
   const isOwner = user?.id === item.owner_id;
   const isDonation = item.type === 'donation';
+  const isExchange = item.type === 'exchange';
+  const isService = item.type === 'service';
+  const isRent = item.type === 'rent';
+  const isSale = item.type === 'sale';
   const acceptedOffer = offers.find(o => o.status === 'accepted');
   const myAcceptedOffer = acceptedOffer?.buyer_id === user?.id ? acceptedOffer : null;
+
+  // Config bouton principal par type
+  const ACTION_CONFIG: Record<string, { label: string; icon: string; color: string; secondaryLabel?: string; secondaryIcon?: string }> = {
+    sale:     { label: 'Acheter',             icon: 'cart-outline',      color: '#1A73E8', secondaryLabel: 'Faire une offre', secondaryIcon: 'pricetag-outline' },
+    rent:     { label: 'Réserver',            icon: 'calendar-outline',  color: '#B45309', secondaryLabel: 'Négocier',        secondaryIcon: 'chatbubble-outline' },
+    donation: { label: 'Demander à récupérer',icon: 'hand-right',        color: '#2D7D46' },
+    exchange: { label: 'Proposer un échange', icon: 'swap-horizontal',   color: '#7C3AED' },
+    service:  { label: 'Contacter',           icon: 'chatbubble-outline', color: '#0891B2' },
+  };
+  const actionCfg = ACTION_CONFIG[item.type] ?? ACTION_CONFIG.sale;
 
   return (
     <View style={styles.container}>
@@ -509,55 +523,53 @@ export default function ItemDetailScreen() {
 
       {item.status === 'active' && (
         <View style={styles.footer}>
-          {isDonation ? (
-            item.owner_id === user?.id ? (
-              <View style={styles.ownerFooterInfo}>
-                <Text style={styles.ownerInfoText}>✅ C'est votre annonce</Text>
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.actionButton} onPress={handlePickup}>
-                <Ionicons name="hand-right" size={24} color="#fff" />
-                <Text style={styles.actionButtonText}>Demander à récupérer</Text>
-              </TouchableOpacity>
-            )
-          ) : (
-            item.owner_id === user?.id ? (
-              <View style={styles.ownerFooterInfo}>
-                <Text style={styles.ownerInfoText}>✅ C'est votre annonce</Text>
-              </View>
-            ) : myAcceptedOffer ? (
-              <View style={styles.acceptedOfferContainer}>
-                <View style={styles.acceptedOfferInfo}>
-                  <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
-                  <View style={styles.acceptedOfferText}>
-                    <Text style={styles.acceptedOfferTitle}>✅ Votre offre a été acceptée !</Text>
-                    <Text style={styles.acceptedOfferPrice}>{(myAcceptedOffer.amount_cents / 100).toFixed(2)}€</Text>
-                    <Text style={styles.acceptedOfferTimer}>Paiement requis: {getTimeRemaining()}</Text>
-                  </View>
+          {isOwner ? (
+            <View style={styles.ownerFooterInfo}>
+              <Text style={styles.ownerInfoText}>✅ C'est votre annonce</Text>
+            </View>
+          ) : myAcceptedOffer ? (
+            <View style={styles.acceptedOfferContainer}>
+              <View style={styles.acceptedOfferInfo}>
+                <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+                <View style={styles.acceptedOfferText}>
+                  <Text style={styles.acceptedOfferTitle}>✅ Votre offre a été acceptée !</Text>
+                  <Text style={styles.acceptedOfferPrice}>{(myAcceptedOffer.amount_cents / 100).toFixed(2)}€</Text>
+                  <Text style={styles.acceptedOfferTimer}>Paiement requis: {getTimeRemaining()}</Text>
                 </View>
-                <TouchableOpacity style={[styles.actionButton, { width: '100%' }]} onPress={handleBuy}>
-                  <Text style={styles.actionButtonText}>Payer maintenant</Text>
-                </TouchableOpacity>
               </View>
-            ) : (
-              <View style={styles.footerActions}>
+              <TouchableOpacity style={[styles.actionButton, { width: '100%', backgroundColor: actionCfg.color }]} onPress={handleBuy}>
+                <Text style={styles.actionButtonText}>Payer maintenant</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (isDonation || isExchange || isService) ? (
+            // Bouton unique pleine largeur (don, échange, service)
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: actionCfg.color }]}
+              onPress={isDonation ? handlePickup : handleContact}
+            >
+              <Ionicons name={actionCfg.icon as any} size={22} color="#fff" />
+              <Text style={styles.actionButtonText}>{actionCfg.label}</Text>
+            </TouchableOpacity>
+          ) : (
+            // Vente et Location : bouton secondaire + bouton principal
+            <View style={styles.footerActions}>
+              {actionCfg.secondaryLabel && (
                 <TouchableOpacity
                   style={[styles.actionButton, styles.secondaryButton]}
-                  onPress={() => setShowOfferModal(true)}
+                  onPress={isDonation ? handlePickup : isRent ? handleContact : () => setShowOfferModal(true)}
                 >
-                  <Ionicons name="pricetag-outline" size={22} color={colors.primary} />
-                  <Text style={styles.secondaryButtonText}>
-                    {item.type === 'rent' ? 'Négocier' : 'Faire une offre'}
-                  </Text>
+                  <Ionicons name={actionCfg.secondaryIcon as any} size={22} color={actionCfg.color} />
+                  <Text style={[styles.secondaryButtonText, { color: actionCfg.color }]}>{actionCfg.secondaryLabel}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionButton, styles.primaryButton]} onPress={handleBuy}>
-                  <Ionicons name={item.type === 'rent' ? 'calendar-outline' : 'cart-outline'} size={22} color="#fff" />
-                  <Text style={styles.primaryButtonText}>
-                    {item.type === 'rent' ? 'Louer' : 'Acheter'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )
+              )}
+              <TouchableOpacity
+                style={[styles.actionButton, styles.primaryButton, { backgroundColor: actionCfg.color }]}
+                onPress={handleBuy}
+              >
+                <Ionicons name={actionCfg.icon as any} size={22} color="#fff" />
+                <Text style={styles.primaryButtonText}>{actionCfg.label}</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       )}
