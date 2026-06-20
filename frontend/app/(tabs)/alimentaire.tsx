@@ -33,11 +33,11 @@ const FOOD_POINT_COUNT = MOCK_MAP_POINTS.filter(p => FOOD_FILTER_TYPES.includes(
 // ─── Sub-tabs ────────────────────────────────────────────────────────────────
 
 const SUB_TABS = [
-  { key: 'dons',     label: 'Dons & Surplus',   icon: 'leaf',          color: colors.primary,  bg: colors.primaryLight, canPublish: true  },
-  { key: 'antigaspi',label: 'Anti-gaspi',        icon: 'timer',         color: colors.accent,   bg: colors.accentLight,  canPublish: false },
-  { key: 'circuits', label: 'Circuits courts',   icon: 'storefront',    color: '#059669',        bg: '#ECFDF5',           canPublish: false },
-  { key: 'aide',     label: 'Aide alimentaire',  icon: 'heart',         color: '#DC2626',        bg: '#FEF2F2',           canPublish: false },
-  { key: 'mobile',   label: 'Yondly Mobile',     icon: 'bus',           color: colors.primary,  bg: colors.primaryLight, canPublish: false },
+  { key: 'dons',      label: 'Dons & Surplus',  icon: 'leaf',       color: colors.donation,     bg: colors.donationLight,     canPublish: true  },
+  { key: 'antigaspi', label: 'Anti-gaspi',       icon: 'timer',      color: colors.accent,       bg: colors.accentLight,       canPublish: false },
+  { key: 'circuits',  label: 'Circuits courts',  icon: 'storefront', color: colors.ressourcerie, bg: colors.ressourcerieLight, canPublish: false },
+  { key: 'aide',      label: 'Aide alimentaire', icon: 'heart',      color: colors.urgency,      bg: colors.urgencyLight,      canPublish: false },
+  { key: 'mobile',    label: 'Yondly Mobile',    icon: 'bus',        color: colors.service,      bg: colors.serviceLight,      canPublish: false },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
