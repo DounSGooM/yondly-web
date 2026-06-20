@@ -39,13 +39,12 @@ JWT_ALGORITHM = "HS256"
 security = HTTPBearer(auto_error=False)
 
 
-def init_analytics(mongo_db, jwt_secret: str, jwt_algorithm: str = "HS256"):
+def init_analytics(database, jwt_secret: str, jwt_algorithm: str = "HS256"):
     """
-    Initialize analytics module with shared database and JWT config.
-    Should be called from server.py after MongoDB connection is established.
+    Initialize analytics module with shared Supabase database and JWT config.
     """
     global db, JWT_SECRET, JWT_ALGORITHM
-    db = mongo_db
+    db = database
     JWT_SECRET = jwt_secret
     JWT_ALGORITHM = jwt_algorithm
     
