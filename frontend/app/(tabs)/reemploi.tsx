@@ -33,11 +33,12 @@ const REUSE_POINT_COUNT = MOCK_MAP_POINTS.filter(p => p.category === 'reemploi')
 // ─── Sub-tabs ────────────────────────────────────────────────────────────────
 
 const SUB_TABS = [
-  { key: 'vente',     label: 'Vente',                  icon: 'pricetag',    color: colors.info,    bg: '#EFF6FF', canPublish: true  },
-  { key: 'dons',      label: 'Dons',                   icon: 'gift',        color: colors.primary, bg: colors.primaryLight, canPublish: true  },
-  { key: 'echange',   label: 'Échange',                icon: 'swap-horizontal', color: '#7C3AED',  bg: '#F5F3FF', canPublish: true  },
-  { key: 'services',  label: 'Services',               icon: 'construct',   color: '#0284C7',      bg: '#F0F9FF', canPublish: true  },
-  { key: 'pros',      label: 'Ressourceries',          icon: 'storefront',  color: '#059669',      bg: '#ECFDF5', canPublish: false },
+  { key: 'vente',     label: 'Vente',                  icon: 'pricetag',        color: colors.info,    bg: '#EFF6FF', canPublish: true  },
+  { key: 'location',  label: 'Location',               icon: 'calendar-outline',color: '#D97706',      bg: '#FFFBEB', canPublish: true  },
+  { key: 'dons',      label: 'Dons',                   icon: 'gift',            color: colors.primary, bg: colors.primaryLight, canPublish: true  },
+  { key: 'echange',   label: 'Échange',                icon: 'swap-horizontal', color: '#7C3AED',      bg: '#F5F3FF', canPublish: true  },
+  { key: 'services',  label: 'Services',               icon: 'construct',       color: '#0284C7',      bg: '#F0F9FF', canPublish: true  },
+  { key: 'pros',      label: 'Ressourceries',          icon: 'storefront',      color: '#059669',      bg: '#ECFDF5', canPublish: false },
 ];
 
 const CONDITION_LABELS: Record<string, { label: string; color: string }> = {
@@ -163,6 +164,7 @@ const CARTE_REEMPLOI = '/carte?initialCategory=reemploi';
 
 const TYPE_MAP: Record<string, string> = {
   vente:    'sale',
+  location: 'rent',
   dons:     'donation',
   echange:  'exchange',
   services: 'service',
