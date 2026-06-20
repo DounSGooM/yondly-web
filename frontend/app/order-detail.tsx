@@ -16,6 +16,7 @@ import axios from 'axios';
 import { useAuthStore } from '../src/store/authStore';
 import SponsorModal from '../src/components/SponsorModal';
 import RatingModal from '../src/components/RatingModal';
+import PartenaireLocalSpot from '../src/components/PartenaireLocalSpot';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale/fr';
 
@@ -30,6 +31,7 @@ interface Order {
   platform_fee_cents: number;
   payout_cents: number;
   payment_status: string;
+  payment_method?: string;
   handover_status?: string; // pending, confirmed
   handoff: {
     mode: string;
@@ -256,6 +258,27 @@ export default function OrderDetailScreen() {
             </Text>
           </View>
         </View>
+
+        {order.payment_method === 'cash' && (
+          <>
+            <PartenaireLocalSpot onConfirm={() => {}} />
+            <View style={{ marginHorizontal: 16, marginBottom: 12, backgroundColor: '#F0FDF4', borderRadius: 12, padding: 16 }}>
+              <Text style={{ fontWeight: '700', fontSize: 15, color: '#166534', marginBottom: 10 }}>🌱 Votre impact est comptabilisé</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                <Ionicons name="leaf-outline" size={16} color="#16a34a" style={{ marginRight: 8 }} />
+                <Text style={{ color: '#166534', fontSize: 13 }}>CO₂ évité ajouté à votre profil</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                <Ionicons name="star-outline" size={16} color="#16a34a" style={{ marginRight: 8 }} />
+                <Text style={{ color: '#166534', fontSize: 13 }}>Points Yondly crédités à la remise</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="chatbubble-outline" size={16} color="#16a34a" style={{ marginRight: 8 }} />
+                <Text style={{ color: '#166534', fontSize: 13 }}>Avis mutuels débloqués après la remise</Text>
+              </View>
+            </View>
+          </>
+        )}
 
         {order.item && (
           <View style={styles.section}>
