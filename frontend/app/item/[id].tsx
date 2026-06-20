@@ -47,36 +47,62 @@ export default function ItemDetailScreen() {
     }
   };
 
+  const createOrder = async (paymentMethod: 'stripe' | 'cash') => {
+    if (!item) return;
+    setPurchasing(true);
+    try {
+      const response = await axios.post(
+        `${API_URL}/orders`,
+        { item_id: item.id, payment_method: paymentMethod },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (paymentMethod === 'cash') {
+        Alert.alert(
+          '✅ Réservation confirmée',
+          `Votre réservation pour "${item.title}" est enregistrée. Réglez en espèces lors de la remise.`,
+          [{ text: 'Voir ma commande', onPress: () => router.push(`/order/${response.data.id}` as any) }]
+        );
+      } else {
+        router.push(`/order/${response.data.id}` as any);
+      }
+    } catch (error: any) {
+      Alert.alert('Erreur', error.response?.data?.detail || 'Erreur lors de l\'achat');
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
   const handleBuy = async () => {
     if (!item) return;
 
-    Alert.alert(
-      'Confirmer l\'achat',
-      `Acheter "${item.title}" pour ${((item.price_cents || 0) / 100).toFixed(2)}€?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Acheter',
-          onPress: async () => {
-            setPurchasing(true);
-            try {
-              const response = await axios.post(
-                `${API_URL}/orders`,
-                { item_id: item.id },
-                { headers: { Authorization: `Bearer ${token}` } }
-              );
+    const price = `${((item.price_cents || 0) / 100).toFixed(2)}€`;
 
-              Alert.alert('Succès', 'Achat effectué! Consultez vos commandes.');
-              router.push(`/order/${response.data.id}` as any);
-            } catch (error: any) {
-              Alert.alert('Erreur', error.response?.data?.detail || 'Erreur lors de l\'achat');
-            } finally {
-              setPurchasing(false);
-            }
+    if (item.accepts_cash) {
+      Alert.alert(
+        'Mode de paiement',
+        `Comment souhaitez-vous payer "${item.title}" (${price}) ?`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: '💳 En ligne (sécurisé)',
+            onPress: () => createOrder('stripe'),
           },
-        },
-      ]
-    );
+          {
+            text: '💵 En espèces (à la remise)',
+            onPress: () => createOrder('cash'),
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Confirmer l\'achat',
+        `Acheter "${item.title}" pour ${price}?`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Acheter', onPress: () => createOrder('stripe') },
+        ]
+      );
+    }
   };
 
   const handleContact = () => {

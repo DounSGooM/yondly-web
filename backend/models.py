@@ -93,6 +93,7 @@ class ItemCreate(BaseModel):
     deposit_cents: Optional[int] = None  # For rentals
     max_duration_days: Optional[int] = None  # For rentals
     allow_offers: bool = False
+    accepts_cash: bool = False  # Paiement en espèces autorisé (vente uniquement)
     # Exchange
     wanted_item: Optional[str] = None
     # Service
@@ -118,6 +119,7 @@ class Item(BaseModel):
     deposit_cents: Optional[int] = None
     max_duration_days: Optional[int] = None
     allow_offers: bool = False
+    accepts_cash: bool = False
     wanted_item: Optional[str] = None
     service_duration: Optional[str] = None
     service_availability: Optional[str] = None
@@ -142,6 +144,7 @@ class HandoffData(BaseModel):
 
 class OrderCreate(BaseModel):
     item_id: str
+    payment_method: Literal['stripe', 'cash'] = 'stripe'
 
 class Order(BaseModel):
     id: str
@@ -1148,3 +1151,28 @@ class AssociationStats(BaseModel):
     this_month_baskets: int = 0  # Baskets claimed this month
     this_month_distributions: int = 0  # Distributions this month
     impact_families: int = 0  # Unique families helped
+
+
+# ─── Partner Subscription Models ─────────────────────────────────────────────
+
+class PartnerSubscribeRequest(BaseModel):
+    tier: Literal['fondateur', 'coup_de_pouce', 'reemploi']
+    business_name: str
+    business_type: Optional[str] = None
+    promo_code: Optional[str] = None
+    description: Optional[str] = None
+
+class PartnerSubscription(BaseModel):
+    id: str
+    user_id: str
+    tier: Literal['fondateur', 'coup_de_pouce', 'reemploi']
+    business_name: str
+    business_type: Optional[str] = None
+    promo_code: Optional[str] = None
+    description: Optional[str] = None
+    logo_url: Optional[str] = None
+    city: Optional[str] = None
+    status: Literal['pending', 'active', 'paused', 'cancelled'] = 'pending'
+    stats: Dict[str, int] = Field(default_factory=lambda: {"impressions": 0, "clicks": 0, "sales_supported": 0})
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    activated_at: Optional[datetime] = None

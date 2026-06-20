@@ -401,6 +401,56 @@ async def partner_request(app: PartnerApplication):
     await db.partners.insert_one(app_dict)
     return {"message": "Application received"}
 
+
+@api_router.post("/partners/subscribe")
+async def partner_subscribe(
+    data: PartnerSubscribeRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Enregistre une demande d'abonnement partenaire (validation manuelle par l'équipe)."""
+    sub_id = str(uuid.uuid4())
+    city = current_user.get("location", {}).get("city") if current_user.get("location") else None
+    sub_dict = {
+        "id": sub_id,
+        "user_id": current_user["id"],
+        "tier": data.tier,
+        "business_name": data.business_name,
+        "business_type": data.business_type,
+        "promo_code": data.promo_code,
+        "description": data.description,
+        "logo_url": None,
+        "city": city,
+        "status": "pending",
+        "stats": {"impressions": 0, "clicks": 0, "sales_supported": 0},
+        "created_at": datetime.utcnow(),
+        "activated_at": None,
+    }
+    await db.partner_subscriptions.insert_one(sub_dict)
+
+    # Marquer is_partner=True et stocker la subscription sur le user
+    sub_dict.pop("_id", None)
+    await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$set": {"is_partner": True, "partner_subscription": sub_dict}}
+    )
+
+    # Notifier l'admin (simple log pour l'instant)
+    print(f"[PARTNER] Nouvelle demande: {data.business_name} ({data.tier}) — user {current_user['id']}")
+
+    return {"message": "Demande reçue", "subscription_id": sub_id}
+
+
+@api_router.get("/partners/active")
+async def get_active_partners(city: Optional[str] = None):
+    """Retourne les partenaires actifs pour le PartenaireLocalSpot."""
+    query: dict = {"status": "active"}
+    if city:
+        query["city"] = {"$regex": city, "$options": "i"}
+    partners = await db.partner_subscriptions.find(query).to_list(50)
+    for p in partners:
+        p.pop("_id", None)
+    return partners
+
 # ============ ADMIN ROUTES (SIMPLE) ============
 
 @api_router.get("/admin/waitlist")
@@ -1831,9 +1881,16 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
     # For donations, price is 0
     is_donation = item["type"] == "donation"
     price_cents = 0 if is_donation else item.get("price_cents", 0)
+    is_cash = order_data.payment_method == "cash"
+
+    # Vérifier que le vendeur accepte le cash si demandé
+    if is_cash and not is_donation:
+        if not item.get("accepts_cash", False):
+            raise HTTPException(status_code=400, detail="Ce vendeur n'accepte pas le paiement en espèces.")
 
     # Refuser les ventes en dessous du seuil minimum (Stripe non rentable + mauvaise UX)
-    if not is_donation and price_cents < MINIMUM_PAYABLE_CENTS:
+    # Exception : paiement en espèces (pas de frais Stripe)
+    if not is_donation and not is_cash and price_cents < MINIMUM_PAYABLE_CENTS:
         raise HTTPException(
             status_code=400,
             detail=f"Le paiement sécurisé est disponible à partir de {MINIMUM_PAYABLE_CENTS / 100:.2f} €. "
@@ -1857,16 +1914,14 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
                 price_cents = negotiated_price
                 print(f"Applying negotiated price: {price_cents} (Public: {item.get('price_cents')})")
     
-    # Calculate fees (0 for donations)
-    # Fetch seller to check level for fees
+    # Calculate fees (0 for donations and cash — no Stripe, no commission)
     seller_user = await db.users.find_one({"id": item["owner_id"]})
     seller_level = seller_user.get("level", "Novice") if seller_user else "Novice"
-    
-    # Calculate fees (0 for donations)
-    fee_info = calculate_platform_fee(price_cents, seller_level) if price_cents > 0 else {
-        "platform_fee_cents": 0,
-        "payout_cents": 0
-    }
+
+    if is_cash or is_donation or price_cents == 0:
+        fee_info = {"platform_fee_cents": 0, "payout_cents": 0}
+    else:
+        fee_info = calculate_platform_fee(price_cents, seller_level)
     
     # Generate handoff code
     handoff_code = generate_handoff_code()
@@ -1881,7 +1936,8 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
         "amount_cents": price_cents,
         "platform_fee_cents": fee_info["platform_fee_cents"],
         "payout_cents": fee_info["payout_cents"],
-        "payment_status": "escrowed" if is_donation else "initiated",  # Donations are pre-approved
+        "payment_method": order_data.payment_method,
+        "payment_status": "escrowed" if (is_donation or is_cash) else "initiated",
         "payment_intent_id": None,
         "handoff": {
             "mode": "local",
@@ -1891,14 +1947,14 @@ async def create_order(order_data: OrderCreate, current_user: dict = Depends(get
         "dispute_status": None,
         "created_at": datetime.utcnow()
     }
-    
+
     # Create Stripe PaymentIntent
     try:
         client_secret = None
-        
+
         # Check if we have real Stripe keys or placeholders.
-        # Donations have no payment, so we skip Stripe entirely for them.
-        if not is_donation and stripe_config['secret_key'].startswith('sk_test_') and len(stripe_config['secret_key']) > 20:
+        # Donations and cash orders skip Stripe entirely.
+        if not is_donation and not is_cash and stripe_config['secret_key'].startswith('sk_test_') and len(stripe_config['secret_key']) > 20:
             # Real Stripe keys - create actual PaymentIntent
             try:
                 # Prepare Transfer Data if seller is onboarded
@@ -2161,6 +2217,8 @@ async def confirm_handoff(
         "created_at": datetime.utcnow()
     }
     
+    is_cash_order = order.get("payment_method") == "cash"
+
     async with await client.start_session() as session:
         async with session.start_transaction():
             # Update order status
@@ -2173,7 +2231,7 @@ async def confirm_handoff(
                 }},
                 session=session
             )
-            
+
             # Update item status
             if "item_id" in order:
                 await db.items.update_one(
@@ -2181,16 +2239,22 @@ async def confirm_handoff(
                     {"$set": {"status": "completed"}},
                     session=session
                 )
-            
-            # Credit seller wallet
-            await db.users.update_one(
-                {"id": seller_id},
-                {"$inc": {"wallet_balance_cents": payout_amount}},
-                session=session
-            )
-            
-            # Insert transaction
-            await db.transactions.insert_one(tx_dict, session=session)
+
+            # Credit seller wallet only for Stripe payments (cash is paid physically)
+            if not is_cash_order and payout_amount > 0:
+                await db.users.update_one(
+                    {"id": seller_id},
+                    {"$inc": {"wallet_balance_cents": payout_amount}},
+                    session=session
+                )
+                await db.transactions.insert_one(tx_dict, session=session)
+
+    # Award points for cash handoff (CO2 + level handled below)
+    if is_cash_order:
+        await award_points(seller_id, 30)
+        buyer_id_cash = order.get("buyer_id")
+        if buyer_id_cash:
+            await award_points(buyer_id_cash, 15)
 
     # Notify buyer
     await create_notification(

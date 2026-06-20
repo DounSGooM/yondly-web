@@ -12,6 +12,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import StyledQRCode from '../../src/components/StyledQRCode';
+import PartenaireLocalSpot from '../../src/components/PartenaireLocalSpot';
 import axios from 'axios';
 import { useAuthStore } from '../../src/store/authStore';
 import { format } from 'date-fns';
@@ -29,6 +30,7 @@ interface Order {
   amount_cents: number;
   platform_fee_cents: number;
   payout_cents: number;
+  payment_method?: string;
   payment_status: string;
   handoff: {
     mode: string;
@@ -123,6 +125,26 @@ export default function OrderDetailScreen() {
       <ScreenHeader title="Commande" />
 
       <ScrollView style={styles.content}>
+        {order.payment_method === 'cash' && (
+          <>
+            <PartenaireLocalSpot onConfirm={() => {}} />
+            <View style={styles.rewardsCard}>
+              <Text style={styles.rewardsTitle}>🌱 Votre impact est comptabilisé</Text>
+              <View style={styles.rewardRow}>
+                <Ionicons name="leaf-outline" size={16} color="#4C7B4B" />
+                <Text style={styles.rewardText}>CO₂ évité ajouté à votre profil</Text>
+              </View>
+              <View style={styles.rewardRow}>
+                <Ionicons name="star-outline" size={16} color="#D97706" />
+                <Text style={styles.rewardText}>Points Yondly crédités à la remise</Text>
+              </View>
+              <View style={styles.rewardRow}>
+                <Ionicons name="chatbubble-outline" size={16} color="#2563EB" />
+                <Text style={styles.rewardText}>Avis mutuels débloqués après la remise</Text>
+              </View>
+            </View>
+          </>
+        )}
         <View style={styles.statusCard}>
           <View style={styles.statusHeader}>
             <Ionicons
@@ -149,6 +171,12 @@ export default function OrderDetailScreen() {
                   ? 'En attente de remise'
                   : 'Paiement initié'}
             </Text>
+            {order.payment_method === 'cash' && (
+              <View style={styles.cashBadge}>
+                <Ionicons name="cash-outline" size={14} color="#92400E" />
+                <Text style={styles.cashBadgeText}>Paiement en espèces</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -369,6 +397,45 @@ const styles = StyleSheet.create({
   },
   statusHeader: {
     alignItems: 'center',
+  },
+  cashBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  cashBadgeText: {
+    fontSize: 12,
+    color: '#92400E',
+    fontWeight: '500',
+  },
+  rewardsCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  rewardsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 12,
+  },
+  rewardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  rewardText: {
+    fontSize: 13,
+    color: '#374151',
   },
   statusTitle: {
     fontSize: 20,

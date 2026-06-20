@@ -62,6 +62,7 @@ export default function PostMarketScreen() {
   const [condition, setCondition] = useState<Condition>('good');
   const [priceEuros, setPriceEuros] = useState('');
   const [allowOffers, setAllowOffers] = useState(true);
+  const [acceptsCash, setAcceptsCash] = useState(false);
 
   // Step 2 — location
   const [rentPeriod, setRentPeriod] = useState<'day' | 'week'>('day');
@@ -181,6 +182,7 @@ export default function PostMarketScreen() {
         deposit_cents: type === 'rent' && rentDeposit ? Math.round(parseFloat(rentDeposit) * 100) : undefined,
         max_duration_days: type === 'rent' && rentMaxDays ? parseInt(rentMaxDays) : undefined,
         allow_offers: (type === 'sale' || type === 'rent') ? allowOffers : undefined,
+        accepts_cash: type === 'sale' ? acceptsCash : undefined,
         wanted_item: type === 'exchange' ? wantedItem : undefined,
         urgency_days: type === 'donation' ? urgencyDays : undefined,
         service_duration: type === 'service' ? serviceDuration : undefined,
@@ -334,6 +336,23 @@ export default function PostMarketScreen() {
               </View>
               <Toggle value={allowOffers} onChange={setAllowOffers} color={config.color} />
             </View>
+
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={styles.toggleTitle}>Accepter le paiement en espèces</Text>
+                <Text style={styles.toggleSubtitle}>Paiement en main propre lors de la remise (sans frais)</Text>
+              </View>
+              <Toggle value={acceptsCash} onChange={setAcceptsCash} color={config.color} />
+            </View>
+
+            {acceptsCash && (
+              <View style={[styles.infoBox, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="cash-outline" size={18} color="#D97706" />
+                <Text style={[styles.infoText, { color: '#92400E' }]}>
+                  En choisissant le cash, l'acheteur et vous vous mettez d'accord à la remise. Aucune commission n'est prélevée, mais il n'y a pas de protection acheteur.
+                </Text>
+              </View>
+            )}
 
             <Text style={styles.label}>Description</Text>
             <TextInput style={[styles.input, styles.textArea]} placeholder="État, dimensions, défauts éventuels..." value={description} onChangeText={setDescription} multiline maxLength={500} />
@@ -547,6 +566,7 @@ export default function PostMarketScreen() {
               <SummaryRow icon="text-outline" label="Titre" value={title} />
               <SummaryRow icon="folder-outline" label="Catégorie" value={category} />
               {type === 'sale' && priceEuros && <SummaryRow icon="cash-outline" label="Prix" value={`${priceEuros} €`} color={config.color} />}
+              {type === 'sale' && acceptsCash && <SummaryRow icon="wallet-outline" label="Cash accepté" value="Oui" color="#D97706" />}
               {type === 'rent' && rentPriceStr && <SummaryRow icon="cash-outline" label="Tarif" value={`${rentPriceStr} €/${rentPeriod === 'day' ? 'jour' : 'sem.'}`} color={config.color} />}
               {type === 'rent' && rentDeposit && <SummaryRow icon="shield-outline" label="Caution" value={`${rentDeposit} €`} />}
               {type === 'exchange' && wantedItem && <SummaryRow icon="swap-horizontal-outline" label="Cherche" value={wantedItem} />}
