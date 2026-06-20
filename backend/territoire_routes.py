@@ -82,7 +82,7 @@ def create_territoire_routes(db):
         # ── Mobilisation citoyenne ─────────────────────────────────────────
         utilisateurs_actifs = await _count(db.users, {
             **base_query,
-            "last_active": date_filter if date_filter else {"$exists": True},
+            "last_sign_in_at": date_filter if date_filter else {"$exists": True},
         })
         commerces_engages = await _count(db.stores, {**base_query})
 

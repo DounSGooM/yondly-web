@@ -1,4 +1,5 @@
 import os
+import logging
 import jwt
 import bcrypt
 from datetime import datetime, timedelta
@@ -6,10 +7,26 @@ from fastapi import HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from database import db  # SupabaseDB — MongoDB-compatible async API
 
+logger = logging.getLogger(__name__)
+
 # JWT Configuration
-JWT_SECRET = os.environ.get('JWT_SECRET', 'loop_jwt_secret_change_in_production')
+_DEV_JWT_FALLBACK = 'loop_jwt_secret_change_in_production'
+JWT_SECRET = os.environ.get('JWT_SECRET', _DEV_JWT_FALLBACK)
 JWT_ALGORITHM = os.environ.get('JWT_ALGORITHM', 'HS256')
 JWT_EXPIRATION_HOURS = int(os.environ.get('JWT_EXPIRATION_HOURS', 720))
+
+# En production, refuser de démarrer avec le secret par défaut (sinon les
+# tokens seraient forgeables par n'importe qui connaissant le repo).
+if JWT_SECRET == _DEV_JWT_FALLBACK:
+    if os.environ.get('ENVIRONMENT', '').lower() in ('production', 'prod'):
+        raise RuntimeError(
+            "JWT_SECRET non défini en production. Configure la variable "
+            "d'environnement JWT_SECRET avec une valeur secrète et aléatoire."
+        )
+    logger.warning(
+        "JWT_SECRET utilise la valeur de développement par défaut — "
+        "à NE PAS utiliser en production."
+    )
 
 security = HTTPBearer()
 

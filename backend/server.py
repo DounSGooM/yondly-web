@@ -1250,12 +1250,9 @@ async def create_item(
             event_name="listing_created",
             territory_type="code_postal",
             territory_code=territory_code,
-            event_value=estimated_value,
-            metadata={
-                "item_id": item_id,
-                "type": mode_map.get(item_data.type, "autre"),
-                "category": item_data.category
-            }
+            mode=mode_map.get(item_data.type, "autre"),
+            category=item_data.category,
+            estimated_value=estimated_value,
         )
     except Exception as e:
         print(f"Tracking error: {e}")
