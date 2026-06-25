@@ -72,7 +72,8 @@ async function handleLogin(e) {
         if (res.ok) {
             const data = await res.json();
             // Verify if user is actually admin
-            if (data.user.email !== 'admin@yondly.com') {
+            const ADMIN_EMAILS = ['admin@yondly.com', 'lagaville.gerald@outlook.fr'];
+            if (!ADMIN_EMAILS.includes(data.user.email)) {
                 showToast('Accès non autorisé: Compte non admin', 'error');
                 btn.innerHTML = originalText;
                 btn.disabled = false;
