@@ -23,6 +23,7 @@ from push_service import send_push_notification
 from co2_estimator import estimate_co2_with_ai, get_base_co2_estimate, calculate_environmental_equivalents
 from chat_security import check_message_content
 from risk_engine import update_user_trust_level
+import antigaspi_quality
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -4422,9 +4423,15 @@ async def get_deals(lat: float = None, lng: float = None):
         # Populate store
         store = await db.stores.find_one({"id": deal["store_id"]})
         if store:
+            # Un commerçant suspendu perd sa visibilité.
+            if store.get("quality_status") == "SUSPENDED":
+                continue
             store.pop("_id", None)
+            # Badge de fiabilité anti-gaspi
+            store["quality_badge"] = antigaspi_quality.build_quality_badge(store)
             deal["store"] = store
-            
+            deal["quality_badge"] = store["quality_badge"]
+
             # Simple distance calculation if coords provided
             if lat is not None and lng is not None and store.get("lat") and store.get("lng"):
                 from math import radians, cos, sin, asin, sqrt
@@ -4438,10 +4445,240 @@ async def get_deals(lat: float = None, lng: float = None):
                 distance = r * c
                 
                 deal["store"]["distance_km"] = round(distance, 1)
-        
+
         results.append(deal)
-        
+
     return results
+
+
+# ============================================================
+# QUALITÉ ANTI-GASPI GARANTIE — avis 3 axes, signalements, badge
+# ============================================================
+
+class BasketReviewCreate(BaseModel):
+    quality: int      # 1-5 : qualité du produit
+    quantity: int     # 1-5 : quantité reçue vs annoncée
+    conformity: int   # 1-5 : conformité à la description
+    comment: Optional[str] = None
+
+
+class BasketReportCreate(BaseModel):
+    reason: Literal[
+        'not_consumable', 'expired', 'cold_or_spoiled',
+        'far_from_description', 'too_old', 'quantity_short', 'other'
+    ]
+    description: Optional[str] = None
+    photos: List[str] = []
+
+
+async def _resolve_basket_order(order_id: str, current_user: dict):
+    """Récupère l'order d'un panier et vérifie que l'utilisateur en est l'acheteur."""
+    order = await db.orders.find_one({"id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Commande introuvable")
+    if order.get("buyer_id") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Vous n'êtes pas l'acheteur de ce panier")
+    deal_id = order.get("item_id")
+    store_id = order.get("store_id")
+    if not store_id and deal_id:
+        deal = await db.deals.find_one({"id": deal_id})
+        store_id = deal.get("store_id") if deal else None
+    return order, deal_id, store_id
+
+
+@api_router.get("/baskets/{order_id}/review")
+async def get_basket_review(order_id: str, current_user: dict = Depends(get_current_user)):
+    """Indique si l'acheteur a déjà noté ce panier."""
+    existing = await db.basket_reviews.find_one({"order_id": order_id})
+    if existing:
+        existing.pop("_id", None)
+        return {"reviewed": True, "review": existing}
+    return {"reviewed": False, "review": None}
+
+
+@api_router.post("/baskets/{order_id}/review")
+async def create_basket_review(
+    order_id: str,
+    data: BasketReviewCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Noter un panier anti-gaspi sur 3 axes (qualité / quantité / conformité)."""
+    for axis, val in (("qualité", data.quality), ("quantité", data.quantity), ("conformité", data.conformity)):
+        if val < 1 or val > 5:
+            raise HTTPException(status_code=400, detail=f"La note de {axis} doit être entre 1 et 5")
+
+    order, deal_id, store_id = await _resolve_basket_order(order_id, current_user)
+    if not store_id:
+        raise HTTPException(status_code=400, detail="Panier sans commerçant rattaché")
+
+    existing = await db.basket_reviews.find_one({"order_id": order_id})
+    if existing:
+        raise HTTPException(status_code=400, detail="Vous avez déjà noté ce panier")
+
+    review = {
+        "id": str(uuid.uuid4()),
+        "order_id": order_id,
+        "deal_id": deal_id,
+        "store_id": store_id,
+        "reviewer_id": current_user["id"],
+        "quality": data.quality,
+        "quantity": data.quantity,
+        "conformity": data.conformity,
+        "comment": (data.comment or "").strip() or None,
+        "created_at": datetime.utcnow(),
+    }
+    await db.basket_reviews.insert_one(review)
+
+    metrics = await antigaspi_quality.recompute_store_quality(db, store_id)
+    review.pop("_id", None)
+    return {"review": review, "store_quality": metrics}
+
+
+@api_router.post("/baskets/{order_id}/report")
+async def report_basket(
+    order_id: str,
+    data: BasketReportCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Signaler un panier non conforme / non consommable."""
+    order, deal_id, store_id = await _resolve_basket_order(order_id, current_user)
+    if not store_id:
+        raise HTTPException(status_code=400, detail="Panier sans commerçant rattaché")
+
+    existing = await db.basket_reports.find_one({"order_id": order_id, "reporter_id": current_user["id"]})
+    if existing:
+        raise HTTPException(status_code=400, detail="Vous avez déjà signalé ce panier")
+
+    report = {
+        "id": str(uuid.uuid4()),
+        "order_id": order_id,
+        "deal_id": deal_id,
+        "store_id": store_id,
+        "reporter_id": current_user["id"],
+        "reason": data.reason,
+        "description": (data.description or "").strip() or None,
+        "photos": data.photos or [],
+        "status": "open",
+        "credit_cents": 0,
+        "created_at": datetime.utcnow(),
+    }
+    await db.basket_reports.insert_one(report)
+
+    metrics = await antigaspi_quality.recompute_store_quality(db, store_id)
+
+    # Notifier l'équipe (log) — le traitement se fait via l'admin.
+    logger.info(f"[ANTIGASPI] Signalement panier {order_id} store={store_id} reason={data.reason}")
+
+    report.pop("_id", None)
+    return {"report": report, "store_quality": metrics}
+
+
+@api_router.get("/stores/{store_id}/quality")
+async def get_store_quality(store_id: str):
+    """Détail de la fiabilité anti-gaspi d'un commerçant (badge + moyennes)."""
+    store = await db.stores.find_one({"id": store_id})
+    if not store:
+        raise HTTPException(status_code=404, detail="Store not found")
+    badge = antigaspi_quality.build_quality_badge(store)
+    return {
+        "badge": badge,
+        "quality_status": store.get("quality_status", "OK"),
+        "conformity_rate": store.get("conformity_rate"),
+        "avg_quality": store.get("avg_quality"),
+        "avg_quantity": store.get("avg_quantity"),
+        "avg_conformity": store.get("avg_conformity"),
+        "reviews_count": store.get("basket_reviews_count", 0),
+        "reports_count": store.get("reports_count", 0),
+    }
+
+
+# ─── Admin : surveillance & résolution des signalements ──────────────────────
+
+@api_router.get("/admin/antigaspi/flagged")
+async def admin_antigaspi_flagged(current_user: dict = Depends(get_current_user)):
+    """Commerçants sous surveillance ou suspendus."""
+    stores = await db.stores.find(
+        {"quality_status": {"$in": ["WATCH", "SUSPENDED"]}}
+    ).to_list(None)
+    out = []
+    for s in stores:
+        s.pop("_id", None)
+        s["quality_badge"] = antigaspi_quality.build_quality_badge(s)
+        out.append(s)
+    return out
+
+
+@api_router.get("/admin/antigaspi/reports")
+async def admin_antigaspi_reports(
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Liste des signalements de paniers (filtrable par statut)."""
+    query = {}
+    if status:
+        query["status"] = status
+    reports = await db.basket_reports.find(query).sort("created_at", -1).to_list(200)
+    for r in reports:
+        r.pop("_id", None)
+        store = await db.stores.find_one({"id": r.get("store_id")})
+        r["store_name"] = store.get("name") if store else None
+        deal = await db.deals.find_one({"id": r.get("deal_id")}) if r.get("deal_id") else None
+        r["deal_title"] = deal.get("title") if deal else None
+    return reports
+
+
+class BasketReportResolution(BaseModel):
+    resolution: Literal['refunded', 'rejected']
+    credit_cents: int = 0       # Crédit Yondly accordé à l'acheteur
+    admin_notes: Optional[str] = None
+
+
+@api_router.post("/admin/baskets/reports/{report_id}/resolve")
+async def resolve_basket_report(
+    report_id: str,
+    data: BasketReportResolution,
+    current_user: dict = Depends(get_current_user)
+):
+    """Traiter un signalement : rembourser en crédit Yondly ou rejeter."""
+    report = await db.basket_reports.find_one({"id": report_id})
+    if not report:
+        raise HTTPException(status_code=404, detail="Signalement introuvable")
+    if report["status"] in ("refunded", "rejected"):
+        raise HTTPException(status_code=400, detail="Signalement déjà traité")
+
+    credit = max(0, data.credit_cents) if data.resolution == "refunded" else 0
+
+    # Créditer le portefeuille Yondly de l'acheteur.
+    if credit > 0:
+        await db.users.update_one(
+            {"id": report["reporter_id"]},
+            {"$inc": {"wallet_balance_cents": credit}}
+        )
+        await db.transactions.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": report["reporter_id"],
+            "amount_cents": credit,
+            "type": "refund",
+            "status": "completed",
+            "reference_id": report.get("order_id"),
+            "description": "Crédit anti-gaspi : panier non conforme",
+            "created_at": datetime.utcnow(),
+        })
+
+    await db.basket_reports.update_one(
+        {"id": report_id},
+        {"$set": {
+            "status": data.resolution,
+            "credit_cents": credit,
+            "admin_notes": data.admin_notes,
+            "resolved_by": current_user["id"],
+            "resolved_at": datetime.utcnow(),
+        }}
+    )
+
+    # Recalcule le statut du commerçant (le signalement n'est plus "open").
+    metrics = await antigaspi_quality.recompute_store_quality(db, report["store_id"])
+    return {"status": data.resolution, "credit_cents": credit, "store_quality": metrics}
 
 
 @api_router.get("/stores/{store_id}")
@@ -4457,7 +4694,10 @@ async def get_store(store_id: str, current_user_id: Optional[str] = None):
         raise HTTPException(status_code=404, detail="Store not found")
         
     store.pop("_id", None)
-    
+
+    # Badge de fiabilité anti-gaspi
+    store["quality_badge"] = antigaspi_quality.build_quality_badge(store)
+
     # Calculate followers count (denormalized or count)
     followers_count = await db.store_follows.count_documents({"store_id": store_id})
     store["followers_count"] = followers_count
@@ -4504,6 +4744,20 @@ class DealCreate(BaseModel):
     deal_price: float
     category: Literal['Food', 'Flowers', 'Other']
     expires_at: datetime
+    quantity: int = 1
+    # ─── Transparence anti-gaspi garantie ───────────────────────────────
+    food_category: Optional[Literal[
+        'boulangerie', 'fruits_legumes', 'epicerie',
+        'traiteur_froid', 'traiteur_chaud', 'viande_poisson',
+        'plats_prepares', 'fleurs', 'autre'
+    ]] = None
+    contents_description: Optional[str] = None   # Détail précis du contenu
+    quantity_info: Optional[str] = None          # Quantité approximative
+    prepared_at: Optional[datetime] = None       # Heure de préparation
+    pickup_start: Optional[datetime] = None      # Début fenêtre de retrait
+    pickup_end: Optional[datetime] = None        # Fin fenêtre de retrait
+    kept_warm: bool = False                       # Maintenu au chaud
+    is_mystery: bool = False                      # Panier surprise
 
 @api_router.get("/me/store")
 async def get_my_store(current_user: dict = Depends(get_current_user)):
@@ -4552,12 +4806,32 @@ async def create_deal(deal_data: DealCreate, current_user: dict = Depends(get_cu
     store = await db.stores.find_one({"owner_id": current_user["id"]})
     if not store:
         raise HTTPException(status_code=400, detail="User must have a registered store to post deals")
-        
+
+    # 1bis. Un commerçant suspendu ne peut plus publier.
+    if store.get("quality_status") == "SUSPENDED":
+        raise HTTPException(
+            status_code=403,
+            detail="Votre commerce est suspendu suite à des paniers non conformes. Contactez le support."
+        )
+
+    # 1ter. Règles de transparence anti-gaspi garantie.
+    transparency_error = antigaspi_quality.validate_deal_transparency({
+        "food_category": deal_data.food_category,
+        "contents_description": deal_data.contents_description,
+        "description": deal_data.description,
+        "is_mystery": deal_data.is_mystery,
+        "pickup_start": deal_data.pickup_start,
+        "pickup_end": deal_data.pickup_end,
+        "prepared_at": deal_data.prepared_at,
+    })
+    if transparency_error:
+        raise HTTPException(status_code=400, detail=transparency_error)
+
     # 2. Calculate values
     discount_val = int(((deal_data.original_price - deal_data.deal_price) / deal_data.original_price) * 100)
-    
+
     deal_id = str(uuid.uuid4())
-    
+
     new_deal = {
         "id": deal_id,
         "store_id": store["id"] if "id" in store else str(store["_id"]),
@@ -4569,12 +4843,22 @@ async def create_deal(deal_data: DealCreate, current_user: dict = Depends(get_cu
         "discount_type": "percentage",
         "category": deal_data.category,
         "status": "active",
+        "remaining": max(1, deal_data.quantity),
+        # Transparence anti-gaspi
+        "food_category": deal_data.food_category,
+        "contents_description": deal_data.contents_description,
+        "quantity_info": deal_data.quantity_info,
+        "prepared_at": deal_data.prepared_at,
+        "pickup_start": deal_data.pickup_start,
+        "pickup_end": deal_data.pickup_end,
+        "kept_warm": deal_data.kept_warm,
+        "is_mystery": deal_data.is_mystery,
         "created_at": datetime.utcnow(),
         "expires_at": deal_data.expires_at
     }
-    
+
     await db.deals.insert_one(new_deal)
-    
+
     return new_deal
 
 @api_router.get("/stores/{store_id}/status")

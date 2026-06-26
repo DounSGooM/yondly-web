@@ -130,6 +130,7 @@ function navigateTo(page) {
         disputes: 'Gestion des Litiges',
         items: 'Annonces',
         impact: 'Impact Environnemental',
+        'antigaspi': 'Qualité Anti-Gaspi',
         'safety-logs': 'Registre de Sécurité',
         'audit-logs': 'Audit Logs',
         'pro-verifications': 'Vérifications PRO',
@@ -199,6 +200,7 @@ function loadPageData(page) {
         case 'disputes': loadDisputes(); break;
         case 'items': loadItems(); break;
         case 'impact': loadImpact(); break;
+        case 'antigaspi': loadAntigaspi(); break;
         case 'safety-logs': loadSafetyLogs(); break;
         case 'pro-verifications': loadProVerifications(); break;
         case 'pro-offers': loadProOffers(); break;
@@ -1052,6 +1054,121 @@ async function loadSafetyLogs() {
     } catch (e) {
         console.error("Error loading safety logs:", e);
         tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: red;">Erreur JS: ${e.message}</td></tr>`;
+    }
+}
+
+// ─── Qualité Anti-Gaspi ──────────────────────────────────────────────────────
+const ANTIGASPI_REASONS = {
+    not_consumable: 'Non consommable',
+    expired: 'Périmé',
+    cold_or_spoiled: 'Froid / avarié',
+    far_from_description: 'Non conforme description',
+    too_old: 'Trop vieux',
+    quantity_short: 'Quantité insuffisante',
+    other: 'Autre',
+};
+
+function antigaspiStatusBadge(status) {
+    const map = {
+        OK: ['#e0f2f1', '#047857', 'OK'],
+        WATCH: ['#fef3c7', '#92400e', 'SURVEILLANCE'],
+        SUSPENDED: ['#fee2e2', '#b91c1c', 'SUSPENDU'],
+        open: ['#fef3c7', '#92400e', 'À traiter'],
+        reviewing: ['#e0e7ff', '#3730a3', 'En cours'],
+        refunded: ['#dcfce7', '#166534', 'Remboursé'],
+        rejected: ['#f3f4f6', '#6b7280', 'Rejeté'],
+    };
+    const [bg, color, label] = map[status] || ['#f3f4f6', '#6b7280', status || '-'];
+    return `<span class="badge-status" style="background:${bg};color:${color};">${label}</span>`;
+}
+
+async function loadAntigaspi() {
+    const flaggedBody = document.getElementById('antigaspi-flagged-body');
+    const reportsBody = document.getElementById('antigaspi-reports-body');
+    if (!flaggedBody || !reportsBody) return;
+
+    flaggedBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;"><i class="fas fa-spinner fa-spin fa-2x"></i></td></tr>';
+    reportsBody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;"><i class="fas fa-spinner fa-spin fa-2x"></i></td></tr>';
+
+    // 1. Commerçants sous surveillance
+    try {
+        const res = await fetch(`${API_URL}/admin/antigaspi/flagged`, {
+            headers: { Authorization: `Bearer ${authToken}` }
+        });
+        const stores = res.ok ? await res.json() : [];
+        if (!stores.length) {
+            flaggedBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Aucun commerçant à surveiller 🎉</td></tr>';
+        } else {
+            flaggedBody.innerHTML = stores.map(s => `
+                <tr>
+                    <td style="font-weight:600;">${s.name || '-'}</td>
+                    <td>${antigaspiStatusBadge(s.quality_status)}</td>
+                    <td>${s.conformity_rate != null ? Math.round(s.conformity_rate) + '%' : '—'}</td>
+                    <td>${s.basket_reviews_count || 0}</td>
+                    <td>${s.reports_count || 0} (${s.reports_open_count || 0} ouverts)</td>
+                </tr>
+            `).join('');
+        }
+    } catch (e) {
+        flaggedBody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:red;">Erreur: ${e.message}</td></tr>`;
+    }
+
+    // 2. Signalements
+    try {
+        const filter = document.getElementById('antigaspi-report-filter')?.value ?? 'open';
+        const url = filter
+            ? `${API_URL}/admin/antigaspi/reports?status=${filter}`
+            : `${API_URL}/admin/antigaspi/reports`;
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${authToken}` } });
+        const reports = res.ok ? await res.json() : [];
+        if (!reports.length) {
+            reportsBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Aucun signalement</td></tr>';
+        } else {
+            reportsBody.innerHTML = reports.map(r => `
+                <tr>
+                    <td>${new Date(r.created_at).toLocaleString()}</td>
+                    <td>${r.store_name || '-'}</td>
+                    <td>${r.deal_title || '-'}</td>
+                    <td>${ANTIGASPI_REASONS[r.reason] || r.reason}${r.description ? `<br><small style="color:#6b7280;">${r.description}</small>` : ''}</td>
+                    <td>${antigaspiStatusBadge(r.status)}</td>
+                    <td>
+                        ${r.status === 'open' ? `
+                            <button class="btn-sm btn-primary" onclick="resolveBasketReport('${r.id}', 'refunded')">Rembourser</button>
+                            <button class="btn-sm btn-secondary" onclick="resolveBasketReport('${r.id}', 'rejected')">Rejeter</button>
+                        ` : (r.credit_cents ? `${(r.credit_cents / 100).toFixed(2)}€ crédité` : '—')}
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch (e) {
+        reportsBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:red;">Erreur: ${e.message}</td></tr>`;
+    }
+}
+
+async function resolveBasketReport(reportId, resolution) {
+    let creditCents = 0;
+    if (resolution === 'refunded') {
+        const euros = prompt('Montant du crédit Yondly à accorder (€) :', '5');
+        if (euros === null) return;
+        creditCents = Math.round(parseFloat(euros.replace(',', '.')) * 100) || 0;
+    } else {
+        if (!confirm('Rejeter ce signalement ?')) return;
+    }
+    try {
+        const res = await fetch(`${API_URL}/admin/baskets/reports/${reportId}/resolve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+            body: JSON.stringify({ resolution, credit_cents: creditCents })
+        });
+        if (res.ok) {
+            showToast(resolution === 'refunded' ? 'Acheteur remboursé en crédit Yondly' : 'Signalement rejeté');
+            loadAntigaspi();
+        } else {
+            const err = await res.json();
+            showToast(err.detail || 'Erreur', 'error');
+        }
+    } catch (e) {
+        showToast('Erreur réseau', 'error');
     }
 }
 
