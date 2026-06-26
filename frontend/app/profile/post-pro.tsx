@@ -22,15 +22,20 @@ import { API_URL } from '../../src/config/api';
 
 // Catégories alimentaires (alignées avec le backend antigaspi_quality.py)
 const FOOD_CATEGORIES = [
-    { id: 'boulangerie', label: 'Boulangerie', icon: 'cafe', sensitive: false },
-    { id: 'fruits_legumes', label: 'Fruits & Légumes', icon: 'nutrition', sensitive: false },
-    { id: 'epicerie', label: 'Épicerie', icon: 'basket', sensitive: false },
-    { id: 'traiteur_froid', label: 'Traiteur froid', icon: 'restaurant', sensitive: false },
-    { id: 'traiteur_chaud', label: 'Traiteur chaud', icon: 'flame', sensitive: true },
-    { id: 'viande_poisson', label: 'Viande / Poisson', icon: 'fish', sensitive: true },
-    { id: 'plats_prepares', label: 'Plats préparés', icon: 'fast-food', sensitive: true },
-    { id: 'fleurs', label: 'Fleurs', icon: 'rose', sensitive: false },
-    { id: 'autre', label: 'Autre', icon: 'cube', sensitive: false },
+    { id: 'boulangerie', label: 'Boulangerie', icon: 'cafe' },
+    { id: 'fruits_legumes', label: 'Fruits & Légumes', icon: 'nutrition' },
+    { id: 'epicerie', label: 'Épicerie', icon: 'basket' },
+    { id: 'traiteur_froid', label: 'Traiteur', icon: 'restaurant' },
+    { id: 'viande_poisson', label: 'Viande / Poisson', icon: 'fish' },
+    { id: 'plats_prepares', label: 'Plats préparés', icon: 'fast-food' },
+    { id: 'fleurs', label: 'Fleurs', icon: 'rose' },
+    { id: 'autre', label: 'Autre', icon: 'cube' },
+] as const;
+
+const SIZES = [
+    { id: 'small', label: 'Petit', icon: 'cafe-outline' },
+    { id: 'medium', label: 'Moyen', icon: 'bag-outline' },
+    { id: 'large', label: 'Grand', icon: 'basket-outline' },
 ] as const;
 
 const SENSITIVE = new Set(['traiteur_chaud', 'viande_poisson', 'plats_prepares']);
@@ -54,30 +59,33 @@ export default function PostProDealScreen() {
     const router = useRouter();
     const { token } = useAuthStore();
     const [loading, setLoading] = useState(false);
+    const [showDetails, setShowDetails] = useState(false);
 
     const [form, setForm] = useState({
-        title: '',
-        contents_description: '',
-        quantity_info: '',
+        food_category: 'boulangerie',
+        quantity_size: 'medium',
+        pickup_start: '18:00',   // pré-rempli : 1 ajustement éventuel
+        pickup_end: '19:30',
         original_price: '',
         deal_price: '',
-        food_category: 'boulangerie',
-        pickup_start: '',
-        pickup_end: '',
+        // Optionnels (carotte transparence)
+        title: '',
+        contents_description: '',
         kept_warm: false,
         is_mystery: false,
     });
 
-    const isSensitive = SENSITIVE.has(form.food_category);
-
     const set = (patch: Partial<typeof form>) => setForm({ ...form, ...patch });
 
+    const isSensitive = SENSITIVE.has(form.food_category);
+    const isTransparent = form.contents_description.trim().length >= 10 && !form.is_mystery;
+
     const handleSubmit = async () => {
-        if (!form.title || !form.contents_description || !form.original_price || !form.deal_price || !form.pickup_end) {
-            Alert.alert('Erreur', 'Merci de remplir le titre, le contenu, les prix et la fenêtre de retrait.');
+        // Friction minimale : prix + fenêtre de retrait (catégorie & taille ont un défaut).
+        if (!form.original_price || !form.deal_price || !form.pickup_end) {
+            Alert.alert('Presque !', 'Indique les prix et l\'heure de fin de retrait.');
             return;
         }
-
         const original = parseFloat(form.original_price.replace(',', '.'));
         const deal = parseFloat(form.deal_price.replace(',', '.'));
         if (isNaN(original) || isNaN(deal)) {
@@ -91,46 +99,31 @@ export default function PostProDealScreen() {
 
         const pickupEnd = parseTimeToToday(form.pickup_end);
         if (!pickupEnd) {
-            Alert.alert('Erreur', "L'heure de fin de retrait doit être au format HH:MM (ex: 19:30)");
+            Alert.alert('Erreur', "L'heure de fin doit être au format HH:MM (ex: 19:30)");
             return;
         }
-        let pickupStart: Date | null = null;
-        if (form.pickup_start) {
-            pickupStart = parseTimeToToday(form.pickup_start);
-            if (!pickupStart) {
-                Alert.alert('Erreur', "L'heure de début de retrait doit être au format HH:MM");
-                return;
-            }
+        let pickupStart: Date | null = form.pickup_start ? parseTimeToToday(form.pickup_start) : null;
+        if (form.pickup_start && !pickupStart) {
+            Alert.alert('Erreur', "L'heure de début doit être au format HH:MM");
+            return;
         }
-
-        // Garde-fous côté client (le backend revalide).
-        if (isSensitive) {
-            if (form.is_mystery) {
-                Alert.alert('Non autorisé', 'Pas de panier mystère pour un produit sensible. Décris le contenu.');
-                return;
-            }
-            if (form.contents_description.trim().length < 10) {
-                Alert.alert('Détaille le contenu', 'Pour un produit sensible, décris précisément le contenu (plat, ingrédients principaux).');
-                return;
-            }
-            if (!pickupStart) {
-                Alert.alert('Fenêtre de retrait', 'Indique une heure de début de retrait pour un produit sensible.');
-                return;
-            }
+        // Défaut : début = 1h avant la fin si non renseigné.
+        if (!pickupStart) {
+            pickupStart = new Date(pickupEnd.getTime() - 60 * 60 * 1000);
         }
 
         setLoading(true);
         try {
             await axios.post(`${API_URL}/deals`, {
-                title: form.title,
-                description: form.contents_description,
-                contents_description: form.contents_description,
-                quantity_info: form.quantity_info || null,
+                title: form.title || null,
+                description: form.contents_description || null,
+                contents_description: form.contents_description || null,
                 original_price: original,
                 deal_price: deal,
                 category: mapLegacyCategory(form.food_category),
                 food_category: form.food_category,
-                pickup_start: pickupStart ? pickupStart.toISOString() : null,
+                quantity_size: form.quantity_size,
+                pickup_start: pickupStart.toISOString(),
                 pickup_end: pickupEnd.toISOString(),
                 kept_warm: form.kept_warm,
                 is_mystery: form.is_mystery,
@@ -139,7 +132,7 @@ export default function PostProDealScreen() {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            Alert.alert('Succès ! 🎉', 'Votre panier anti-gaspi a été publié.', [
+            Alert.alert('Publié ! 🎉', 'Votre panier anti-gaspi est en ligne.', [
                 { text: 'OK', onPress: () => router.back() }
             ]);
         } catch (error: any) {
@@ -160,120 +153,55 @@ export default function PostProDealScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="close" size={24} color="#333" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Publier un Panier</Text>
+                <Text style={styles.headerTitle}>Nouveau panier</Text>
                 <View style={{ width: 40 }} />
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
 
-                {/* Bandeau qualité garantie */}
-                <View style={styles.guaranteeBanner}>
-                    <Ionicons name="shield-checkmark" size={18} color="#2D7D46" />
-                    <Text style={styles.guaranteeText}>
-                        Qualité garantie : décris précisément ce que contient le panier. La transparence
-                        protège ta réputation et fidélise les clients.
-                    </Text>
+                <Text style={styles.fastHint}>⚡️ 30 secondes : type, taille, horaire, prix. C'est tout.</Text>
+
+                {/* 1. Catégorie */}
+                <Text style={styles.label}>Type de produit</Text>
+                <View style={styles.categoryWrap}>
+                    {FOOD_CATEGORIES.map(cat => {
+                        const active = form.food_category === cat.id;
+                        return (
+                            <TouchableOpacity
+                                key={cat.id}
+                                style={[styles.categoryChip, active && styles.categoryChipActive]}
+                                onPress={() => set({ food_category: cat.id })}
+                            >
+                                <Ionicons name={cat.icon as any} size={16} color={active ? '#fff' : '#666'} />
+                                <Text style={[styles.categoryText, active && styles.categoryTextActive]}>{cat.label}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
 
-                <View style={styles.section}>
-                    <Text style={styles.label}>Titre du panier <Text style={styles.required}>*</Text></Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Ex: Panier Boulangerie du soir"
-                        value={form.title}
-                        onChangeText={t => set({ title: t })}
-                    />
+                {/* 2. Taille */}
+                <Text style={[styles.label, { marginTop: 20 }]}>Taille du panier</Text>
+                <View style={styles.sizeRow}>
+                    {SIZES.map(s => {
+                        const active = form.quantity_size === s.id;
+                        return (
+                            <TouchableOpacity
+                                key={s.id}
+                                style={[styles.sizeChip, active && styles.sizeChipActive]}
+                                onPress={() => set({ quantity_size: s.id })}
+                            >
+                                <Ionicons name={s.icon as any} size={22} color={active ? '#fff' : '#4C7B4B'} />
+                                <Text style={[styles.sizeText, active && styles.sizeTextActive]}>{s.label}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
 
-                <View style={styles.section}>
-                    <Text style={styles.label}>Type de produit <Text style={styles.required}>*</Text></Text>
-                    <View style={styles.categoryWrap}>
-                        {FOOD_CATEGORIES.map(cat => {
-                            const active = form.food_category === cat.id;
-                            return (
-                                <TouchableOpacity
-                                    key={cat.id}
-                                    style={[styles.categoryChip, active && styles.categoryChipActive]}
-                                    onPress={() => set({ food_category: cat.id, is_mystery: cat.sensitive ? false : form.is_mystery })}
-                                >
-                                    <Ionicons name={cat.icon as any} size={16} color={active ? '#fff' : '#666'} />
-                                    <Text style={[styles.categoryText, active && styles.categoryTextActive]}>{cat.label}</Text>
-                                    {cat.sensitive && (
-                                        <Ionicons name="warning" size={12} color={active ? '#fff' : '#D97706'} />
-                                    )}
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </View>
-                </View>
-
-                {isSensitive && (
-                    <View style={styles.sensitiveBanner}>
-                        <Ionicons name="warning" size={18} color="#D97706" />
-                        <Text style={styles.sensitiveText}>
-                            Produit sensible : contenu détaillé obligatoire, pas de panier mystère, et fenêtre
-                            de retrait courte (4h max). C'est là que la qualité se joue.
-                        </Text>
-                    </View>
-                )}
-
-                <View style={styles.section}>
-                    <Text style={styles.label}>
-                        Contenu du panier <Text style={styles.required}>*</Text>
-                    </Text>
-                    <TextInput
-                        style={[styles.input, styles.textArea]}
-                        placeholder={isSensitive
-                            ? 'Ex: 1 part de lasagnes bœuf, 1 quiche lorraine, 1 portion de riz cantonais'
-                            : 'Ex: 3 pains au chocolat, 2 baguettes tradition, 4 viennoiseries'}
-                        value={form.contents_description}
-                        onChangeText={t => set({ contents_description: t })}
-                        multiline
-                        textAlignVertical="top"
-                    />
-                    <Text style={styles.helperText}>
-                        Indique précisément les produits. C'est la base de la confiance.
-                    </Text>
-                </View>
-
-                <View style={styles.section}>
-                    <Text style={styles.label}>Quantité approximative</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Ex: environ 6 pièces / 1,5 kg / 2 portions"
-                        value={form.quantity_info}
-                        onChangeText={t => set({ quantity_info: t })}
-                    />
-                </View>
-
+                {/* 3. Fenêtre de retrait */}
+                <Text style={[styles.label, { marginTop: 20 }]}>Retrait aujourd'hui</Text>
                 <View style={styles.row}>
-                    <View style={[styles.section, { flex: 1, marginRight: 8 }]}>
-                        <Text style={styles.label}>Prix d'origine (€) <Text style={styles.required}>*</Text></Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="15.00"
-                            keyboardType="numeric"
-                            value={form.original_price}
-                            onChangeText={t => set({ original_price: t })}
-                        />
-                    </View>
-                    <View style={[styles.section, { flex: 1, marginLeft: 8 }]}>
-                        <Text style={styles.label}>Prix Anti-Gaspi (€) <Text style={styles.required}>*</Text></Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="4.99"
-                            keyboardType="numeric"
-                            value={form.deal_price}
-                            onChangeText={t => set({ deal_price: t })}
-                        />
-                    </View>
-                </View>
-
-                <View style={styles.row}>
-                    <View style={[styles.section, { flex: 1, marginRight: 8 }]}>
-                        <Text style={styles.label}>
-                            Début retrait {isSensitive && <Text style={styles.required}>*</Text>}
-                        </Text>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={styles.subLabel}>De</Text>
                         <TextInput
                             style={styles.input}
                             placeholder="18:00"
@@ -283,8 +211,8 @@ export default function PostProDealScreen() {
                             maxLength={5}
                         />
                     </View>
-                    <View style={[styles.section, { flex: 1, marginLeft: 8 }]}>
-                        <Text style={styles.label}>Fin retrait <Text style={styles.required}>*</Text></Text>
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                        <Text style={styles.subLabel}>À <Text style={styles.required}>*</Text></Text>
                         <TextInput
                             style={styles.input}
                             placeholder="19:30"
@@ -296,38 +224,106 @@ export default function PostProDealScreen() {
                     </View>
                 </View>
 
-                {/* Maintien au chaud */}
-                {(form.food_category === 'traiteur_chaud' || form.food_category === 'plats_prepares') && (
-                    <View style={styles.toggleRow}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.toggleLabel}>Produit maintenu au chaud</Text>
-                            <Text style={styles.helperText}>Informe le client si le plat a été gardé au chaud.</Text>
-                        </View>
-                        <Switch
-                            value={form.kept_warm}
-                            onValueChange={v => set({ kept_warm: v })}
-                            trackColor={{ true: '#2D7D46' }}
+                {/* 4. Prix */}
+                <View style={[styles.row, { marginTop: 20 }]}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={styles.subLabel}>Prix d'origine (€) <Text style={styles.required}>*</Text></Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="15.00"
+                            keyboardType="numeric"
+                            value={form.original_price}
+                            onChangeText={t => set({ original_price: t })}
                         />
                     </View>
-                )}
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                        <Text style={styles.subLabel}>Prix anti-gaspi (€) <Text style={styles.required}>*</Text></Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="4.99"
+                            keyboardType="numeric"
+                            value={form.deal_price}
+                            onChangeText={t => set({ deal_price: t })}
+                        />
+                    </View>
+                </View>
 
-                {/* Panier mystère (interdit si sensible) */}
-                <View style={styles.toggleRow}>
+                {/* Carotte transparence */}
+                <TouchableOpacity
+                    style={[styles.transparentCard, isTransparent && styles.transparentCardActive]}
+                    onPress={() => setShowDetails(v => !v)}
+                    activeOpacity={0.85}
+                >
+                    <Ionicons
+                        name={isTransparent ? 'shield-checkmark' : 'add-circle-outline'}
+                        size={22}
+                        color={isTransparent ? '#2D7D46' : '#6B7280'}
+                    />
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.toggleLabel}>Panier surprise</Text>
-                        <Text style={styles.helperText}>
-                            {isSensitive
-                                ? 'Indisponible pour les produits sensibles.'
-                                : 'Le contenu exact peut varier (autorisé hors produits sensibles).'}
+                        <Text style={styles.transparentTitle}>
+                            {isTransparent ? '✓ Panier transparent' : 'Décrire le contenu (optionnel)'}
+                        </Text>
+                        <Text style={styles.transparentSub}>
+                            {isTransparent
+                                ? 'Bravo ! Ton panier remonte en premier dans les résultats.'
+                                : 'Les paniers décrits sont mis en avant et rassurent les clients.'}
                         </Text>
                     </View>
-                    <Switch
-                        value={form.is_mystery}
-                        onValueChange={v => set({ is_mystery: v })}
-                        disabled={isSensitive}
-                        trackColor={{ true: '#2D7D46' }}
-                    />
-                </View>
+                    <Ionicons name={showDetails ? 'chevron-up' : 'chevron-down'} size={18} color="#9CA3AF" />
+                </TouchableOpacity>
+
+                {showDetails && (
+                    <View style={styles.detailsBox}>
+                        <Text style={styles.subLabel}>Titre (optionnel)</Text>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Ex: Panier du soir"
+                            value={form.title}
+                            onChangeText={t => set({ title: t })}
+                        />
+
+                        <Text style={[styles.subLabel, { marginTop: 14 }]}>Contenu du panier</Text>
+                        <TextInput
+                            style={[styles.input, styles.textArea]}
+                            placeholder={isSensitive
+                                ? 'Ex: 1 part de lasagnes, 1 quiche lorraine'
+                                : 'Ex: 3 pains au chocolat, 2 baguettes, 4 viennoiseries'}
+                            value={form.contents_description}
+                            onChangeText={t => set({ contents_description: t })}
+                            multiline
+                            textAlignVertical="top"
+                        />
+
+                        {isSensitive && (
+                            <View style={styles.sensitiveHint}>
+                                <Ionicons name="information-circle" size={15} color="#D97706" />
+                                <Text style={styles.sensitiveHintText}>
+                                    Produit sensible : indique le contenu et garde une fenêtre de retrait courte.
+                                </Text>
+                            </View>
+                        )}
+
+                        <View style={styles.toggleRow}>
+                            <Text style={styles.toggleLabel}>Panier surprise</Text>
+                            <Switch
+                                value={form.is_mystery}
+                                onValueChange={v => set({ is_mystery: v })}
+                                trackColor={{ true: '#2D7D46' }}
+                            />
+                        </View>
+
+                        {(form.food_category === 'plats_prepares' || isSensitive) && (
+                            <View style={styles.toggleRow}>
+                                <Text style={styles.toggleLabel}>Maintenu au chaud</Text>
+                                <Switch
+                                    value={form.kept_warm}
+                                    onValueChange={v => set({ kept_warm: v })}
+                                    trackColor={{ true: '#2D7D46' }}
+                                />
+                            </View>
+                        )}
+                    </View>
+                )}
 
             </ScrollView>
 
@@ -340,7 +336,7 @@ export default function PostProDealScreen() {
                     {loading ? (
                         <ActivityIndicator color="#fff" />
                     ) : (
-                        <Text style={styles.submitButtonText}>Publier l'offre</Text>
+                        <Text style={styles.submitButtonText}>Publier le panier</Text>
                     )}
                 </TouchableOpacity>
             </View>
@@ -363,31 +359,9 @@ const styles = StyleSheet.create({
     backButton: { padding: 8, marginLeft: -8 },
     headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
     content: { padding: 20, paddingBottom: 100 },
-    guaranteeBanner: {
-        flexDirection: 'row',
-        gap: 10,
-        backgroundColor: '#E8F5EC',
-        borderRadius: 12,
-        padding: 12,
-        marginBottom: 20,
-        alignItems: 'flex-start',
-    },
-    guaranteeText: { flex: 1, fontSize: 12.5, color: '#1a5c30', lineHeight: 18 },
-    sensitiveBanner: {
-        flexDirection: 'row',
-        gap: 10,
-        backgroundColor: '#FFFBEB',
-        borderWidth: 1,
-        borderColor: '#FDE68A',
-        borderRadius: 12,
-        padding: 12,
-        marginBottom: 20,
-        alignItems: 'flex-start',
-    },
-    sensitiveText: { flex: 1, fontSize: 12.5, color: '#92400e', lineHeight: 18 },
-    section: { marginBottom: 20 },
-    row: { flexDirection: 'row', marginBottom: 0 },
-    label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8 },
+    fastHint: { fontSize: 13, color: '#2D7D46', backgroundColor: '#E8F5EC', borderRadius: 10, padding: 12, marginBottom: 20, fontWeight: '600' },
+    label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 10 },
+    subLabel: { fontSize: 13, fontWeight: '500', color: '#555', marginBottom: 6 },
     required: { color: '#ff4444' },
     input: {
         backgroundColor: '#f9f9f9',
@@ -398,7 +372,8 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#333',
     },
-    textArea: { height: 90, paddingTop: 12 },
+    textArea: { height: 80, paddingTop: 12 },
+    row: { flexDirection: 'row' },
     categoryWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     categoryChip: {
         flexDirection: 'row',
@@ -412,17 +387,52 @@ const styles = StyleSheet.create({
     categoryChipActive: { backgroundColor: '#4C7B4B' },
     categoryText: { fontSize: 13, color: '#666', fontWeight: '500' },
     categoryTextActive: { color: '#fff' },
-    helperText: { fontSize: 12, color: '#666', marginTop: 6 },
-    toggleRow: {
+    sizeRow: { flexDirection: 'row', gap: 10 },
+    sizeChip: {
+        flex: 1,
+        alignItems: 'center',
+        gap: 5,
+        paddingVertical: 14,
+        borderRadius: 14,
+        backgroundColor: '#f5f5f5',
+        borderWidth: 1.5,
+        borderColor: 'transparent',
+    },
+    sizeChipActive: { backgroundColor: '#4C7B4B', borderColor: '#4C7B4B' },
+    sizeText: { fontSize: 13, fontWeight: '600', color: '#4C7B4B' },
+    sizeTextActive: { color: '#fff' },
+    transparentCard: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        marginBottom: 20,
-        backgroundColor: '#fafafa',
-        borderRadius: 12,
+        marginTop: 24,
         padding: 14,
+        borderRadius: 14,
+        backgroundColor: '#FAFAFA',
+        borderWidth: 1,
+        borderColor: '#EEE',
     },
-    toggleLabel: { fontSize: 14, fontWeight: '600', color: '#333' },
+    transparentCardActive: { backgroundColor: '#E8F5EC', borderColor: '#A7D7B5' },
+    transparentTitle: { fontSize: 14.5, fontWeight: '600', color: '#333' },
+    transparentSub: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+    detailsBox: { marginTop: 12 },
+    sensitiveHint: {
+        flexDirection: 'row',
+        gap: 8,
+        backgroundColor: '#FFFBEB',
+        borderRadius: 10,
+        padding: 10,
+        marginTop: 10,
+        alignItems: 'flex-start',
+    },
+    sensitiveHintText: { flex: 1, fontSize: 12, color: '#92400e', lineHeight: 17 },
+    toggleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 16,
+    },
+    toggleLabel: { fontSize: 14, fontWeight: '500', color: '#333' },
     footer: {
         padding: 20,
         paddingBottom: 40,

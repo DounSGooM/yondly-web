@@ -4448,6 +4448,10 @@ async def get_deals(lat: float = None, lng: float = None):
 
         results.append(deal)
 
+    # Les paniers transparents (contenu détaillé) remontent en premier — la carotte.
+    # Tri stable : conserve l'ordre par récence à l'intérieur de chaque groupe.
+    results.sort(key=lambda d: not d.get("is_transparent", False))
+
     return results
 
 
@@ -4738,25 +4742,28 @@ async def get_store(store_id: str, current_user_id: Optional[str] = None):
 # ============ PARTNER & DEAL ROUTES ============
 
 class DealCreate(BaseModel):
-    title: str
-    description: str
+    # Création en 30s : seuls food_category, quantity_size et la fenêtre de
+    # retrait sont réellement requis (validés par antigaspi_quality).
+    title: Optional[str] = None                   # Auto-généré si vide
+    description: Optional[str] = None
     original_price: float
     deal_price: float
-    category: Literal['Food', 'Flowers', 'Other']
+    category: Literal['Food', 'Flowers', 'Other'] = 'Food'
     expires_at: datetime
     quantity: int = 1
-    # ─── Transparence anti-gaspi garantie ───────────────────────────────
+    # ─── Transparence anti-gaspi ────────────────────────────────────────
     food_category: Optional[Literal[
         'boulangerie', 'fruits_legumes', 'epicerie',
         'traiteur_froid', 'traiteur_chaud', 'viande_poisson',
         'plats_prepares', 'fleurs', 'autre'
     ]] = None
-    contents_description: Optional[str] = None   # Détail précis du contenu
-    quantity_info: Optional[str] = None          # Quantité approximative
-    prepared_at: Optional[datetime] = None       # Heure de préparation
+    quantity_size: Optional[Literal['small', 'medium', 'large']] = None  # Taille (1 tap)
+    contents_description: Optional[str] = None   # Détail précis (optionnel, valorisé)
+    quantity_info: Optional[str] = None          # Quantité texte libre (optionnel)
+    prepared_at: Optional[datetime] = None       # Heure de préparation (optionnel)
     pickup_start: Optional[datetime] = None      # Début fenêtre de retrait
     pickup_end: Optional[datetime] = None        # Fin fenêtre de retrait
-    kept_warm: bool = False                       # Maintenu au chaud
+    kept_warm: bool = False                       # Maintenu au chaud (optionnel)
     is_mystery: bool = False                      # Panier surprise
 
 @api_router.get("/me/store")
@@ -4814,18 +4821,24 @@ async def create_deal(deal_data: DealCreate, current_user: dict = Depends(get_cu
             detail="Votre commerce est suspendu suite à des paniers non conformes. Contactez le support."
         )
 
-    # 1ter. Règles de transparence anti-gaspi garantie.
-    transparency_error = antigaspi_quality.validate_deal_transparency({
+    # 1ter. Friction minimale + contrôle a posteriori (cf. antigaspi_quality).
+    payload = {
         "food_category": deal_data.food_category,
+        "quantity_size": deal_data.quantity_size,
         "contents_description": deal_data.contents_description,
-        "description": deal_data.description,
         "is_mystery": deal_data.is_mystery,
         "pickup_start": deal_data.pickup_start,
         "pickup_end": deal_data.pickup_end,
-        "prepared_at": deal_data.prepared_at,
-    })
+    }
+    transparency_error = antigaspi_quality.validate_deal_transparency(payload, store)
     if transparency_error:
         raise HTTPException(status_code=400, detail=transparency_error)
+
+    # Titre auto-généré si le commerçant ne l'a pas saisi (gain de temps).
+    title = (deal_data.title or "").strip()
+    if not title:
+        cat_label = antigaspi_quality.FOOD_CATEGORY_LABELS.get(deal_data.food_category, "Surprise")
+        title = f"Panier {cat_label}"
 
     # 2. Calculate values
     discount_val = int(((deal_data.original_price - deal_data.deal_price) / deal_data.original_price) * 100)
@@ -4835,7 +4848,7 @@ async def create_deal(deal_data: DealCreate, current_user: dict = Depends(get_cu
     new_deal = {
         "id": deal_id,
         "store_id": store["id"] if "id" in store else str(store["_id"]),
-        "title": deal_data.title,
+        "title": title,
         "description": deal_data.description,
         "original_price": deal_data.original_price,
         "deal_price": deal_data.deal_price,
@@ -4846,6 +4859,7 @@ async def create_deal(deal_data: DealCreate, current_user: dict = Depends(get_cu
         "remaining": max(1, deal_data.quantity),
         # Transparence anti-gaspi
         "food_category": deal_data.food_category,
+        "quantity_size": deal_data.quantity_size,
         "contents_description": deal_data.contents_description,
         "quantity_info": deal_data.quantity_info,
         "prepared_at": deal_data.prepared_at,
@@ -4853,6 +4867,7 @@ async def create_deal(deal_data: DealCreate, current_user: dict = Depends(get_cu
         "pickup_end": deal_data.pickup_end,
         "kept_warm": deal_data.kept_warm,
         "is_mystery": deal_data.is_mystery,
+        "is_transparent": antigaspi_quality.is_transparent_deal(payload),
         "created_at": datetime.utcnow(),
         "expires_at": deal_data.expires_at
     }

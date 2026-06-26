@@ -94,6 +94,15 @@ function FoodCard({ item, onPress, accentColor }: { item: any; onPress: () => vo
           <QualityBadge badge={item.quality_badge || item.store?.quality_badge} size="sm" style={{ marginBottom: 6 }} />
         )}
 
+        {item.is_transparent && (
+          <View style={[styles.foodCardMeta, { marginBottom: 4 }]}>
+            <Ionicons name="shield-checkmark" size={13} color={colors.primary} />
+            <Text style={[styles.foodCardMetaText, { color: colors.primary, fontWeight: '600' }]}>
+              Panier transparent
+            </Text>
+          </View>
+        )}
+
         {(item.seller_name || item.store_name) && (
           <View style={styles.foodCardMeta}>
             <Ionicons name="person-circle-outline" size={13} color={colors.textTertiary} />

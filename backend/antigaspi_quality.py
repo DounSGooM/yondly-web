@@ -33,14 +33,17 @@ FOOD_CATEGORY_LABELS = {
     'autre': 'Autre',
 }
 
-# Produits sensibles : risque sanitaire élevé.
-# → description détaillée OBLIGATOIRE, panier mystère INTERDIT, fenêtre de retrait courte.
+# Produits sensibles : risque sanitaire plus élevé.
+# On NE bloque PAS à la création (friction minimale) — l'app affiche seulement un
+# rappel de bonnes pratiques. Le contrôle se fait a posteriori via les signalements.
 SENSITIVE_FOOD_CATEGORIES = {'traiteur_chaud', 'viande_poisson', 'plats_prepares'}
 
-# Fenêtre de retrait maximale (heures) pour les produits sensibles.
-SENSITIVE_MAX_PICKUP_WINDOW_HOURS = 4
-# Durée maximale entre la préparation et la fin du retrait pour un produit sensible.
-SENSITIVE_MAX_AGE_HOURS = 6
+# Tailles de panier (1 tap à la création).
+QUANTITY_SIZES = ['small', 'medium', 'large']
+QUANTITY_SIZE_LABELS = {'small': 'Petit', 'medium': 'Moyen', 'large': 'Grand'}
+
+# Longueur minimale d'une description pour être considérée "détaillée".
+DETAILED_DESCRIPTION_MIN_LEN = 10
 
 # ─── Seuils de surveillance ──────────────────────────────────────────────────
 # Nombre minimum d'avis avant d'afficher un taux de conformité.
@@ -60,56 +63,55 @@ SUSPEND_MIN_REVIEWS = 10
 
 
 def is_sensitive(food_category: Optional[str]) -> bool:
-    """Le produit nécessite-t-il une transparence renforcée ?"""
+    """Produit à risque sanitaire plus élevé (rappel de bonnes pratiques côté app)."""
     return food_category in SENSITIVE_FOOD_CATEGORIES
 
 
-def validate_deal_transparency(payload: Dict[str, Any]) -> Optional[str]:
+def is_transparent_deal(payload: Dict[str, Any]) -> bool:
     """
-    Vérifie qu'un panier respecte les règles de transparence anti-gaspi.
-    Retourne un message d'erreur (str) si invalide, sinon None.
-
-    `payload` attend : food_category, contents_description, is_mystery,
-    pickup_start, pickup_end, prepared_at (datetime ou None).
+    Un panier est "transparent" quand son contenu est décrit précisément et que
+    ce n'est pas un panier surprise. Donne droit au badge + remontée dans les résultats.
     """
-    food_category = payload.get('food_category')
-
-    # Le contenu doit toujours être décrit (au moins sommairement).
     contents = (payload.get('contents_description') or '').strip()
-    if food_category and len(contents) < 3 and not payload.get('description'):
-        return "Merci d'indiquer ce que contient le panier (type de produits)."
+    return len(contents) >= DETAILED_DESCRIPTION_MIN_LEN and not payload.get('is_mystery')
 
-    if is_sensitive(food_category):
-        # 1. Pas de panier mystère sur produits sensibles.
-        if payload.get('is_mystery'):
+
+def validate_deal_transparency(
+    payload: Dict[str, Any],
+    store: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """
+    Friction minimale à la création : on exige seulement le strict nécessaire pour
+    qu'un client puisse décider (catégorie, taille, fenêtre de retrait).
+    Le contrôle qualité se fait a posteriori via les signalements.
+
+    Seule exception : un commerce déjà signalé (requires_detailed_description) doit
+    décrire précisément chaque panier — friction réservée aux abuseurs.
+
+    Retourne un message d'erreur (str) si invalide, sinon None.
+    """
+    # 1. Catégorie (1 tap).
+    if not payload.get('food_category'):
+        return "Choisis une catégorie de produit."
+
+    # 2. Taille du panier (1 tap).
+    if payload.get('quantity_size') not in QUANTITY_SIZES:
+        return "Indique la taille du panier (petit, moyen ou grand)."
+
+    # 3. Fenêtre de retrait.
+    ps, pe = payload.get('pickup_start'), payload.get('pickup_end')
+    if not ps or not pe:
+        return "Indique la fenêtre de retrait (heure de début et de fin)."
+    if (pe - ps).total_seconds() <= 0:
+        return "La fin de la fenêtre de retrait doit être après le début."
+
+    # 4. Contrôle a posteriori : description détaillée exigée seulement après infraction.
+    if store and store.get('requires_detailed_description'):
+        contents = (payload.get('contents_description') or '').strip()
+        if len(contents) < DETAILED_DESCRIPTION_MIN_LEN:
             return (
-                "Les paniers mystère ne sont pas autorisés pour les produits sensibles "
-                "(traiteur chaud, viande/poisson, plats préparés). Décris précisément le contenu."
-            )
-        # 2. Description détaillée obligatoire.
-        if len(contents) < 10:
-            return (
-                "Pour un produit sensible, décris précisément le contenu du panier "
-                "(au moins le type de plat et les ingrédients principaux)."
-            )
-        # 3. Fenêtre de retrait obligatoire et courte.
-        ps, pe = payload.get('pickup_start'), payload.get('pickup_end')
-        if not ps or not pe:
-            return "Indique une fenêtre de retrait (début et fin) pour un produit sensible."
-        window_h = (pe - ps).total_seconds() / 3600
-        if window_h <= 0:
-            return "La fin de la fenêtre de retrait doit être après le début."
-        if window_h > SENSITIVE_MAX_PICKUP_WINDOW_HOURS:
-            return (
-                f"La fenêtre de retrait doit faire au maximum "
-                f"{SENSITIVE_MAX_PICKUP_WINDOW_HOURS}h pour un produit sensible."
-            )
-        # 4. Âge maximal depuis la préparation.
-        prepared = payload.get('prepared_at')
-        if prepared and (pe - prepared).total_seconds() / 3600 > SENSITIVE_MAX_AGE_HOURS:
-            return (
-                f"Un produit sensible ne peut pas être retiré plus de "
-                f"{SENSITIVE_MAX_AGE_HOURS}h après sa préparation."
+                "Suite à des signalements, ton commerce doit décrire précisément le "
+                "contenu de chaque panier pour pouvoir le publier."
             )
     return None
 
@@ -227,6 +229,11 @@ async def recompute_store_quality(db, store_id: str) -> Dict[str, Any]:
     current = await db.stores.find_one({"id": store_id})
     if current and current.get("quality_status") != status:
         update["quality_status_since"] = datetime.utcnow()
+
+    # Contrôle a posteriori : dès la 1re infraction (passage en WATCH/SUSPENDED),
+    # le commerce devra décrire précisément ses paniers pour continuer à publier.
+    if status in ("WATCH", "SUSPENDED"):
+        update["requires_detailed_description"] = True
 
     await db.stores.update_one({"id": store_id}, {"$set": update})
     return update

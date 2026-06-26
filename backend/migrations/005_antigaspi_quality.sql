@@ -12,8 +12,11 @@ ALTER TABLE deals ADD COLUMN IF NOT EXISTS food_category TEXT
         'traiteur_froid', 'traiteur_chaud', 'viande_poisson',
         'plats_prepares', 'fleurs', 'autre'
     ));
-ALTER TABLE deals ADD COLUMN IF NOT EXISTS contents_description TEXT;  -- Détail du contenu
-ALTER TABLE deals ADD COLUMN IF NOT EXISTS quantity_info TEXT;          -- Quantité approximative
+ALTER TABLE deals ADD COLUMN IF NOT EXISTS contents_description TEXT;  -- Détail du contenu (optionnel, valorisé)
+ALTER TABLE deals ADD COLUMN IF NOT EXISTS quantity_info TEXT;          -- Quantité approximative (texte libre, optionnel)
+ALTER TABLE deals ADD COLUMN IF NOT EXISTS quantity_size TEXT
+    CHECK (quantity_size IN ('small', 'medium', 'large'));             -- Taille du panier (1 tap)
+ALTER TABLE deals ADD COLUMN IF NOT EXISTS is_transparent BOOL DEFAULT FALSE; -- Contenu détaillé renseigné
 ALTER TABLE deals ADD COLUMN IF NOT EXISTS prepared_at TIMESTAMPTZ;     -- Heure de préparation
 ALTER TABLE deals ADD COLUMN IF NOT EXISTS pickup_start TIMESTAMPTZ;    -- Début fenêtre de retrait
 ALTER TABLE deals ADD COLUMN IF NOT EXISTS pickup_end TIMESTAMPTZ;      -- Fin fenêtre de retrait
@@ -32,6 +35,9 @@ ALTER TABLE stores ADD COLUMN IF NOT EXISTS basket_reviews_count INT DEFAULT 0;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS reports_count INT DEFAULT 0;       -- Total signalements
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS reports_open_count INT DEFAULT 0;  -- Signalements non traités
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS quality_status_since TIMESTAMPTZ;  -- Date du dernier changement de statut
+-- Contrôle a posteriori : passe à TRUE dès la 1re infraction. Le commerce doit
+-- alors décrire précisément chaque panier pour pouvoir publier (condition de réactivation).
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS requires_detailed_description BOOL DEFAULT FALSE;
 
 -- ─── 3. Avis sur panier (notation 3 axes) ───────────────────
 CREATE TABLE IF NOT EXISTS basket_reviews (
