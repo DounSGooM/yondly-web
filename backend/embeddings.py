@@ -12,14 +12,21 @@ from typing import Optional, List
 import google.generativeai as genai
 
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
-EMBED_MODEL = os.environ.get('GEMINI_EMBED_MODEL', 'models/embedding-001')
+EMBED_MODEL = os.environ.get('GEMINI_EMBED_MODEL', 'models/gemini-embedding-001')
+# Dimension forcée pour rester compatible avec la colonne pgvector(768).
+EMBED_DIM = int(os.environ.get('GEMINI_EMBED_DIM', '768'))
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 
 def _embed_sync(text: str, task_type: str) -> List[float]:
-    result = genai.embed_content(model=EMBED_MODEL, content=text, task_type=task_type)
+    result = genai.embed_content(
+        model=EMBED_MODEL,
+        content=text,
+        task_type=task_type,
+        output_dimensionality=EMBED_DIM,
+    )
     return result['embedding']
 
 
