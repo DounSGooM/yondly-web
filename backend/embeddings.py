@@ -34,6 +34,19 @@ async def generate_embedding(text: str, task_type: str = 'retrieval_document') -
         return None
 
 
+async def embed_debug(text: str):
+    """Diagnostic : retourne (embedding | None, message_erreur | None)."""
+    if not GEMINI_API_KEY:
+        return None, "GEMINI_API_KEY absente"
+    if not (text or '').strip():
+        return None, "texte vide"
+    try:
+        emb = await asyncio.to_thread(_embed_sync, text.strip(), 'retrieval_document')
+        return emb, None
+    except Exception as e:
+        return None, f"{type(e).__name__}: {str(e)[:250]}"
+
+
 def to_vector_string(embedding: List[float]) -> str:
     """Format texte pgvector : '[0.1,0.2,...]' (cast automatique en vector)."""
     return '[' + ','.join(f'{x:.6f}' for x in embedding) + ']'
