@@ -129,4 +129,139 @@ def create_territoire_routes(db):
             "generated_at": now.isoformat(),
         }
 
+    # ════════════════════════════════════════════════════════════════════
+    # IMPACT ENGINE — métriques territoriales calculées sur données réelles
+    # ════════════════════════════════════════════════════════════════════
+
+    # Poids moyen par catégorie (kg) — fallback quand l'annonce n'a pas de poids estimé.
+    _CATEGORY_WEIGHT_KG = {
+        "Électronique": 2, "Multimédia": 2, "Maison": 8, "Mobilier": 25,
+        "Vêtements": 0.5, "Sport": 4, "Livres": 1, "Enfants": 3,
+        "Jeux & Jouets": 1.5, "Jardin": 6, "Bricolage": 5, "Beauté": 0.3,
+        "Animaux": 2, "Musique": 3, "Véhicules": 15, "Autre": 3,
+    }
+    _TYPE_LABELS = {
+        "sale": "Revente", "donation": "Don", "rent": "Location",
+        "exchange": "Échange", "service": "Service",
+    }
+    _DEFAULT_REUSE_VALUE_CENTS = 2000  # valeur de réemploi par défaut (objet sans prix)
+
+    @router.get("/impact")
+    async def get_territoire_impact(
+        period: Optional[str] = "30j",
+        ville: Optional[str] = None,
+    ):
+        """
+        Impact Engine : agrégation temps réel de l'impact des échanges sur le
+        territoire, à partir des données réelles (items + orders).
+        """
+        now = datetime.utcnow()
+        period_map = {"7j": 7, "30j": 30, "90j": 90}
+        days = period_map.get(period, None)
+
+        # Carte user_id → ville (les annonces n'ont pas de ville, on passe par le propriétaire)
+        users = await db.users.find({}).to_list(20000)
+        user_city = {u["id"]: (u.get("city") or "—") for u in users}
+
+        item_query: dict = {"status": {"$in": ["active", "reserved", "completed"]}}
+        if days:
+            item_query["created_at"] = {"$gte": now - timedelta(days=days)}
+        items = await db.items.find(item_query).to_list(20000)
+
+        # Filtre ville (via propriétaire) si demandé
+        if ville:
+            vl = ville.lower()
+            items = [it for it in items if vl in (user_city.get(it.get("owner_id"), "")).lower()]
+
+        co2_total = 0.0
+        kg_total = 0.0
+        valeur_reemploi_cents = 0
+        type_counts: dict = {}
+        category_deposees: dict = {}
+        zones: dict = {}
+
+        for it in items:
+            cat = it.get("category", "Autre")
+            typ = it.get("type", "sale")
+
+            # CO₂ réel (co2_estimate stocké) sinon 0
+            co2_est = it.get("co2_estimate") or {}
+            if isinstance(co2_est, dict):
+                co2_total += float(co2_est.get("co2_saved_kg") or 0)
+                w = (co2_est.get("breakdown") or {}).get("estimated_weight_kg")
+            else:
+                w = None
+            kg_total += float(w) if w else _CATEGORY_WEIGHT_KG.get(cat, 3)
+
+            # Valeur de réemploi
+            price = it.get("price_cents")
+            valeur_reemploi_cents += price if price else _DEFAULT_REUSE_VALUE_CENTS
+
+            type_counts[typ] = type_counts.get(typ, 0) + 1
+            category_deposees[cat] = category_deposees.get(cat, 0) + 1
+            commune = user_city.get(it.get("owner_id"), "—")
+            if commune and commune != "—":
+                zones[commune] = zones.get(commune, 0) + 1
+
+        total_items = len(items)
+
+        # Répartition par type d'orientation (revente / don / location / échange / service)
+        repartition_type = [
+            {
+                "type": t,
+                "label": _TYPE_LABELS.get(t, t),
+                "count": c,
+                "pct": round(100 * c / total_items) if total_items else 0,
+            }
+            for t, c in sorted(type_counts.items(), key=lambda x: -x[1])
+        ]
+
+        # Catégories demandées : via les commandes (jointure order.item_id → item.category)
+        order_query: dict = {}
+        if days:
+            order_query["created_at"] = {"$gte": now - timedelta(days=days)}
+        orders = await db.orders.find(order_query).to_list(20000)
+        items_by_id = {it["id"]: it for it in items}
+        # Charge aussi les items hors période pour résoudre les commandes anciennes
+        if orders:
+            missing_ids = {o.get("item_id") for o in orders} - set(items_by_id)
+            if missing_ids:
+                extra = await db.items.find({"id": {"$in": list(missing_ids)}}).to_list(20000)
+                for it in extra:
+                    items_by_id[it["id"]] = it
+
+        category_demandees: dict = {}
+        foyers = set()
+        for o in orders:
+            it = items_by_id.get(o.get("item_id"))
+            if it:
+                cat = it.get("category", "Autre")
+                category_demandees[cat] = category_demandees.get(cat, 0) + 1
+            if o.get("buyer_id"):
+                foyers.add(o["buyer_id"])
+
+        def _top(d, n=8):
+            return [{"category": k, "count": v} for k, v in sorted(d.items(), key=lambda x: -x[1])[:n]]
+
+        zones_actives = [
+            {"commune": k, "count": v}
+            for k, v in sorted(zones.items(), key=lambda x: -x[1])[:10]
+        ]
+
+        return {
+            "co2_evite_kg": round(co2_total, 1),
+            "co2_evite_tonnes": round(co2_total / 1000, 2),
+            "kg_reemployes": round(kg_total),
+            "valeur_reemploi_euros": round(valeur_reemploi_cents / 100),
+            "foyers_aides": len(foyers),
+            "total_annonces": total_items,
+            "repartition_type": repartition_type,
+            "zones_actives": zones_actives,
+            "categories_deposees": _top(category_deposees),
+            "categories_demandees": _top(category_demandees),
+            "period": period,
+            "ville": ville,
+            "generated_at": now.isoformat(),
+        }
+
     return router
