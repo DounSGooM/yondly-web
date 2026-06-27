@@ -12,7 +12,7 @@ from typing import Optional, List
 import google.generativeai as genai
 
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
-EMBED_MODEL = os.environ.get('GEMINI_EMBED_MODEL', 'models/text-embedding-004')
+EMBED_MODEL = os.environ.get('GEMINI_EMBED_MODEL', 'models/embedding-001')
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
