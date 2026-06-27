@@ -1590,6 +1590,31 @@ async def get_items(
     return filtered_items
 
 
+@api_router.get("/admin/ai-models")
+async def list_ai_models(admin_key: str = Query(None)):
+    """Liste les modèles Gemini disponibles pour la clé + méthodes supportées."""
+    if admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Clé admin invalide")
+    import google.generativeai as genai
+    import asyncio as _aio
+
+    def _list():
+        out = []
+        for m in genai.list_models():
+            out.append({
+                "name": m.name,
+                "methods": list(getattr(m, "supported_generation_methods", [])),
+            })
+        return out
+    try:
+        models = await _aio.to_thread(_list)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"list_models error: {str(e)[:200]}")
+    embed = [m["name"] for m in models if "embedContent" in m["methods"]]
+    generate = [m["name"] for m in models if "generateContent" in m["methods"]]
+    return {"embedding_models": embed, "generation_models": generate, "all": models}
+
+
 @api_router.post("/admin/reindex-embeddings")
 async def reindex_embeddings(admin_key: str = Query(None), limit: int = 500):
     """Indexe (embeddings) les annonces actives qui n'en ont pas encore.
