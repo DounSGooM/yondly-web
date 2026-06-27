@@ -151,6 +151,11 @@
                         <i class="fas fa-leaf"></i>
                         <span>Impact CO2</span>
                     </a>
+                    <a href="#" class="nav-link" data-page="territoire-graph">
+                        <i class="fas fa-project-diagram"></i>
+                        <span>Intelligence territoriale</span>
+                        <span class="nav-badge new">NEW</span>
+                    </a>
                 </div>
 
                 <div class="nav-section">
@@ -1049,6 +1054,71 @@
                     </div>
                 </section>
 
+                <!-- Intelligence Territoriale (Knowledge Graph) -->
+                <section id="page-territoire-graph" class="page">
+                    <div class="page-actions">
+                        <select id="tg-period" class="form-select" style="width: 180px;" onchange="loadTerritoireGraph()">
+                            <option value="30j">30 jours</option>
+                            <option value="90j" selected>3 mois</option>
+                            <option value="7j">7 jours</option>
+                        </select>
+                        <button class="btn-secondary" onclick="loadTerritoireGraph()">
+                            <i class="fas fa-sync"></i> Actualiser
+                        </button>
+                        <button class="btn-primary" onclick="copyTerritoireRecos()">
+                            <i class="fas fa-copy"></i> Copier les recommandations
+                        </button>
+                    </div>
+
+                    <!-- Résumé -->
+                    <div class="stats-grid" id="tg-summary" style="margin-bottom: 20px;"></div>
+
+                    <!-- Recommandations -->
+                    <div class="card">
+                        <div class="card-header"><h3>🎯 Recommandations actionnables</h3></div>
+                        <div id="tg-recos" style="padding: 8px 16px 16px;"></div>
+                    </div>
+
+                    <!-- Offre vs Demande (tableau complet) -->
+                    <div class="card" style="margin-top: 20px;">
+                        <div class="card-header"><h3>Offre vs demande par catégorie</h3></div>
+                        <table class="table">
+                            <thead>
+                                <tr><th>Catégorie</th><th>Offre</th><th>Demande</th><th>Écart</th><th>Signal</th></tr>
+                            </thead>
+                            <tbody id="tg-ovd-body"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="grid-2" style="margin-top: 20px;">
+                        <!-- Risque de rebut -->
+                        <div class="card">
+                            <div class="card-header"><h3>♻️ Risque de rebut</h3></div>
+                            <table class="table">
+                                <thead><tr><th>Catégorie</th><th>En stock</th></tr></thead>
+                                <tbody id="tg-surplus-body"></tbody>
+                            </table>
+                        </div>
+                        <!-- Communes sans relais -->
+                        <div class="card">
+                            <div class="card-header"><h3>📍 Communes sans relais</h3></div>
+                            <table class="table">
+                                <thead><tr><th>Commune</th><th>Dépôts</th></tr></thead>
+                                <tbody id="tg-zones-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Tendances -->
+                    <div class="card" style="margin-top: 20px;">
+                        <div class="card-header"><h3>🔮 Tendances de la demande</h3></div>
+                        <table class="table">
+                            <thead><tr><th>Catégorie</th><th>Demande</th><th>Période préc.</th><th>Évolution</th></tr></thead>
+                            <tbody id="tg-trend-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
                 <!-- PRO Verifications Page -->
                 <section id="page-pro-verifications" class="page">
                     <div class="page-actions">
@@ -1268,7 +1338,7 @@
     </div>
 
     <!-- Scripts -->
-    <script src="/admin/app.js?v=7"></script>
+    <script src="/admin/app.js?v=8"></script>
 </body>
 
 </html>
