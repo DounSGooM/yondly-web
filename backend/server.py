@@ -7459,34 +7459,44 @@ async def get_pro_disputes(current_user: dict = Depends(get_current_user)):
         
     return results
 
-@api_router.get("/admin/disputes")
-async def get_admin_disputes(current_user: dict = Depends(get_current_user)):
-    """Get all disputes for admin"""
-    if current_user.get("email") != "admin@yondly.com":
-        raise HTTPException(status_code=403, detail="Admin only")
-        
-    disputes = await db.disputes.find().sort("created_at", -1).to_list(100)
-    
-    results = []
-    for d in disputes:
-        d.pop("_id", None)
-        # Enrich
-        if d.get("order_id"):
-            order = await db.orders.find_one({"id": d["order_id"]})
-            d["amount"] = order["amount_cents"] / 100 if order else 0
-        results.append(d)
-        
-    return results
-
 @api_router.post("/admin/disputes/{dispute_id}/resolve")
 async def resolve_dispute(
-    dispute_id: str, 
+    dispute_id: str,
     resolution_data: DisputeResolution,
     current_user: dict = Depends(get_current_user)
 ):
+    dispute = await db.disputes.find_one({"id": dispute_id})
+    if not dispute:
+        raise HTTPException(status_code=404, detail="Litige introuvable")
+
+    status_map = {
+        "refund_full": "resolved_buyer",
+        "refund_partial": "resolved_buyer",
+        "no_refund": "resolved_seller",
+        "closed": "closed",
+    }
+    update_data = {
+        "status": status_map.get(resolution_data.resolution, "closed"),
+        "resolution": resolution_data.resolution,
+        "resolution_notes": resolution_data.notes,
+        "resolved_by": current_user["id"],
+        "resolved_at": datetime.utcnow(),
+    }
+
+    # Montant de remboursement éventuel (calculé sur la commande liée)
+    if resolution_data.resolution in ("refund_full", "refund_partial"):
+        order = await db.orders.find_one({"id": dispute.get("order_id")}) if dispute.get("order_id") else None
+        base = (order or {}).get("amount_cents", 0)
+        pct = 100 if resolution_data.resolution == "refund_full" else (resolution_data.refund_percentage or 0)
+        update_data["refund_amount_cents"] = int(base * pct / 100)
+
     await db.disputes.update_one({"id": dispute_id}, {"$set": update_data})
-    
-    return {"message": "Dispute resolved", "resolution": resolution_data.resolution}
+
+    return {
+        "message": "Dispute resolved",
+        "resolution": resolution_data.resolution,
+        "refund_amount_cents": update_data.get("refund_amount_cents", 0),
+    }
 
 # ==========================================
 # STRIPE CONNECT PAYOUTS
