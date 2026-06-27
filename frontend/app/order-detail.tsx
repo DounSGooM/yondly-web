@@ -16,6 +16,7 @@ import axios from 'axios';
 import { useAuthStore } from '../src/store/authStore';
 import SponsorModal from '../src/components/SponsorModal';
 import RatingModal from '../src/components/RatingModal';
+import BasketReviewModal from '../src/components/BasketReviewModal';
 import PartenaireLocalSpot from '../src/components/PartenaireLocalSpot';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale/fr';
@@ -32,6 +33,8 @@ interface Order {
   payout_cents: number;
   payment_status: string;
   payment_method?: string;
+  type?: string; // 'deal' = panier anti-gaspi
+  store_id?: string;
   handover_status?: string; // pending, confirmed
   handoff: {
     mode: string;
@@ -60,6 +63,7 @@ export default function OrderDetailScreen() {
   // Rating state
   const [canRate, setCanRate] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const [showBasketReview, setShowBasketReview] = useState(false);
 
   // ... useEffects ...
 
@@ -217,6 +221,7 @@ export default function OrderDetailScreen() {
 
   const isBuyer = user?.id === order.buyer_id;
   const isSeller = user?.id === order.seller_id;
+  const isBasket = order.type === 'deal'; // Panier anti-gaspi
   const activeCode = localCode || order.handoff?.code; // Fallback to legacy if available (unsafe but backward compat)
 
   return (
@@ -421,7 +426,17 @@ export default function OrderDetailScreen() {
                   : `Le paiement de ${formatPrice(order.payout_cents)} a été libéré`}
               </Text>
 
-              {isBuyer && canRate && (
+              {isBuyer && isBasket && (
+                <TouchableOpacity
+                  style={[styles.ratingButton, { backgroundColor: '#2D7D46' }]}
+                  onPress={() => setShowBasketReview(true)}
+                >
+                  <Ionicons name="leaf" size={20} color="#fff" />
+                  <Text style={styles.ratingButtonText}>Noter le panier</Text>
+                </TouchableOpacity>
+              )}
+
+              {isBuyer && !isBasket && canRate && (
                 <TouchableOpacity
                   style={styles.ratingButton}
                   onPress={() => setShowRatingModal(true)}
@@ -437,10 +452,16 @@ export default function OrderDetailScreen() {
         {isBuyer && (
           <TouchableOpacity
             style={styles.disputeButton}
-            onPress={() => router.push({ pathname: '/order/dispute', params: { orderId: order.id } } as any)}
+            onPress={() => router.push(
+              isBasket
+                ? { pathname: '/basket/report', params: { orderId: order.id } } as any
+                : { pathname: '/order/dispute', params: { orderId: order.id } } as any
+            )}
           >
             <Ionicons name="flag-outline" size={20} color="#FF453A" />
-            <Text style={styles.disputeButtonText}>Signaler un problème</Text>
+            <Text style={styles.disputeButtonText}>
+              {isBasket ? 'Signaler un panier non conforme' : 'Signaler un problème'}
+            </Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -463,6 +484,14 @@ export default function OrderDetailScreen() {
           setCanRate(false);
           Alert.alert("Avis envoyé", "Merci pour votre feedback !");
         }}
+      />
+
+      <BasketReviewModal
+        visible={showBasketReview}
+        orderId={order.id}
+        storeName={order.item?.store_name || order.item?.title}
+        token={token || ''}
+        onClose={() => setShowBasketReview(false)}
       />
     </View>
   );

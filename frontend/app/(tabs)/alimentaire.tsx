@@ -22,6 +22,7 @@ import * as Location from 'expo-location';
 import { colors, Typography, Spacing, BorderRadius, Shadows } from '../../src/theme';
 import { API_URL } from '../../src/config/api';
 import FoodMapCTA from '../../src/components/FoodMapCTA';
+import QualityBadge from '../../src/components/QualityBadge';
 import YondlyMobileCard from '../../src/components/YondlyMobileCard';
 import { MOCK_MAP_POINTS } from '../../src/data/mockMapPoints';
 import { FOOD_FILTER_TYPES } from '../../src/types/map';
@@ -88,6 +89,19 @@ function FoodCard({ item, onPress, accentColor }: { item: any; onPress: () => vo
 
       <View style={styles.foodCardBody}>
         <Text style={styles.foodCardTitle} numberOfLines={2}>{item.title}</Text>
+
+        {(item.quality_badge || item.store?.quality_badge) && (
+          <QualityBadge badge={item.quality_badge || item.store?.quality_badge} size="sm" style={{ marginBottom: 6 }} />
+        )}
+
+        {item.is_transparent && (
+          <View style={[styles.foodCardMeta, { marginBottom: 4 }]}>
+            <Ionicons name="shield-checkmark" size={13} color={colors.primary} />
+            <Text style={[styles.foodCardMetaText, { color: colors.primary, fontWeight: '600' }]}>
+              Panier transparent
+            </Text>
+          </View>
+        )}
 
         {(item.seller_name || item.store_name) && (
           <View style={styles.foodCardMeta}>
