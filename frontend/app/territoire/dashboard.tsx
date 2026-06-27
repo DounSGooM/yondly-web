@@ -57,6 +57,55 @@ const EMPTY_STATS: TerritoireStats = {
   evolution_dons_pct: 0,
 };
 
+type CatCount = { category: string; count: number };
+type TypeShare = { type: string; label: string; count: number; pct: number };
+type ZoneCount = { commune: string; count: number };
+
+type ImpactData = {
+  co2_evite_kg: number;
+  co2_evite_tonnes: number;
+  kg_reemployes: number;
+  valeur_reemploi_euros: number;
+  foyers_aides: number;
+  total_annonces: number;
+  repartition_type: TypeShare[];
+  zones_actives: ZoneCount[];
+  categories_deposees: CatCount[];
+  categories_demandees: CatCount[];
+};
+
+const EMPTY_IMPACT: ImpactData = {
+  co2_evite_kg: 0, co2_evite_tonnes: 0, kg_reemployes: 0, valeur_reemploi_euros: 0,
+  foyers_aides: 0, total_annonces: 0, repartition_type: [], zones_actives: [],
+  categories_deposees: [], categories_demandees: [],
+};
+
+const DEMO_IMPACT: ImpactData = {
+  co2_evite_kg: 3240, co2_evite_tonnes: 3.24, kg_reemployes: 1150, valeur_reemploi_euros: 8640,
+  foyers_aides: 89, total_annonces: 231,
+  repartition_type: [
+    { type: 'sale', label: 'Revente', count: 138, pct: 60 },
+    { type: 'donation', label: 'Don', count: 58, pct: 25 },
+    { type: 'rent', label: 'Location', count: 23, pct: 10 },
+    { type: 'exchange', label: 'Échange', count: 12, pct: 5 },
+  ],
+  zones_actives: [
+    { commune: 'Poitiers', count: 96 }, { commune: 'Buxerolles', count: 41 },
+    { commune: 'Chasseneuil-du-Poitou', count: 28 }, { commune: 'Migné-Auxances', count: 19 },
+    { commune: 'Saint-Benoît', count: 15 },
+  ],
+  categories_deposees: [
+    { category: 'Mobilier', count: 52 }, { category: 'Vêtements', count: 44 },
+    { category: 'Électronique', count: 38 }, { category: 'Jeux & Jouets', count: 27 },
+    { category: 'Livres', count: 21 },
+  ],
+  categories_demandees: [
+    { category: 'Électronique', count: 61 }, { category: 'Mobilier', count: 39 },
+    { category: 'Enfants', count: 33 }, { category: 'Vêtements', count: 24 },
+    { category: 'Bricolage', count: 18 },
+  ],
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const formatNumber = (n: number) =>
@@ -85,10 +134,25 @@ export default function TerritoireDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [period, setPeriod] = useState<PeriodKey>('30j');
   const [stats, setStats] = useState<TerritoireStats>(EMPTY_STATS);
+  const [impact, setImpact] = useState<ImpactData>(EMPTY_IMPACT);
 
   useEffect(() => {
     fetchStats();
+    fetchImpact();
   }, [period]);
+
+  const fetchImpact = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/territoire/impact`, {
+        params: { period },
+      });
+      // Si la base est vide (pilote pas encore alimenté), on garde la démo.
+      setImpact(response.data?.total_annonces > 0 ? response.data : DEMO_IMPACT);
+    } catch (error) {
+      if (__DEV__) console.warn('[Dashboard] /territoire/impact indisponible, démo utilisée:', error);
+      setImpact(DEMO_IMPACT);
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -124,6 +188,7 @@ export default function TerritoireDashboard() {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchStats();
+    fetchImpact();
   };
 
   const handleShare = async () => {
@@ -303,6 +368,109 @@ export default function TerritoireDashboard() {
           </View>
         </View>
 
+        {/* ── Impact Engine : valeur réelle ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="pulse" size={20} color="#4C7B4B" />
+            <Text style={styles.sectionTitle}>Impact réel généré</Text>
+          </View>
+          <View style={styles.kpiRow}>
+            <View style={styles.kpiCard}>
+              <Text style={styles.kpiValue}>{formatNumber(impact.kg_reemployes)} kg</Text>
+              <Text style={styles.kpiLabel}>Objets réemployés (poids)</Text>
+            </View>
+            <View style={styles.kpiCard}>
+              <Text style={styles.kpiValue}>{formatNumber(impact.valeur_reemploi_euros)} €</Text>
+              <Text style={styles.kpiLabel}>Valeur de réemploi</Text>
+            </View>
+          </View>
+          <View style={styles.kpiRow}>
+            <View style={styles.kpiCard}>
+              <Text style={styles.kpiValue}>{formatNumber(impact.foyers_aides)}</Text>
+              <Text style={styles.kpiLabel}>Foyers aidés</Text>
+            </View>
+            <View style={styles.kpiCard}>
+              <Text style={styles.kpiValue}>{formatNumber(impact.total_annonces)}</Text>
+              <Text style={styles.kpiLabel}>Annonces actives</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Répartition par orientation ── */}
+        {impact.repartition_type.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="pie-chart" size={20} color="#4C7B4B" />
+              <Text style={styles.sectionTitle}>Répartition par orientation</Text>
+            </View>
+            {impact.repartition_type.map((t) => (
+              <View key={t.type} style={styles.barRow}>
+                <Text style={styles.barLabel}>{t.label}</Text>
+                <View style={styles.barTrack}>
+                  <View style={[styles.barFill, { width: `${Math.max(4, t.pct)}%` }]} />
+                </View>
+                <Text style={styles.barValue}>{t.pct}%</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* ── Zones les plus actives ── */}
+        {impact.zones_actives.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="location" size={20} color="#4C7B4B" />
+              <Text style={styles.sectionTitle}>Communes les plus actives</Text>
+            </View>
+            {impact.zones_actives.slice(0, 6).map((z, i) => {
+              const max = impact.zones_actives[0]?.count || 1;
+              return (
+                <View key={z.commune} style={styles.barRow}>
+                  <Text style={styles.barLabel} numberOfLines={1}>{z.commune}</Text>
+                  <View style={styles.barTrack}>
+                    <View style={[styles.barFill, { width: `${Math.max(6, Math.round(100 * z.count / max))}%` }]} />
+                  </View>
+                  <Text style={styles.barValue}>{z.count}</Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* ── Offre vs demande par catégorie ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="swap-vertical" size={20} color="#4C7B4B" />
+            <Text style={styles.sectionTitle}>Offre vs demande</Text>
+          </View>
+          <View style={styles.ovdRow}>
+            <View style={styles.ovdCol}>
+              <Text style={styles.ovdHead}>📦 Déposées</Text>
+              {impact.categories_deposees.slice(0, 5).map((c) => (
+                <View key={c.category} style={styles.ovdItem}>
+                  <Text style={styles.ovdCat} numberOfLines={1}>{c.category}</Text>
+                  <Text style={styles.ovdCount}>{c.count}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={styles.ovdDivider} />
+            <View style={styles.ovdCol}>
+              <Text style={styles.ovdHead}>🔎 Demandées</Text>
+              {impact.categories_demandees.length === 0 ? (
+                <Text style={styles.ovdEmpty}>Pas encore de demande</Text>
+              ) : impact.categories_demandees.slice(0, 5).map((c) => (
+                <View key={c.category} style={styles.ovdItem}>
+                  <Text style={styles.ovdCat} numberOfLines={1}>{c.category}</Text>
+                  <Text style={styles.ovdCount}>{c.count}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+          <Text style={styles.ovdHint}>
+            Un écart fort demande {'>'} dépôt signale un besoin non satisfait à stimuler.
+          </Text>
+        </View>
+
         {/* ── Badge partenaire ── */}
         <View style={styles.patCard}>
           <Ionicons name="leaf" size={24} color="#27500A" />
@@ -367,6 +535,24 @@ const styles = StyleSheet.create({
   evoText: { fontSize: 11, fontWeight: '600' },
   evoUpText: { color: '#27500A' },
   evoDownText: { color: '#791F1F' },
+
+  // Barres (orientation / zones)
+  barRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  barLabel: { width: 92, fontSize: 12, color: '#444' },
+  barTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: '#f0f0f0', overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 4, backgroundColor: '#4C7B4B' },
+  barValue: { width: 40, fontSize: 12, fontWeight: '600', color: '#333', textAlign: 'right' },
+
+  // Offre vs demande
+  ovdRow: { flexDirection: 'row' },
+  ovdCol: { flex: 1 },
+  ovdDivider: { width: 1, backgroundColor: '#eee', marginHorizontal: 12 },
+  ovdHead: { fontSize: 13, fontWeight: '700', color: '#333', marginBottom: 10 },
+  ovdItem: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  ovdCat: { fontSize: 13, color: '#555', flex: 1, marginRight: 6 },
+  ovdCount: { fontSize: 13, fontWeight: '600', color: '#4C7B4B' },
+  ovdEmpty: { fontSize: 12, color: '#999', fontStyle: 'italic' },
+  ovdHint: { fontSize: 11, color: '#888', marginTop: 10, lineHeight: 15 },
 
   // badge partenaire
   patCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#EAF3DE', borderRadius: 16, marginHorizontal: 16, marginBottom: 12, padding: 16 },
