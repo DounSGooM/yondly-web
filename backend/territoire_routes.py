@@ -264,4 +264,17 @@ def create_territoire_routes(db):
             "generated_at": now.isoformat(),
         }
 
+    @router.get("/graph")
+    async def get_knowledge_graph(
+        period: Optional[str] = "90j",
+        ville: Optional[str] = None,
+    ):
+        """Graphe de connaissance territorial : insights actionnables dérivés
+        des données réelles (demande non satisfaite, risque de recyclage,
+        zones sous-couvertes, tendances, recommandations)."""
+        period_map = {"7j": 7, "30j": 30, "90j": 90}
+        days = period_map.get(period, 90)
+        from knowledge_graph import build_knowledge_graph
+        return await build_knowledge_graph(db, days=days, ville=ville)
+
     return router
