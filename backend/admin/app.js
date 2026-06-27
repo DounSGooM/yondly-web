@@ -1779,19 +1779,45 @@ async function loadItems() {
 }
 
 // Impact
-function loadImpact() {
-    const totalCO2 = 342.5;
-    const treeDays = Math.round((totalCO2 / 21) * 365);
-    const carKm = Math.round(totalCO2 / 0.12);
-    const meals = Math.round(totalCO2 / 3.75 * 1.5);
+async function loadImpact() {
+    let impact = {}, stats = {};
+    try {
+        const [iRes, sRes] = await Promise.all([
+            fetch(`${API_URL}/territoire/impact?period=total`, { headers: { Authorization: `Bearer ${authToken}` } }),
+            fetch(`${API_URL}/territoire/stats?period=total`, { headers: { Authorization: `Bearer ${authToken}` } }),
+        ]);
+        if (iRes.ok) impact = await iRes.json();
+        if (sRes.ok) stats = await sRes.json();
+    } catch (e) {
+        console.error('loadImpact:', e);
+    }
 
-    document.getElementById('impact-total').textContent = `${totalCO2} kg`;
-    document.getElementById('impact-trees').textContent = treeDays.toLocaleString();
-    document.getElementById('impact-car').textContent = carKm.toLocaleString();
-    document.getElementById('impact-meals').textContent = meals;
-    document.getElementById('impact-baskets').textContent = '91 paniers';
-    document.getElementById('impact-donations').textContent = '45 dons';
-    document.getElementById('impact-sales').textContent = '67 ventes';
+    // CO2 réel (estimations stockées sur les annonces)
+    const co2 = Math.round(impact.co2_evite_kg || stats.co2_economise_kg || 0);
+    document.getElementById('impact-total').textContent = `${co2} kg`;
+    document.getElementById('impact-trees').textContent = Math.round((co2 / 21) * 365).toLocaleString();
+    document.getElementById('impact-car').textContent = Math.round(co2 / 0.12).toLocaleString();
+    document.getElementById('impact-meals').textContent = Math.round(co2 / 3.75 * 1.5).toLocaleString();
+
+    // Répartition par action (vraies quantités)
+    const rep = impact.repartition_type || [];
+    const findCount = (t) => (rep.find(r => r.type === t)?.count) || 0;
+    const baskets = stats.paniers_sauves || 0;
+    const donations = findCount('donation');
+    const sales = findCount('sale');
+
+    document.getElementById('impact-baskets').textContent = `${baskets} paniers`;
+    document.getElementById('impact-donations').textContent = `${donations} dons`;
+    document.getElementById('impact-sales').textContent = `${sales} ventes`;
+
+    const max = Math.max(baskets, donations, sales, 1);
+    const setBar = (id, v) => {
+        const el = document.getElementById(id);
+        if (el) el.style.width = `${Math.round(100 * v / max)}%`;
+    };
+    setBar('impact-bar-baskets', baskets);
+    setBar('impact-bar-donations', donations);
+    setBar('impact-bar-sales', sales);
 }
 
 // Toast
