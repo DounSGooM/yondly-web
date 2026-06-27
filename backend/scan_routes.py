@@ -151,7 +151,7 @@ def compute_circular_score(
 
 async def _analyze_with_gemini(image: "PIL.Image.Image", hint: str = "") -> Dict[str, Any]:
     """Appelle Gemini Vision et renvoie l'analyse structurée de l'objet."""
-    model = genai.GenerativeModel('gemini-2.0-flash-exp')
+    model = genai.GenerativeModel('gemini-2.0-flash')
     cats = ", ".join(APP_CATEGORIES)
 
     prompt = f"""Tu es un expert en économie circulaire et réemploi d'objets d'occasion en France.
