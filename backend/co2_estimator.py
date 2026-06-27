@@ -443,7 +443,7 @@ async def estimate_co2_with_ai(
         }
     
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        model = genai.GenerativeModel('gemini-2.0-flash')
         
         price_info = f"{price_cents/100:.2f}€" if price_cents else "non spécifié"
         
