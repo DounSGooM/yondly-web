@@ -11,7 +11,7 @@ import {
   Alert,
   Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import axios from 'axios';
@@ -49,18 +49,23 @@ type Condition = 'new' | 'good' | 'repair';
 export default function PostMarketScreen() {
   const router = useRouter();
   const token = useAuthStore((state) => state.token);
+  // Pré-remplissage depuis Yondly Scan (params optionnels)
+  const prefill = useLocalSearchParams<{
+    type?: string; title?: string; category?: string; condition?: string;
+    price?: string; description?: string; photo?: string; scanScore?: string;
+  }>();
   const [step, setStep] = useState(1);
 
   // Step 1 — commun
-  const [type, setType] = useState<ItemType>('sale');
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('Maison');
+  const [type, setType] = useState<ItemType>((prefill.type as ItemType) || 'sale');
+  const [photos, setPhotos] = useState<string[]>(prefill.photo ? [prefill.photo] : []);
+  const [title, setTitle] = useState(prefill.title || '');
+  const [category, setCategory] = useState(prefill.category || 'Maison');
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
   // Step 2 — vente / échange
-  const [condition, setCondition] = useState<Condition>('good');
-  const [priceEuros, setPriceEuros] = useState('');
+  const [condition, setCondition] = useState<Condition>((prefill.condition as Condition) || 'good');
+  const [priceEuros, setPriceEuros] = useState(prefill.price || '');
   const [allowOffers, setAllowOffers] = useState(true);
   const [acceptsCash, setAcceptsCash] = useState(false);
 
@@ -81,7 +86,7 @@ export default function PostMarketScreen() {
   const [serviceAvailability, setServiceAvailability] = useState('');
 
   // Step 2 — commun
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState(prefill.description || '');
 
   const [loading, setLoading] = useState(false);
 
@@ -227,6 +232,28 @@ export default function PostMarketScreen() {
         {/* ── Step 1 ── */}
         {step === 1 && (
           <View>
+            {/* Yondly Scan — pré-remplissage IA */}
+            {!prefill.scanScore && (
+              <TouchableOpacity style={styles.scanBanner} onPress={() => router.push('/scan' as any)} activeOpacity={0.9}>
+                <View style={styles.scanBannerIcon}>
+                  <Ionicons name="scan" size={22} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.scanBannerTitle}>Gagne du temps avec Yondly Scan</Text>
+                  <Text style={styles.scanBannerSub}>Photographie ton objet, on remplit la fiche pour toi.</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#2D7D46" />
+              </TouchableOpacity>
+            )}
+            {prefill.scanScore && (
+              <View style={styles.scanDoneBanner}>
+                <Ionicons name="sparkles" size={16} color="#2D7D46" />
+                <Text style={styles.scanDoneText}>
+                  Fiche pré-remplie par Yondly Scan · Circular Score {prefill.scanScore}/100. Vérifie et ajuste si besoin.
+                </Text>
+              </View>
+            )}
+
             {/* Type selector */}
             <Text style={styles.label}>Type d'annonce *</Text>
             <View style={styles.typeGrid}>
@@ -659,6 +686,14 @@ const styles = StyleSheet.create({
   content:          { flex: 1, padding: 16 },
   label:            { fontSize: 15, fontWeight: '600', color: '#333', marginBottom: 8, marginTop: 16 },
   hint:             { fontSize: 12, color: '#999', marginTop: 4 },
+
+  // Yondly Scan banner
+  scanBanner:       { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#E8F5EC', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#A7D7B5' },
+  scanBannerIcon:   { width: 40, height: 40, borderRadius: 12, backgroundColor: '#2D7D46', alignItems: 'center', justifyContent: 'center' },
+  scanBannerTitle:  { fontSize: 14.5, fontWeight: '700', color: '#1a5c30' },
+  scanBannerSub:    { fontSize: 12, color: '#3d7a4f', marginTop: 2 },
+  scanDoneBanner:   { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#E8F5EC', borderRadius: 12, padding: 12 },
+  scanDoneText:     { flex: 1, fontSize: 12.5, color: '#1a5c30', fontWeight: '500', lineHeight: 17 },
 
   // Type cards
   typeGrid:         { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

@@ -7459,6 +7459,14 @@ try:
 except ImportError as e:
     print(f"Warning: Could not load pro_routes: {e}")
 
+# Import and include Yondly Scan routes (IA vision + Circular Score)
+try:
+    from scan_routes import create_scan_routes
+    scan_router = create_scan_routes(db, get_current_user)
+    app.include_router(scan_router)
+except ImportError as e:
+    print(f"Warning: Could not load scan_routes: {e}")
+
 # Mount uploads directory for static access
 uploads_path = ROOT_DIR / "uploads"
 uploads_path.mkdir(exist_ok=True)
