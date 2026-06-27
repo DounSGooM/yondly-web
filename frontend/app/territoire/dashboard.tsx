@@ -259,6 +259,16 @@ export default function TerritoireDashboard() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#4C7B4B" />}
       >
 
+        {/* ── Accès intelligence territoriale ── */}
+        <TouchableOpacity style={styles.insightsCta} onPress={() => router.push('/territoire/insights' as any)} activeOpacity={0.9}>
+          <Ionicons name="git-network" size={22} color="#fff" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.insightsCtaTitle}>Intelligence territoriale</Text>
+            <Text style={styles.insightsCtaSub}>Demande non satisfaite, risques de rebut, recommandations</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.85)" />
+        </TouchableOpacity>
+
         {/* ── CO2 hero card ── */}
         <View style={styles.heroCard}>
           <View style={styles.heroLeft}>
@@ -507,6 +517,11 @@ const styles = StyleSheet.create({
   periodBtnActive: { backgroundColor: '#4C7B4B' },
   periodText: { fontSize: 12, color: '#666', fontWeight: '500' },
   periodTextActive: { color: '#fff' },
+
+  // CTA insights
+  insightsCta: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#27500A', borderRadius: 16, marginHorizontal: 16, marginTop: 16, padding: 16 },
+  insightsCtaTitle: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  insightsCtaSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
 
   // Hero CO2
   heroCard: { margin: 16, borderRadius: 16, backgroundColor: '#4C7B4B', padding: 20, flexDirection: 'row', justifyContent: 'space-between' },
