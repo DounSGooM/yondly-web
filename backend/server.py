@@ -1225,11 +1225,23 @@ async def create_item(
         # Proceed without estimate (client will fetch it later or use fallback)
     
     await db.items.insert_one(item_dict)
-    
+
     # Award Points for posting
     await award_points(current_user["id"], 20)
-    
+
     item_dict.pop("_id", None)
+
+    # Indexation sémantique (embedding) — best-effort, ne bloque pas la création
+    try:
+        from embeddings import index_item
+        await index_item(
+            db, item_dict["id"],
+            item_dict.get("title", ""),
+            item_dict.get("description", "") or "",
+            item_dict.get("category", ""),
+        )
+    except Exception as e:
+        print(f"Embedding index error: {e}")
     
     # Track listing creation event
     try:
@@ -1427,6 +1439,7 @@ async def get_items(
     type: Optional[str] = None,
     category: Optional[str] = None,
     status: Optional[str] = 'active',
+    q: Optional[str] = None,  # Recherche sémantique en langage naturel
     lat: Optional[float] = None,
     lng: Optional[float] = None,
     limit: int = 50,
@@ -1477,9 +1490,50 @@ async def get_items(
     elif sort_by == 'date_desc':
         sort_criteria = [("created_at", -1)]
     
-    # Increase limit to allow for post-filtering
-    items = await db.items.find(query).sort(sort_criteria).limit(limit * 5).to_list(limit * 5)
-    
+    # ─── Récupération des annonces ──────────────────────────────────────────
+    # Si une requête texte est fournie : recherche sémantique (embeddings +
+    # pgvector). Fallback mot-clé si la sémantique est indisponible.
+    if q and q.strip():
+        semantic_ids = None
+        try:
+            from embeddings import semantic_item_ids
+            semantic_ids = await semantic_item_ids(q.strip(), match_count=limit * 5)
+        except Exception as e:
+            print(f"Semantic search error: {e}")
+
+        if semantic_ids:
+            # Charge les annonces classées par pertinence sémantique.
+            sem_items = await db.items.find({"id": {"$in": semantic_ids}}).to_list(len(semantic_ids))
+            rank = {sid: idx for idx, sid in enumerate(semantic_ids)}
+            sem_items.sort(key=lambda it: rank.get(it.get("id"), 10 ** 9))
+            # Applique les filtres structurels en Python (l'ordre sémantique est conservé).
+            def _passes(it):
+                if type and it.get("type") != type:
+                    return False
+                if category and it.get("category") != category:
+                    return False
+                if status and it.get("status") != status:
+                    return False
+                if min_price is not None and (it.get("price_cents") or 0) < min_price:
+                    return False
+                if max_price is not None and (it.get("price_cents") or 0) > max_price:
+                    return False
+                if condition and it.get("condition") not in condition:
+                    return False
+                return True
+            items = [it for it in sem_items if _passes(it)]
+        else:
+            # Fallback mot-clé : requête standard + filtre sous-chaîne en Python.
+            items = await db.items.find(query).sort(sort_criteria).limit(limit * 5).to_list(limit * 5)
+            ql = q.strip().lower()
+            items = [
+                it for it in items
+                if ql in (f"{it.get('title', '')} {it.get('description') or ''}").lower()
+            ]
+    else:
+        # Pas de recherche texte : tri classique.
+        items = await db.items.find(query).sort(sort_criteria).limit(limit * 5).to_list(limit * 5)
+
     filtered_items = []
     
     # Populate owner info and calculate distances
@@ -1525,8 +1579,9 @@ async def get_items(
         
         filtered_items.append(item)
     
-    # Sort by proximity score (highest first), then by distance (lowest first)
-    if lat is not None and lng is not None:
+    # Sort by proximity score (highest first), then by distance (lowest first).
+    # En recherche texte, on conserve l'ordre de pertinence sémantique.
+    if lat is not None and lng is not None and not (q and q.strip()):
         filtered_items.sort(key=lambda x: (-x.get("proximity_score", 0), x.get("distance_km", 999)))
     
     # Limit to requested number
