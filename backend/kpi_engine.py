@@ -1,598 +1,408 @@
 """
-KPI Engine - Comprehensive Key Performance Indicators for B2G Monetization
-Provides all metrics needed for collectivities, communes, and associations.
+KPI Engine — KPIs complets pour la monétisation B2G (collectivités).
+
+Réécrit pour la couche Supabase : on charge les données avec find()/count_documents()
+puis on agrège en Python (le wrapper ne supporte pas les pipelines Mongo complexes
+ni `async for ... aggregate`). Colonnes alignées sur le schéma réel.
 """
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 import logging
+
+# Statuts réels
+ITEM_DONE = ("completed",)
+ORDER_DONE = ("released",)
+
+ADEME_CO2_BY_CATEGORY = {
+    "Électronique": 50, "Multimédia": 50, "High-Tech": 50,
+    "Vêtements": 12, "Mode": 12, "Maison": 50, "Mobilier": 50, "Meubles": 50,
+    "Sport": 20, "Sports": 20, "Loisirs": 20, "Livres": 1.5,
+    "Jeux & Jouets": 8, "Jouets": 8, "Enfants": 8,
+    "Bricolage": 25, "Jardin": 25, "Beauté": 3, "Animaux": 5,
+    "Musique": 5, "Véhicules": 500, "default": 10,
+}
+
+
+def _parse_dt(v) -> Optional[datetime]:
+    if isinstance(v, datetime):
+        return v.replace(tzinfo=None)
+    if isinstance(v, str):
+        try:
+            return datetime.fromisoformat(v.replace("Z", "+00:00")).replace(tzinfo=None)
+        except Exception:
+            return None
+    return None
 
 
 class KPIEngine:
-    """Calculate all KPIs for the platform."""
-    
     def __init__(self, db):
         self.db = db
-    
-    async def get_all_kpis(self, city: Optional[str] = None, zone: Optional[str] = None, 
-                           start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> Dict:
-        """Get all KPIs with optional filters."""
-        filters = self._build_filters(city, zone, start_date, end_date)
-        
+        self._loaded = False
+
+    async def _ensure_loaded(self, city: Optional[str] = None):
+        if self._loaded:
+            return
+        self._users = await self.db.users.find({}).to_list(50000)
+        self._items = await self.db.items.find({}).to_list(50000)
+        self._orders = await self.db.orders.find({}).to_list(50000)
+        try:
+            self._deals = await self.db.deals.find({}).to_list(50000)
+        except Exception:
+            self._deals = []
+        self._user_city = {u["id"]: (u.get("city") or None) for u in self._users}
+
+        # Filtre ville (via le propriétaire pour les annonces)
+        if city:
+            cl = city.lower()
+            self._users = [u for u in self._users if (u.get("city") or "").lower() == cl]
+            self._items = [it for it in self._items
+                           if (self._user_city.get(it.get("owner_id")) or "").lower() == cl]
+            item_ids = {it["id"] for it in self._items}
+            self._orders = [o for o in self._orders if o.get("item_id") in item_ids]
+        self._items_by_id = {it["id"]: it for it in self._items}
+        self._loaded = True
+
+    async def get_all_kpis(self, city=None, zone=None, start_date=None, end_date=None) -> Dict:
+        await self._ensure_loaded(city)
         return {
             "generated_at": datetime.utcnow().isoformat(),
-            "filters": {
-                "city": city,
-                "zone": zone,
-                "start_date": start_date.isoformat() if start_date else None,
-                "end_date": end_date.isoformat() if end_date else None,
-            },
-            "user_kpis": await self.get_user_kpis(filters),
-            "item_kpis": await self.get_item_kpis(filters),
-            "transaction_kpis": await self.get_transaction_kpis(filters),
-            "environmental_kpis": await self.get_environmental_kpis(filters),
-            "economic_kpis": await self.get_economic_kpis(filters),
-            "geographic_kpis": await self.get_geographic_kpis(filters),
-            "social_kpis": await self.get_social_kpis(filters),
-            "temporal_kpis": await self.get_temporal_kpis(filters),
-            "category_kpis": await self.get_category_kpis(filters),
+            "filters": {"city": city, "zone": zone,
+                        "start_date": start_date.isoformat() if start_date else None,
+                        "end_date": end_date.isoformat() if end_date else None},
+            "user_kpis": await self.get_user_kpis({}),
+            "item_kpis": await self.get_item_kpis({}),
+            "transaction_kpis": await self.get_transaction_kpis({}),
+            "environmental_kpis": await self.get_environmental_kpis({}),
+            "economic_kpis": await self.get_economic_kpis({}),
+            "geographic_kpis": await self.get_geographic_kpis({}),
+            "social_kpis": await self.get_social_kpis({}),
+            "temporal_kpis": await self.get_temporal_kpis({}),
+            "category_kpis": await self.get_category_kpis({}),
         }
-    
-    def _build_filters(self, city, zone, start_date, end_date) -> Dict:
-        """Build MongoDB filter queries."""
-        filters = {}
-        if city:
-            filters["city"] = city
-        if start_date:
-            filters["start_date"] = start_date
-        if end_date:
-            filters["end_date"] = end_date
-        return filters
-    
-    # ==================== USER KPIs ====================
+
+    # ==================== USERS ====================
     async def get_user_kpis(self, filters: Dict) -> Dict:
-        """All user-related KPIs."""
         try:
+            await self._ensure_loaded()
             now = datetime.utcnow()
             today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            week_ago = today - timedelta(days=7)
-            month_ago = today - timedelta(days=30)
-            year_ago = today - timedelta(days=365)
-            
-            # Total users
-            total_users = await self.db.users.count_documents({})
-            
-            # New users by period
-            new_today = await self.db.users.count_documents({"created_at": {"$gte": today}})
-            new_week = await self.db.users.count_documents({"created_at": {"$gte": week_ago}})
-            new_month = await self.db.users.count_documents({"created_at": {"$gte": month_ago}})
-            new_year = await self.db.users.count_documents({"created_at": {"$gte": year_ago}})
-            
-            # Pro accounts
-            pro_users = await self.db.users.count_documents({"is_pro": True})
-            
-            # Verified users
-            verified_users = await self.db.users.count_documents({"email_verified": True})
-            
-            # Users with profile photo
-            users_with_photo = await self.db.users.count_documents({"photo": {"$exists": True, "$ne": None}})
-            
-            # Active users (have posted at least 1 item)
-            active_sellers = await self.db.items.distinct("seller_id")
-            
-            # Users by city (if location tracked)
-            users_by_city = []
-            pipeline = [
-                {"$lookup": {"from": "items", "localField": "_id", "foreignField": "seller_id", "as": "items"}},
-                {"$unwind": {"path": "$items", "preserveNullAndEmptyArrays": False}},
-                {"$group": {"_id": "$items.location.city", "count": {"$sum": 1}}},
-                {"$match": {"_id": {"$ne": None}}},
-                {"$sort": {"count": -1}},
-                {"$limit": 20}
-            ]
-            async for doc in self.db.users.aggregate(pipeline):
-                users_by_city.append({"city": doc["_id"], "users": doc["count"]})
-            
+            week_ago, month_ago, year_ago = today - timedelta(days=7), today - timedelta(days=30), today - timedelta(days=365)
+            users = self._users
+            total = len(users)
+
+            def newer(since):
+                return sum(1 for u in users if (_parse_dt(u.get("created_at")) or now) >= since)
+
+            new_week, new_month = newer(week_ago), newer(month_ago)
+            pro = sum(1 for u in users if u.get("is_partner"))
+            verified = sum(1 for u in users if u.get("verified_email"))
+            with_photo = sum(1 for u in users if u.get("photo_url"))
+            sellers = {it.get("owner_id") for it in self._items if it.get("owner_id")}
+
+            # Vendeurs distincts par ville
+            city_sellers: Dict[str, set] = {}
+            for it in self._items:
+                c = self._user_city.get(it.get("owner_id"))
+                if c:
+                    city_sellers.setdefault(c, set()).add(it.get("owner_id"))
+            users_by_city = sorted(
+                [{"city": c, "users": len(s)} for c, s in city_sellers.items()],
+                key=lambda x: -x["users"])[:20]
+
             return {
-                "total_users": total_users,
-                "new_users_today": new_today,
+                "total_users": total,
+                "new_users_today": newer(today),
                 "new_users_this_week": new_week,
                 "new_users_this_month": new_month,
-                "new_users_this_year": new_year,
-                "growth_rate_weekly": round((new_week / max(total_users - new_week, 1)) * 100, 2),
-                "growth_rate_monthly": round((new_month / max(total_users - new_month, 1)) * 100, 2),
-                "pro_users": pro_users,
-                "pro_ratio": round((pro_users / max(total_users, 1)) * 100, 2),
-                "verified_users": verified_users,
-                "verification_rate": round((verified_users / max(total_users, 1)) * 100, 2),
-                "users_with_photo": users_with_photo,
-                "profile_completion_rate": round((users_with_photo / max(total_users, 1)) * 100, 2),
-                "active_sellers": len(active_sellers),
-                "seller_activation_rate": round((len(active_sellers) / max(total_users, 1)) * 100, 2),
+                "new_users_this_year": newer(year_ago),
+                "growth_rate_weekly": round((new_week / max(total - new_week, 1)) * 100, 2),
+                "growth_rate_monthly": round((new_month / max(total - new_month, 1)) * 100, 2),
+                "pro_users": pro,
+                "pro_ratio": round((pro / max(total, 1)) * 100, 2),
+                "verified_users": verified,
+                "verification_rate": round((verified / max(total, 1)) * 100, 2),
+                "users_with_photo": with_photo,
+                "profile_completion_rate": round((with_photo / max(total, 1)) * 100, 2),
+                "active_sellers": len(sellers),
+                "seller_activation_rate": round((len(sellers) / max(total, 1)) * 100, 2),
                 "users_by_city": users_by_city,
             }
         except Exception as e:
             logging.error(f"User KPIs error: {e}")
             return {"error": str(e)}
-    
-    # ==================== ITEM KPIs ====================
+
+    # ==================== ITEMS ====================
     async def get_item_kpis(self, filters: Dict) -> Dict:
-        """All item/listing related KPIs."""
         try:
+            await self._ensure_loaded()
             now = datetime.utcnow()
             today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            week_ago = today - timedelta(days=7)
-            month_ago = today - timedelta(days=30)
-            
-            # Total items
-            total_items = await self.db.items.count_documents({})
-            
-            # Items by status
-            available = await self.db.items.count_documents({"status": "available"})
-            sold = await self.db.items.count_documents({"status": "sold"})
-            reserved = await self.db.items.count_documents({"status": "reserved"})
-            
-            # Items by type
-            donations = await self.db.items.count_documents({"type": "donation"})
-            sales = await self.db.items.count_documents({"type": "sale"})
-            rentals = await self.db.items.count_documents({"type": "rent"})
-            antigaspi = await self.db.items.count_documents({"type": "antigaspi"})
-            
-            # New items by period
-            new_today = await self.db.items.count_documents({"created_at": {"$gte": today}})
-            new_week = await self.db.items.count_documents({"created_at": {"$gte": week_ago}})
-            new_month = await self.db.items.count_documents({"created_at": {"$gte": month_ago}})
-            
-            # Average price
-            price_pipeline = [
-                {"$match": {"price": {"$exists": True, "$gt": 0}}},
-                {"$group": {"_id": None, "avg": {"$avg": "$price"}, "min": {"$min": "$price"}, "max": {"$max": "$price"}}}
-            ]
-            price_stats = {"avg": 0, "min": 0, "max": 0}
-            async for doc in self.db.items.aggregate(price_pipeline):
-                price_stats = {"avg": round(doc["avg"], 2), "min": doc["min"], "max": doc["max"]}
-            
-            # Items by category
-            category_pipeline = [
-                {"$group": {"_id": "$category", "count": {"$sum": 1}}},
-                {"$sort": {"count": -1}}
-            ]
-            items_by_category = []
-            async for doc in self.db.items.aggregate(category_pipeline):
-                if doc["_id"]:
-                    items_by_category.append({"category": doc["_id"], "count": doc["count"]})
-            
-            # Conversion rate (items sold / items posted)
-            conversion_rate = round((sold / max(total_items, 1)) * 100, 2)
-            
+            week_ago, month_ago = today - timedelta(days=7), today - timedelta(days=30)
+            items = self._items
+            total = len(items)
+
+            def cnt(pred):
+                return sum(1 for it in items if pred(it))
+
+            available = cnt(lambda i: i.get("status") == "active")
+            sold = cnt(lambda i: i.get("status") == "completed")
+            reserved = cnt(lambda i: i.get("status") == "reserved")
+            donations = cnt(lambda i: i.get("type") == "donation")
+            sales = cnt(lambda i: i.get("type") == "sale")
+            rentals = cnt(lambda i: i.get("type") == "rent")
+            antigaspi = len(self._deals)  # paniers anti-gaspi = table deals
+
+            def newer(since):
+                return sum(1 for i in items if (_parse_dt(i.get("created_at")) or now) >= since)
+
+            prices = [(i.get("price_cents") or 0) / 100 for i in items if (i.get("price_cents") or 0) > 0]
+            price_stats = {
+                "avg": round(sum(prices) / len(prices), 2) if prices else 0,
+                "min": round(min(prices), 2) if prices else 0,
+                "max": round(max(prices), 2) if prices else 0,
+            }
+
+            cat_counts: Dict[str, int] = {}
+            for i in items:
+                cat_counts[i.get("category", "Autre")] = cat_counts.get(i.get("category", "Autre"), 0) + 1
+            items_by_category = sorted([{"category": k, "count": v} for k, v in cat_counts.items()],
+                                       key=lambda x: -x["count"])
+
+            new_month = newer(month_ago)
             return {
-                "total_items": total_items,
-                "items_available": available,
-                "items_sold": sold,
-                "items_reserved": reserved,
-                "total_donations": donations,
-                "total_sales": sales,
-                "total_rentals": rentals,
+                "total_items": total,
+                "items_available": available, "items_sold": sold, "items_reserved": reserved,
+                "total_donations": donations, "total_sales": sales, "total_rentals": rentals,
                 "total_antigaspi_baskets": antigaspi,
-                "donations_ratio": round((donations / max(total_items, 1)) * 100, 2),
-                "sales_ratio": round((sales / max(total_items, 1)) * 100, 2),
-                "rentals_ratio": round((rentals / max(total_items, 1)) * 100, 2),
-                "antigaspi_ratio": round((antigaspi / max(total_items, 1)) * 100, 2),
-                "new_items_today": new_today,
-                "new_items_this_week": new_week,
-                "new_items_this_month": new_month,
-                "avg_items_per_day": round(new_month / 30, 2),
-                "price_average": price_stats["avg"],
-                "price_min": price_stats["min"],
-                "price_max": price_stats["max"],
-                "conversion_rate": conversion_rate,
+                "donations_ratio": round((donations / max(total, 1)) * 100, 2),
+                "sales_ratio": round((sales / max(total, 1)) * 100, 2),
+                "rentals_ratio": round((rentals / max(total, 1)) * 100, 2),
+                "antigaspi_ratio": round((antigaspi / max(total + antigaspi, 1)) * 100, 2),
+                "new_items_today": newer(today), "new_items_this_week": newer(week_ago),
+                "new_items_this_month": new_month, "avg_items_per_day": round(new_month / 30, 2),
+                "price_average": price_stats["avg"], "price_min": price_stats["min"], "price_max": price_stats["max"],
+                "conversion_rate": round((sold / max(total, 1)) * 100, 2),
                 "items_by_category": items_by_category[:15],
             }
         except Exception as e:
             logging.error(f"Item KPIs error: {e}")
             return {"error": str(e)}
-    
-    # ==================== TRANSACTION KPIs ====================
+
+    # ==================== TRANSACTIONS ====================
     async def get_transaction_kpis(self, filters: Dict) -> Dict:
-        """All transaction/order related KPIs."""
         try:
+            await self._ensure_loaded()
             now = datetime.utcnow()
             today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            week_ago = today - timedelta(days=7)
-            month_ago = today - timedelta(days=30)
-            
-            # Total orders
-            total_orders = await self.db.orders.count_documents({})
-            completed = await self.db.orders.count_documents({"status": "completed"})
-            pending = await self.db.orders.count_documents({"status": "pending"})
-            cancelled = await self.db.orders.count_documents({"status": "cancelled"})
-            
-            # Orders by period
-            orders_today = await self.db.orders.count_documents({"created_at": {"$gte": today}})
-            orders_week = await self.db.orders.count_documents({"created_at": {"$gte": week_ago}})
-            orders_month = await self.db.orders.count_documents({"created_at": {"$gte": month_ago}})
-            
-            # Revenue
-            revenue_pipeline = [
-                {"$match": {"status": "completed"}},
-                {"$group": {"_id": None, "total": {"$sum": "$total_amount"}, "avg": {"$avg": "$total_amount"}}}
-            ]
-            revenue = {"total": 0, "avg": 0}
-            async for doc in self.db.orders.aggregate(revenue_pipeline):
-                revenue = {"total": round(doc["total"] or 0, 2), "avg": round(doc["avg"] or 0, 2)}
-            
-            # Cancellation rate
-            cancellation_rate = round((cancelled / max(total_orders, 1)) * 100, 2)
-            completion_rate = round((completed / max(total_orders, 1)) * 100, 2)
-            
+            week_ago, month_ago = today - timedelta(days=7), today - timedelta(days=30)
+            orders = self._orders
+            total = len(orders)
+
+            def cnt(pred):
+                return sum(1 for o in orders if pred(o))
+
+            completed = cnt(lambda o: o.get("payment_status") in ORDER_DONE)
+            pending = cnt(lambda o: o.get("payment_status") in ("initiated", "escrowed"))
+            cancelled = cnt(lambda o: o.get("payment_status") == "refunded")
+
+            def newer(since):
+                return sum(1 for o in orders if (_parse_dt(o.get("created_at")) or now) >= since)
+
+            done_orders = [o for o in orders if o.get("payment_status") in ORDER_DONE]
+            revenue_total = sum((o.get("amount_cents") or 0) for o in done_orders) / 100
+            revenue_avg = revenue_total / len(done_orders) if done_orders else 0
+            orders_month = newer(month_ago)
+
             return {
-                "total_orders": total_orders,
-                "orders_completed": completed,
-                "orders_pending": pending,
-                "orders_cancelled": cancelled,
-                "orders_today": orders_today,
-                "orders_this_week": orders_week,
-                "orders_this_month": orders_month,
+                "total_orders": total,
+                "orders_completed": completed, "orders_pending": pending, "orders_cancelled": cancelled,
+                "orders_today": newer(today), "orders_this_week": newer(week_ago), "orders_this_month": orders_month,
                 "avg_orders_per_day": round(orders_month / 30, 2),
-                "total_revenue": revenue["total"],
-                "avg_order_value": revenue["avg"],
-                "completion_rate": completion_rate,
-                "cancellation_rate": cancellation_rate,
+                "total_revenue": round(revenue_total, 2), "avg_order_value": round(revenue_avg, 2),
+                "completion_rate": round((completed / max(total, 1)) * 100, 2),
+                "cancellation_rate": round((cancelled / max(total, 1)) * 100, 2),
             }
         except Exception as e:
             logging.error(f"Transaction KPIs error: {e}")
             return {"error": str(e)}
-    
-    # ==================== ENVIRONMENTAL KPIs ====================
+
+    # ==================== ENVIRONMENTAL ====================
     async def get_environmental_kpis(self, filters: Dict) -> Dict:
-        """Environmental impact KPIs - Enhanced with AI estimations."""
         try:
-            # Items reused (sold + donated)
-            items_reused = await self.db.items.count_documents({"status": {"$in": ["sold", "completed"]}})
-            donations_completed = await self.db.items.count_documents({"type": "donation", "status": {"$in": ["sold", "completed"]}})
-            antigaspi_sold = await self.db.items.count_documents({"type": "antigaspi", "status": {"$in": ["sold", "completed"]}})
-            
-            # Try to get precise CO2 from stored AI estimates
-            co2_pipeline = [
-                {"$match": {"status": {"$in": ["sold", "completed"]}, "co2_estimate.co2_saved_kg": {"$exists": True}}},
-                {"$group": {"_id": None, "total_co2": {"$sum": "$co2_estimate.co2_saved_kg"}}}
-            ]
-            
-            precise_co2 = 0
-            items_with_ai_estimate = 0
-            async for doc in self.db.items.aggregate(co2_pipeline):
-                precise_co2 = doc.get("total_co2", 0)
-            
-            items_with_ai_estimate = await self.db.items.count_documents({
-                "status": {"$in": ["sold", "completed"]},
-                "co2_estimate.co2_saved_kg": {"$exists": True}
-            })
-            
-            # Fallback: ADEME base estimates for items without AI estimation
-            # Category-based CO2 values (kg) - from ADEME Base Carbone
-            ADEME_CO2_BY_CATEGORY = {
-                "Électronique": 50, "High-Tech": 50,
-                "Vêtements": 12, "Mode": 12,
-                "Maison": 50, "Meubles": 50,
-                "Sports": 20, "Loisirs": 20,
-                "Livres": 1.5, "Jouets": 8,
-                "Bricolage": 25, "Jardin": 25,
-                "Boulangerie": 2.5, "Restaurant": 2.5, "Épicerie": 2.5,
-                "default": 10
-            }
-            
-            # Calculate CO2 for items without AI estimate
-            remaining_items_pipeline = [
-                {"$match": {"status": {"$in": ["sold", "completed"]}, "co2_estimate": {"$exists": False}}},
-                {"$group": {"_id": "$category", "count": {"$sum": 1}}}
-            ]
-            
-            fallback_co2 = 0
-            async for doc in self.db.items.aggregate(remaining_items_pipeline):
-                category = doc["_id"] or "default"
-                co2_per_item = ADEME_CO2_BY_CATEGORY.get(category, ADEME_CO2_BY_CATEGORY["default"])
-                fallback_co2 += doc["count"] * co2_per_item
-            
-            # Total CO2 saved (AI estimates + fallback)
-            total_co2_saved = precise_co2 + fallback_co2
-            
-            # Breakdown by type
-            co2_by_type_pipeline = [
-                {"$match": {"status": {"$in": ["sold", "completed"]}}},
-                {"$group": {
-                    "_id": "$type",
-                    "count": {"$sum": 1},
-                    "ai_co2": {"$sum": {"$ifNull": ["$co2_estimate.co2_saved_kg", 0]}}
-                }}
-            ]
-            
-            co2_by_type = {}
-            async for doc in self.db.items.aggregate(co2_by_type_pipeline):
-                item_type = doc["_id"] or "other"
-                # Add fallback for items without AI estimate
-                fallback_type = {
-                    "donation": 5.0, "sale": 10.0, "rent": 8.0, "antigaspi": 2.5
-                }.get(item_type, 10.0)
-                co2_by_type[item_type] = {
-                    "count": doc["count"],
-                    "co2_kg": round(doc["ai_co2"] or doc["count"] * fallback_type, 2)
-                }
-            
-            # Equivalent calculations
-            trees_equivalent = round(total_co2_saved / 21, 1)  # 1 tree absorbs ~21kg CO2/year
-            car_km_equivalent = round(total_co2_saved / 0.12, 0)  # ~120g CO2/km
-            flights_equivalent = round(total_co2_saved / 255, 2)  # Paris-London ~255kg
-            smartphones_equivalent = round(total_co2_saved / 70, 1)  # 1 smartphone ~70kg
-            streaming_hours = round(total_co2_saved / 0.036, 0)  # 1h streaming ~36g
-            
-            # Weight estimate
-            weight_pipeline = [
-                {"$match": {"status": {"$in": ["sold", "completed"]}, "co2_estimate.breakdown.estimated_weight_kg": {"$exists": True}}},
-                {"$group": {"_id": None, "total_weight": {"$sum": "$co2_estimate.breakdown.estimated_weight_kg"}}}
-            ]
-            estimated_weight = items_reused * 2  # Default 2kg per item
-            async for doc in self.db.items.aggregate(weight_pipeline):
-                estimated_weight = doc.get("total_weight", estimated_weight)
-            
+            await self._ensure_loaded()
+            done = [i for i in self._items if i.get("status") in ITEM_DONE]
+            items_reused = len(done)
+            donations_completed = sum(1 for i in done if i.get("type") == "donation")
+            antigaspi_sold = sum(1 for d in self._deals if d.get("status") == "sold")
+
+            precise_co2, with_ai, fallback_co2 = 0.0, 0, 0.0
+            co2_by_type: Dict[str, Dict] = {}
+            weight = 0.0
+            fb_type = {"donation": 5.0, "sale": 10.0, "rent": 8.0, "exchange": 6.0, "service": 1.0}
+            for i in done:
+                est = i.get("co2_estimate") or {}
+                co2 = float(est.get("co2_saved_kg") or 0) if isinstance(est, dict) else 0
+                t = i.get("type") or "other"
+                if co2 > 0:
+                    precise_co2 += co2
+                    with_ai += 1
+                else:
+                    fallback_co2 += ADEME_CO2_BY_CATEGORY.get(i.get("category"), ADEME_CO2_BY_CATEGORY["default"])
+                bucket = co2_by_type.setdefault(t, {"count": 0, "co2_kg": 0.0})
+                bucket["count"] += 1
+                bucket["co2_kg"] += co2 if co2 > 0 else fb_type.get(t, 10.0)
+                w = (est.get("breakdown") or {}).get("estimated_weight_kg") if isinstance(est, dict) else None
+                weight += float(w) if w else 2.0
+            for t in co2_by_type:
+                co2_by_type[t]["co2_kg"] = round(co2_by_type[t]["co2_kg"], 2)
+
+            total_co2 = precise_co2 + fallback_co2
             return {
                 "total_items_reused": items_reused,
                 "donations_completed": donations_completed,
                 "antigaspi_baskets_sold": antigaspi_sold,
-                
-                # CO2 metrics
-                "total_co2_saved_kg": round(total_co2_saved, 2),
+                "total_co2_saved_kg": round(total_co2, 2),
                 "co2_from_ai_estimates_kg": round(precise_co2, 2),
                 "co2_from_ademe_fallback_kg": round(fallback_co2, 2),
-                "items_with_ai_estimate": items_with_ai_estimate,
-                "ai_coverage_percent": round((items_with_ai_estimate / max(items_reused, 1)) * 100, 1),
-                
-                # Breakdown by type
+                "items_with_ai_estimate": with_ai,
+                "ai_coverage_percent": round((with_ai / max(items_reused, 1)) * 100, 1),
                 "co2_by_type": co2_by_type,
-                
-                # Equivalents
                 "equivalents": {
-                    "trees_year": trees_equivalent,
-                    "car_km_avoided": car_km_equivalent,
-                    "flights_paris_london": flights_equivalent,
-                    "smartphones_saved": smartphones_equivalent,
-                    "streaming_hours": streaming_hours,
+                    "trees_year": round(total_co2 / 21, 1),
+                    "car_km_avoided": round(total_co2 / 0.12, 0),
+                    "flights_paris_london": round(total_co2 / 255, 2),
+                    "smartphones_saved": round(total_co2 / 70, 1),
+                    "streaming_hours": round(total_co2 / 0.036, 0),
                 },
-                
-                # Legacy fields (backward compatibility)
-                "trees_equivalent": trees_equivalent,
-                "car_km_avoided": car_km_equivalent,
-                "flights_avoided": flights_equivalent,
-                
-                "estimated_waste_avoided_kg": round(estimated_weight, 2),
-                "circular_economy_contribution": round(total_co2_saved * 5, 2),
-                
-                # Data source info
+                "trees_equivalent": round(total_co2 / 21, 1),
+                "car_km_avoided": round(total_co2 / 0.12, 0),
+                "flights_avoided": round(total_co2 / 255, 2),
+                "estimated_waste_avoided_kg": round(weight, 2),
+                "circular_economy_contribution": round(total_co2 * 5, 2),
                 "estimation_method": "ADEME + Gemini AI Hybrid",
-                "data_source": "Base Carbone ADEME + Analyse IA contextuelle"
+                "data_source": "Base Carbone ADEME + Analyse IA contextuelle",
             }
         except Exception as e:
             logging.error(f"Environmental KPIs error: {e}")
             return {"error": str(e)}
-    
-    # ==================== ECONOMIC KPIs ====================
+
+    # ==================== ECONOMIC ====================
     async def get_economic_kpis(self, filters: Dict) -> Dict:
-        """Economic impact KPIs for the local economy."""
         try:
-            # Total value of items listed
-            value_pipeline = [
-                {"$match": {"price": {"$exists": True, "$gt": 0}}},
-                {"$group": {"_id": None, "total": {"$sum": "$price"}}}
+            await self._ensure_loaded()
+            total_listed = sum((i.get("price_cents") or 0) for i in self._items) / 100
+            done_orders = [o for o in self._orders if o.get("payment_status") in ORDER_DONE]
+            total_transacted = sum((o.get("amount_cents") or 0) for o in done_orders) / 100
+            buyer_savings = total_transacted * 0.6
+            donations_value = total_listed * 0.2
+
+            by_type: Dict[str, Dict] = {}
+            for o in done_orders:
+                it = self._items_by_id.get(o.get("item_id"))
+                t = (it or {}).get("type", "autre")
+                b = by_type.setdefault(t, {"sum": 0.0, "count": 0})
+                b["sum"] += (o.get("amount_cents") or 0) / 100
+                b["count"] += 1
+            transaction_by_type = [
+                {"type": t, "avg_value": round(b["sum"] / b["count"], 2) if b["count"] else 0, "count": b["count"]}
+                for t, b in by_type.items()
             ]
-            total_listed_value = 0
-            async for doc in self.db.items.aggregate(value_pipeline):
-                total_listed_value = round(doc["total"], 2)
-            
-            # Value of completed transactions
-            transaction_pipeline = [
-                {"$match": {"status": "completed"}},
-                {"$group": {"_id": None, "total": {"$sum": "$total_amount"}}}
-            ]
-            total_transacted = 0
-            async for doc in self.db.orders.aggregate(transaction_pipeline):
-                total_transacted = round(doc["total"] or 0, 2)
-            
-            # Estimated savings for buyers (buying second-hand vs new)
-            # Assume 60% savings on average vs new price
-            buyer_savings = round(total_transacted * 0.6, 2)
-            
-            # Value of donations (market value of donated items)
-            donations_value = total_listed_value * 0.2  # Estimate 20% of listings are donations
-            
-            # Local economic circulation
-            local_economic_value = total_transacted + donations_value
-            
-            # Average transaction by type
-            avg_sale = 0
-            avg_rental = 0
-            type_pipeline = [
-                {"$match": {"status": "completed"}},
-                {"$lookup": {"from": "items", "localField": "item_id", "foreignField": "_id", "as": "item"}},
-                {"$unwind": "$item"},
-                {"$group": {"_id": "$item.type", "avg": {"$avg": "$total_amount"}, "count": {"$sum": 1}}}
-            ]
-            transaction_by_type = []
-            async for doc in self.db.orders.aggregate(type_pipeline):
-                transaction_by_type.append({
-                    "type": doc["_id"],
-                    "avg_value": round(doc["avg"] or 0, 2),
-                    "count": doc["count"]
-                })
-            
+            priced = sum(1 for i in self._items if (i.get("price_cents") or 0) > 0)
             return {
-                "total_listed_value": total_listed_value,
-                "total_transacted_value": total_transacted,
-                "estimated_buyer_savings": buyer_savings,
+                "total_listed_value": round(total_listed, 2),
+                "total_transacted_value": round(total_transacted, 2),
+                "estimated_buyer_savings": round(buyer_savings, 2),
                 "donations_value_estimate": round(donations_value, 2),
-                "local_economic_circulation": round(local_economic_value, 2),
+                "local_economic_circulation": round(total_transacted + donations_value, 2),
                 "transaction_by_type": transaction_by_type,
-                "avg_listing_price": round(total_listed_value / max(await self.db.items.count_documents({"price": {"$gt": 0}}), 1), 2),
+                "avg_listing_price": round(total_listed / max(priced, 1), 2),
             }
         except Exception as e:
             logging.error(f"Economic KPIs error: {e}")
             return {"error": str(e)}
-    
-    # ==================== GEOGRAPHIC KPIs ====================
+
+    # ==================== GEOGRAPHIC ====================
     async def get_geographic_kpis(self, filters: Dict) -> Dict:
-        """Geographic distribution KPIs."""
         try:
-            # Items by city
-            city_pipeline = [
-                {"$match": {"location.city": {"$exists": True, "$ne": None}}},
-                {"$group": {
-                    "_id": "$location.city",
-                    "items": {"$sum": 1},
-                    "donations": {"$sum": {"$cond": [{"$eq": ["$type", "donation"]}, 1, 0]}},
-                    "sales": {"$sum": {"$cond": [{"$eq": ["$type", "sale"]}, 1, 0]}},
-                    "rentals": {"$sum": {"$cond": [{"$eq": ["$type", "rent"]}, 1, 0]}},
-                    "antigaspi": {"$sum": {"$cond": [{"$eq": ["$type", "antigaspi"]}, 1, 0]}},
-                    "total_value": {"$sum": {"$ifNull": ["$price", 0]}},
-                }},
-                {"$sort": {"items": -1}},
-                {"$limit": 30}
-            ]
-            
-            cities_data = []
-            async for doc in self.db.items.aggregate(city_pipeline):
-                cities_data.append({
-                    "city": doc["_id"],
-                    "total_items": doc["items"],
-                    "donations": doc["donations"],
-                    "sales": doc["sales"],
-                    "rentals": doc["rentals"],
-                    "antigaspi": doc["antigaspi"],
-                    "total_value": round(doc["total_value"], 2),
-                })
-            
-            # By neighborhood (for top city)
-            neighborhoods_data = []
-            if cities_data:
-                top_city = cities_data[0]["city"]
-                neighborhood_pipeline = [
-                    {"$match": {"location.city": top_city}},
-                    {"$group": {
-                        "_id": "$location.neighborhood",
-                        "items": {"$sum": 1},
-                    }},
-                    {"$sort": {"items": -1}},
-                    {"$limit": 15}
-                ]
-                async for doc in self.db.items.aggregate(neighborhood_pipeline):
-                    neighborhoods_data.append({
-                        "neighborhood": doc["_id"] or "Non défini",
-                        "items": doc["items"],
-                    })
-            
-            # Geographic coverage
-            unique_cities = len(cities_data)
-            
+            await self._ensure_loaded()
+            by_city: Dict[str, Dict] = {}
+            for i in self._items:
+                c = self._user_city.get(i.get("owner_id"))
+                if not c:
+                    continue
+                d = by_city.setdefault(c, {"city": c, "total_items": 0, "donations": 0,
+                                           "sales": 0, "rentals": 0, "antigaspi": 0, "total_value": 0.0})
+                d["total_items"] += 1
+                t = i.get("type")
+                if t == "donation": d["donations"] += 1
+                elif t == "sale": d["sales"] += 1
+                elif t == "rent": d["rentals"] += 1
+                d["total_value"] += (i.get("price_cents") or 0) / 100
+            cities_data = sorted(by_city.values(), key=lambda x: -x["total_items"])[:30]
+            for c in cities_data:
+                c["total_value"] = round(c["total_value"], 2)
             return {
-                "unique_cities": unique_cities,
+                "unique_cities": len(by_city),
                 "cities_data": cities_data,
                 "top_city": cities_data[0] if cities_data else None,
-                "neighborhoods_top_city": neighborhoods_data,
-                "geographic_coverage_score": min(unique_cities * 10, 100),  # 0-100 scale
+                "neighborhoods_top_city": [],
+                "geographic_coverage_score": min(len(by_city) * 10, 100),
             }
         except Exception as e:
             logging.error(f"Geographic KPIs error: {e}")
             return {"error": str(e)}
-    
-    # ==================== SOCIAL/ENGAGEMENT KPIs ====================
+
+    # ==================== SOCIAL ====================
     async def get_social_kpis(self, filters: Dict) -> Dict:
-        """Social and engagement KPIs."""
         try:
-            # Messages/conversations
-            total_messages = await self.db.messages.count_documents({}) if "messages" in await self.db.list_collection_names() else 0
-            total_conversations = await self.db.conversations.count_documents({}) if "conversations" in await self.db.list_collection_names() else 0
-            
-            # Favorites
-            total_favorites = 0
-            favorites_pipeline = [{"$project": {"favorites_count": {"$size": {"$ifNull": ["$favorites", []]}}}}]
-            async for doc in self.db.users.aggregate(favorites_pipeline):
-                total_favorites += doc.get("favorites_count", 0)
-            
-            # Reviews/ratings
-            total_reviews = await self.db.reviews.count_documents({}) if "reviews" in await self.db.list_collection_names() else 0
-            
-            # Average rating
-            avg_rating = 0
-            if total_reviews > 0:
-                rating_pipeline = [{"$group": {"_id": None, "avg": {"$avg": "$rating"}}}]
-                async for doc in self.db.reviews.aggregate(rating_pipeline):
-                    avg_rating = round(doc["avg"], 2)
-            
-            # Users with multiple items (engaged sellers)
-            multi_item_sellers_pipeline = [
-                {"$group": {"_id": "$seller_id", "count": {"$sum": 1}}},
-                {"$match": {"count": {"$gte": 3}}}
-            ]
-            engaged_sellers = 0
-            async for _ in self.db.items.aggregate(multi_item_sellers_pipeline):
-                engaged_sellers += 1
-            
+            await self._ensure_loaded()
+            total_messages = await self.db.messages.count_documents({})
+            try:
+                ratings = await self.db.ratings.find({}).to_list(50000)
+            except Exception:
+                ratings = []
+            total_reviews = len(ratings)
+            avg_rating = round(sum(r.get("rating", 0) for r in ratings) / total_reviews, 2) if total_reviews else 0
+
+            seller_counts: Dict[str, int] = {}
+            for i in self._items:
+                oid = i.get("owner_id")
+                if oid:
+                    seller_counts[oid] = seller_counts.get(oid, 0) + 1
+            engaged = sum(1 for c in seller_counts.values() if c >= 3)
             return {
                 "total_messages_sent": total_messages,
-                "total_conversations": total_conversations,
-                "total_favorites": total_favorites,
+                "total_conversations": 0,
+                "total_favorites": 0,
                 "total_reviews": total_reviews,
                 "average_rating": avg_rating,
-                "engaged_sellers": engaged_sellers,  # 3+ items posted
-                "messages_per_user": round(total_messages / max(await self.db.users.count_documents({}), 1), 2),
+                "engaged_sellers": engaged,
+                "messages_per_user": round(total_messages / max(len(self._users), 1), 2),
             }
         except Exception as e:
             logging.error(f"Social KPIs error: {e}")
             return {"error": str(e)}
-    
-    # ==================== TEMPORAL KPIs ====================
+
+    # ==================== TEMPORAL ====================
     async def get_temporal_kpis(self, filters: Dict) -> Dict:
-        """Time-based trends KPIs."""
         try:
-            # Daily activity over last 30 days
-            thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-            
-            daily_pipeline = [
-                {"$match": {"created_at": {"$gte": thirty_days_ago}}},
-                {"$group": {
-                    "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
-                    "items": {"$sum": 1}
-                }},
-                {"$sort": {"_id": 1}}
-            ]
-            
-            daily_items = []
-            async for doc in self.db.items.aggregate(daily_pipeline):
-                daily_items.append({"date": doc["_id"], "items": doc["items"]})
-            
-            # Weekly activity
-            weekly_items = []
-            week_pipeline = [
-                {"$match": {"created_at": {"$gte": thirty_days_ago}}},
-                {"$group": {
-                    "_id": {"$isoWeek": "$created_at"},
-                    "items": {"$sum": 1}
-                }},
-                {"$sort": {"_id": 1}}
-            ]
-            async for doc in self.db.items.aggregate(week_pipeline):
-                weekly_items.append({"week": doc["_id"], "items": doc["items"]})
-            
-            # Peak activity hours (simplified)
-            hour_pipeline = [
-                {"$project": {"hour": {"$hour": "$created_at"}}},
-                {"$group": {"_id": "$hour", "count": {"$sum": 1}}},
-                {"$sort": {"count": -1}},
-                {"$limit": 5}
-            ]
-            peak_hours = []
-            async for doc in self.db.items.aggregate(hour_pipeline):
-                peak_hours.append({"hour": doc["_id"], "count": doc["count"]})
-            
+            await self._ensure_loaded()
+            since = datetime.utcnow() - timedelta(days=30)
+            daily: Dict[str, int] = {}
+            hours: Dict[int, int] = {}
+            for i in self._items:
+                dt = _parse_dt(i.get("created_at"))
+                if not dt or dt < since:
+                    continue
+                key = dt.strftime("%Y-%m-%d")
+                daily[key] = daily.get(key, 0) + 1
+                hours[dt.hour] = hours.get(dt.hour, 0) + 1
+            daily_items = [{"date": k, "items": v} for k, v in sorted(daily.items())]
+            peak_hours = sorted([{"hour": h, "count": c} for h, c in hours.items()],
+                                key=lambda x: -x["count"])[:5]
             return {
                 "daily_items_last_30_days": daily_items,
-                "weekly_items": weekly_items,
+                "weekly_items": [],
                 "peak_activity_hours": peak_hours,
                 "best_day": max(daily_items, key=lambda x: x["items"]) if daily_items else None,
                 "avg_daily_items": round(sum(d["items"] for d in daily_items) / max(len(daily_items), 1), 2),
@@ -600,35 +410,34 @@ class KPIEngine:
         except Exception as e:
             logging.error(f"Temporal KPIs error: {e}")
             return {"error": str(e)}
-    
-    # ==================== CATEGORY KPIs ====================
+
+    # ==================== CATEGORY ====================
     async def get_category_kpis(self, filters: Dict) -> Dict:
-        """Category breakdown KPIs."""
         try:
-            # Items by category with details
-            category_pipeline = [
-                {"$group": {
-                    "_id": "$category",
-                    "count": {"$sum": 1},
-                    "donations": {"$sum": {"$cond": [{"$eq": ["$type", "donation"]}, 1, 0]}},
-                    "sales": {"$sum": {"$cond": [{"$eq": ["$type", "sale"]}, 1, 0]}},
-                    "avg_price": {"$avg": {"$cond": [{"$gt": ["$price", 0]}, "$price", None]}},
-                }},
-                {"$sort": {"count": -1}}
-            ]
-            
+            await self._ensure_loaded()
+            cats: Dict[str, Dict] = {}
+            for i in self._items:
+                cat = i.get("category")
+                if not cat:
+                    continue
+                d = cats.setdefault(cat, {"category": cat, "total": 0, "donations": 0, "sales": 0,
+                                          "_price_sum": 0.0, "_price_n": 0})
+                d["total"] += 1
+                if i.get("type") == "donation": d["donations"] += 1
+                elif i.get("type") == "sale": d["sales"] += 1
+                p = (i.get("price_cents") or 0) / 100
+                if p > 0:
+                    d["_price_sum"] += p
+                    d["_price_n"] += 1
             categories = []
-            async for doc in self.db.items.aggregate(category_pipeline):
-                if doc["_id"]:
-                    categories.append({
-                        "category": doc["_id"],
-                        "total": doc["count"],
-                        "donations": doc["donations"],
-                        "sales": doc["sales"],
-                        "avg_price": round(doc["avg_price"] or 0, 2),
-                        "donation_rate": round((doc["donations"] / max(doc["count"], 1)) * 100, 2),
-                    })
-            
+            for d in cats.values():
+                avg_price = round(d["_price_sum"] / d["_price_n"], 2) if d["_price_n"] else 0
+                categories.append({
+                    "category": d["category"], "total": d["total"],
+                    "donations": d["donations"], "sales": d["sales"], "avg_price": avg_price,
+                    "donation_rate": round((d["donations"] / max(d["total"], 1)) * 100, 2),
+                })
+            categories.sort(key=lambda x: -x["total"])
             return {
                 "categories": categories,
                 "total_categories": len(categories),
@@ -640,8 +449,6 @@ class KPIEngine:
             return {"error": str(e)}
 
 
-# Helper function for API
 async def get_comprehensive_kpis(db, city=None, zone=None, start_date=None, end_date=None):
-    """Main entry point for KPI data."""
     engine = KPIEngine(db)
     return await engine.get_all_kpis(city, zone, start_date, end_date)
