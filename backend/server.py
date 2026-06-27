@@ -1586,8 +1586,39 @@ async def get_items(
     
     # Limit to requested number
     filtered_items = filtered_items[:limit]
-    
+
     return filtered_items
+
+
+@api_router.post("/admin/reindex-embeddings")
+async def reindex_embeddings(admin_key: str = Query(None), limit: int = 500):
+    """Indexe (embeddings) les annonces actives qui n'en ont pas encore.
+    Tourne sur le serveur — pas besoin d'environnement local."""
+    if admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Clé admin invalide")
+    from embeddings import index_item, GEMINI_API_KEY
+    if not GEMINI_API_KEY:
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY manquante sur le serveur")
+
+    items = await db.items.find({"status": "active"}).to_list(5000)
+    to_index = [it for it in items if not it.get("embedding")]
+    done, failed = 0, 0
+    for it in to_index[:limit]:
+        ok = await index_item(
+            db, it["id"], it.get("title", ""),
+            it.get("description", "") or "", it.get("category", ""),
+        )
+        if ok:
+            done += 1
+        else:
+            failed += 1
+    return {
+        "total_active": len(items),
+        "already_indexed": len(items) - len(to_index),
+        "indexed_now": done,
+        "failed": failed,
+        "remaining": max(0, len(to_index) - done - failed),
+    }
 
 
 @api_router.get("/items/my-items")
