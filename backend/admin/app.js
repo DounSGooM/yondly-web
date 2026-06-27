@@ -131,6 +131,7 @@ function navigateTo(page) {
         items: 'Annonces',
         impact: 'Impact Environnemental',
         'antigaspi': 'Qualité Anti-Gaspi',
+        'territoire-graph': 'Intelligence territoriale',
         'safety-logs': 'Registre de Sécurité',
         'audit-logs': 'Audit Logs',
         'pro-verifications': 'Vérifications PRO',
@@ -201,6 +202,7 @@ function loadPageData(page) {
         case 'items': loadItems(); break;
         case 'impact': loadImpact(); break;
         case 'antigaspi': loadAntigaspi(); break;
+        case 'territoire-graph': loadTerritoireGraph(); break;
         case 'safety-logs': loadSafetyLogs(); break;
         case 'pro-verifications': loadProVerifications(); break;
         case 'pro-offers': loadProOffers(); break;
@@ -1170,6 +1172,77 @@ async function resolveBasketReport(reportId, resolution) {
     } catch (e) {
         showToast('Erreur réseau', 'error');
     }
+}
+
+// ─── Intelligence territoriale (Knowledge Graph) ─────────────────────────────
+let _tgRecos = [];
+
+async function loadTerritoireGraph() {
+    const period = document.getElementById('tg-period')?.value || '90j';
+    const summary = document.getElementById('tg-summary');
+    if (!summary) return;
+    summary.innerHTML = '<div style="padding:20px;"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+    try {
+        const res = await fetch(`${API_URL}/territoire/graph?period=${period}`, {
+            headers: { Authorization: `Bearer ${authToken}` }
+        });
+        const d = await res.json();
+        const s = d.summary || {};
+
+        summary.innerHTML = [
+            ['Catégories', s.categories], ['Communes', s.zones], ['Repreneurs', s.partners],
+            ['Annonces actives', s.active_items], ['Échanges', s.transactions],
+        ].map(([l, v]) =>
+            `<div class="stat-card"><div class="stat-value">${v || 0}</div><div class="stat-label">${l}</div></div>`
+        ).join('');
+
+        const ins = d.insights || {};
+        _tgRecos = ins.recommendations || [];
+
+        document.getElementById('tg-recos').innerHTML = _tgRecos.length ? _tgRecos.map(r => `
+            <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #f0f0f0;">
+                <span class="badge-status" style="background:#e8f5ec;color:#2d7d46;white-space:nowrap;">${r.action}</span>
+                <div><strong>${r.category}</strong>
+                    <div style="color:#666;font-size:13px;margin-top:2px;">${r.reason}</div>
+                </div>
+            </div>`).join('') : '<p style="color:#888;">Pas encore assez de données pour générer des recommandations.</p>';
+
+        const cats = (d.nodes && d.nodes.categories) || [];
+        document.getElementById('tg-ovd-body').innerHTML = cats.length ? cats.map(c => {
+            const gap = (c.demand || 0) - (c.supply || 0);
+            let signal = '—';
+            if (gap > 0) signal = '<span style="color:#b3261e;font-weight:600;">Demande forte</span>';
+            else if ((c.supply || 0) >= 3 && (c.demand || 0) === 0) signal = '<span style="color:#9a5b00;font-weight:600;">Surstock</span>';
+            return `<tr><td>${c.name}</td><td>${c.supply || 0}</td><td>${c.demand || 0}</td><td>${gap > 0 ? '+' : ''}${gap}</td><td>${signal}</td></tr>`;
+        }).join('') : '<tr><td colspan="5" style="text-align:center;">—</td></tr>';
+
+        document.getElementById('tg-surplus-body').innerHTML = (ins.surplus_risk || []).length
+            ? ins.surplus_risk.map(x => `<tr><td>${x.category}</td><td>${x.supply}</td></tr>`).join('')
+            : '<tr><td colspan="2" style="text-align:center;">Aucun</td></tr>';
+
+        document.getElementById('tg-zones-body').innerHTML = (ins.underserved_zones || []).length
+            ? ins.underserved_zones.map(x => `<tr><td>${x.commune}</td><td>${x.supply}</td></tr>`).join('')
+            : '<tr><td colspan="2" style="text-align:center;">Aucune</td></tr>';
+
+        document.getElementById('tg-trend-body').innerHTML = (ins.trending || []).length
+            ? ins.trending.map(x => {
+                const up = x.trend_pct >= 0;
+                return `<tr><td>${x.category}</td><td>${x.demand}</td><td>${x.prev}</td><td style="color:${up ? '#047857' : '#b91c1c'};font-weight:600;">${up ? '+' : ''}${x.trend_pct}%</td></tr>`;
+            }).join('')
+            : '<tr><td colspan="4" style="text-align:center;">—</td></tr>';
+    } catch (e) {
+        summary.innerHTML = `<div style="color:red;padding:20px;">Erreur: ${e.message}</div>`;
+    }
+}
+
+function copyTerritoireRecos() {
+    if (!_tgRecos.length) { showToast('Aucune recommandation à copier', 'error'); return; }
+    const text = _tgRecos.map(r => `• ${r.category} — ${r.action} : ${r.reason}`).join('\n');
+    navigator.clipboard.writeText(text).then(
+        () => showToast('Recommandations copiées'),
+        () => showToast('Copie impossible', 'error')
+    );
 }
 
 // Pros (DSA Compliant)
