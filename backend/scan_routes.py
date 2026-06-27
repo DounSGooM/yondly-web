@@ -23,6 +23,8 @@ import google.generativeai as genai
 from co2_estimator import get_base_co2_estimate, calculate_environmental_equivalents
 
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+# Modèle configurable via env (ex: gemini-2.0-flash, gemini-1.5-flash, gemini-2.5-flash)
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.0-flash')
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
@@ -151,7 +153,7 @@ def compute_circular_score(
 
 async def _analyze_with_gemini(image: "PIL.Image.Image", hint: str = "") -> Dict[str, Any]:
     """Appelle Gemini Vision et renvoie l'analyse structurée de l'objet."""
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    model = genai.GenerativeModel(GEMINI_MODEL)
     cats = ", ".join(APP_CATEGORIES)
 
     prompt = f"""Tu es un expert en économie circulaire et réemploi d'objets d'occasion en France.
