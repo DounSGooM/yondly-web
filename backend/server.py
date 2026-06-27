@@ -1600,24 +1600,34 @@ async def reindex_embeddings(admin_key: str = Query(None), limit: int = 500):
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=503, detail="GEMINI_API_KEY manquante sur le serveur")
 
+    from embeddings import generate_embedding, to_vector_string
+
     items = await db.items.find({"status": "active"}).to_list(5000)
     to_index = [it for it in items if not it.get("embedding")]
     done, failed = 0, 0
+    errors = []
     for it in to_index[:limit]:
-        ok = await index_item(
-            db, it["id"], it.get("title", ""),
-            it.get("description", "") or "", it.get("category", ""),
-        )
-        if ok:
+        text = ' '.join(p for p in [
+            it.get("title", ""), it.get("category", ""), it.get("description", "") or ""
+        ] if p)
+        try:
+            emb = await generate_embedding(text, task_type='retrieval_document')
+            if not emb:
+                failed += 1
+                errors.append("génération embedding échouée (quota Gemini ou clé)")
+                continue
+            await db.items.update_one({"id": it["id"]}, {"$set": {"embedding": to_vector_string(emb)}})
             done += 1
-        else:
+        except Exception as e:
             failed += 1
+            errors.append(str(e)[:200])
     return {
         "total_active": len(items),
         "already_indexed": len(items) - len(to_index),
         "indexed_now": done,
         "failed": failed,
         "remaining": max(0, len(to_index) - done - failed),
+        "sample_errors": errors[:3],
     }
 
 
