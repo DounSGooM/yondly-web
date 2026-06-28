@@ -5,6 +5,7 @@ import Footer from '../components/layout/Footer';
 // Home Sections
 import HeroSection from '../components/home/HeroSection';
 import WhyYondlySection from '../components/home/WhyYondlySection';
+import YondlyScanSection from '../components/home/YondlyScanSection';
 import HowItWorksSection from '../components/home/HowItWorksSection';
 import FoodDonationSection from '../components/home/FoodDonationSection';
 import AntigaspiSection from '../components/home/AntigaspiSection';
@@ -12,6 +13,7 @@ import FeaturesSection from '../components/home/FeaturesSection';
 import BadgesSection from '../components/home/BadgesSection';
 import ImpactSection from '../components/home/ImpactSection';
 import ProsSection from '../components/home/ProsSection';
+import CollectivitesSection from '../components/home/CollectivitesSection';
 import TestimonialsSection from '../components/home/TestimonialsSection';
 import FaqSection from '../components/home/FaqSection';
 import CtaSection from '../components/home/CtaSection';
@@ -43,6 +45,8 @@ const Home = () => {
 
       <WhyYondlySection />
 
+      <YondlyScanSection />
+
       <HowItWorksSection />
 
       <FoodDonationSection />
@@ -56,6 +60,8 @@ const Home = () => {
       <ImpactSection />
 
       <ProsSection />
+
+      <CollectivitesSection />
 
       <TestimonialsSection />
 

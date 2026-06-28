@@ -75,7 +75,55 @@ export const featuresData = {
       'Respect et dignité avant tout'
     ],
     examples: ['Jouets', 'Meubles', 'Vêtements enfants', 'Vaisselle', 'Déco']
+  },
+  echange: {
+    title: 'Échanger',
+    description: "Troque tes objets contre d'autres, sans sortir un centime.",
+    icon: 'Repeat',
+    bullets: [
+      'Propose un échange en un geste',
+      'Négocie via le chat intégré',
+      'Idéal pour les objets de valeur équivalente'
+    ],
+    examples: ['Jeux vidéo', 'Livres', 'Vêtements', 'Plantes', 'Vinyles']
+  },
+  services: {
+    title: 'Rendre service',
+    description: 'Propose un coup de main ou trouve de l\'aide près de chez toi.',
+    icon: 'Hand',
+    bullets: [
+      'Bricolage, jardinage, cours, garde…',
+      'Contact direct avec tes voisins',
+      'Renforce les liens du quartier'
+    ],
+    examples: ['Bricolage', 'Jardinage', 'Cours', 'Garde d\'animaux', 'Déménagement']
   }
+};
+
+// ─── Yondly Scan (feature phare IA) ─────────────────────────────────────────
+export const yondlyScanContent = {
+  badge: 'Nouveau · IA',
+  title: 'Yondly Scan : photographie, on s\'occupe du reste',
+  description: "Prends ton objet en photo. L'IA identifie ce que c'est, estime son prix, son impact carbone et te recommande la meilleure orientation — revente, don, réparation ou recyclage. Ta fiche est pré-remplie en quelques secondes.",
+  steps: [
+    { icon: 'Camera', title: 'Tu photographies', description: "Un objet, une photo. C'est tout." },
+    { icon: 'Sparkles', title: "L'IA analyse", description: 'Catégorie, état, prix de revente, CO₂ évité.' },
+    { icon: 'Gauge', title: 'Circular Score', description: 'Un score de circularité de 0 à 100 par objet.' },
+    { icon: 'Check', title: 'Annonce pré-remplie', description: 'Tu vérifies, tu publies. 30 secondes.' }
+  ]
+};
+
+// ─── Offre Collectivités (B2G) ──────────────────────────────────────────────
+export const collectivitesContent = {
+  badge: 'Pour les collectivités',
+  title: 'Pilotez le réemploi sur votre territoire',
+  description: "Yondly fournit aux collectivités un tableau de bord d'impact en temps réel : kilos réemployés, CO₂ évité, économies générées, foyers aidés et zones les plus actives — dans le respect du RGPD.",
+  features: [
+    { icon: 'BarChart3', title: "Dashboard d'impact", description: 'Suivez l\'économie circulaire commune par commune.' },
+    { icon: 'Leaf', title: 'Impact environnemental', description: 'CO₂ évité et déchets détournés, chiffrés.' },
+    { icon: 'MapPin', title: 'Intelligence territoriale', description: 'Demande non satisfaite, zones sans relais, tendances.' },
+    { icon: 'ShieldCheck', title: 'Conformité RGPD/DSA', description: 'Données agrégées et anonymisées par construction.' }
+  ]
 };
 
 export const badges = [
@@ -336,21 +384,31 @@ export const prosBenefits = [
 ];
 
 export const antigaspiContent = {
-  badge: 'Nouveauté à venir',
-  title: 'Lutte Antigaspi :\nSauvez de bons produits',
-  description: "Le gaspillage n'a pas sa place dans notre quartier. Bientôt, récupérez des paniers surprises d'invendus auprès de vos commerçants locaux à prix réduits.",
-  comingSoonText: 'Bientôt disponible',
-  footerQuote: "Cette fonctionnalité arrivera très prochainement sur l'application. Restez connectés !",
+  badge: 'Qualité garantie',
+  title: 'Anti-gaspi :\nde bons produits, en toute confiance',
+  description: "Récupère des paniers d'invendus chez tes commerçants locaux à prix réduits — avec une transparence totale sur le contenu et une qualité garantie.",
+  comingSoonText: 'Disponible',
+  footerQuote: "On sauve un produit encore bon, jamais les déchets du commerçant. Contenu détaillé, commerçants notés, et remboursement si le panier n'est pas conforme.",
   features: [
     {
-      title: 'Paniers Surprises',
-      description: 'Des produits frais du jour à sauver de la poubelle.',
+      title: 'Contenu transparent',
+      description: 'Tu sais ce que contient le panier avant de réserver.',
       icon: 'ShoppingBag'
     },
     {
-      title: 'Prix Mini',
-      description: "Faites des économies (jusqu'à -70%) tout en faisant une bonne action.",
+      title: 'Commerçants fiables',
+      description: 'Un badge "% de paniers conformes" basé sur les avis réels.',
+      icon: 'Store'
+    },
+    {
+      title: 'Prix mini',
+      description: "Jusqu'à -70% sur de bons produits du jour.",
       icon: 'PiggyBank'
+    },
+    {
+      title: 'Remboursé si non conforme',
+      description: 'Panier décevant ? Crédit Yondly automatique.',
+      icon: 'Heart'
     }
   ]
 };
