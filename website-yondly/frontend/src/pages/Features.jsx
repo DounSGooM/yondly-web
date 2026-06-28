@@ -206,7 +206,7 @@ const Features = () => {
       subtitle: 'Le coup de main entre voisins',
       description:
         "Propose un service — gratuit ou rémunéré — ou trouve de l'aide près de chez toi : jardinage, cours de musique, bricolage, garde d'animaux… L'entraide qui renforce le quartier.",
-      image: '/assets/partage_entraide_illustration.png',
+      image: '/assets/feature_services.png',
       features: [
         {
           icon: Hand,
