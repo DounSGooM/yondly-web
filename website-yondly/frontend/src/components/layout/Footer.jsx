@@ -11,7 +11,7 @@ const Footer = () => {
           <div className="col-span-2 md:col-span-1">
             <Link to="/" className="flex items-center gap-2 mb-4">
               <img src="/assets/logo.png" alt="Yondly Logo" className="w-10 h-10 object-contain mix-blend-multiply" />
-              <span className="font-['Manrope'] font-extrabold text-xl" style={{ color: 'var(--text-primary)' }}>
+              <span className="brand-wordmark text-xl" style={{ color: 'var(--text-primary)' }}>
                 Yondly
               </span>
             </Link>

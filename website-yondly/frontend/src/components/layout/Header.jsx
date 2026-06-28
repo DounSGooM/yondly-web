@@ -31,7 +31,7 @@ const Header = () => {
       {/* Logo */}
       <Link to="/" className="flex items-center gap-2 font-bold text-xl" style={{ color: 'var(--accent-strong)' }}>
         <img src="/assets/logo.png" alt="Yondly Logo" className="w-12 h-12 object-contain" />
-        <span className="font-['Manrope'] font-extrabold">Yondly</span>
+        <span className="brand-wordmark">Yondly</span>
       </Link>
 
       {/* Desktop Navigation */}
@@ -79,7 +79,7 @@ const Header = () => {
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2 text-[var(--accent-strong)]">
                 <img src="/assets/logo.png" alt="Yondly Logo" className="w-12 h-12 object-contain" />
-                <span className="font-['Manrope'] font-extrabold text-xl">Yondly</span>
+                <span className="brand-wordmark text-xl">Yondly</span>
               </SheetTitle>
             </SheetHeader>
             <nav className="flex flex-col gap-2 mt-8">
