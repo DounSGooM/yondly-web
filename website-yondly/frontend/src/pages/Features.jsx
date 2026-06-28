@@ -205,8 +205,8 @@ const Features = () => {
       title: 'Rendre service',
       subtitle: 'Le coup de main entre voisins',
       description:
-        "Propose un service ou trouve de l'aide près de chez toi. Bricolage, jardinage, cours, garde — l'entraide qui renforce le quartier.",
-      image: '/assets/feature_donate.png',
+        "Propose un service — gratuit ou rémunéré — ou trouve de l'aide près de chez toi : jardinage, cours de musique, bricolage, garde d'animaux… L'entraide qui renforce le quartier.",
+      image: '/assets/partage_entraide_illustration.png',
       features: [
         {
           icon: Hand,
@@ -229,7 +229,7 @@ const Features = () => {
           description: 'Des voisins à quelques rues de toi.',
         },
       ],
-      examples: ['Bricolage', 'Jardinage', 'Cours', 'Garde d\'animaux', 'Déménagement'],
+      examples: ['Jardinage', 'Cours de guitare', 'Bricolage', 'Garde d\'animaux', 'Déménagement'],
     },
     {
       key: 'antigaspi',

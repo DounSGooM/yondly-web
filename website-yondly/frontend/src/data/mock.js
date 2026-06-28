@@ -89,14 +89,14 @@ export const featuresData = {
   },
   services: {
     title: 'Rendre service',
-    description: 'Propose un coup de main ou trouve de l\'aide près de chez toi.',
+    description: 'Propose un service — gratuit ou rémunéré — ou trouve de l\'aide près de chez toi.',
     icon: 'Hand',
     bullets: [
-      'Bricolage, jardinage, cours, garde…',
-      'Contact direct avec tes voisins',
-      'Renforce les liens du quartier'
+      'Jardinage, cours de musique, bricolage, garde…',
+      'Gratuit ou rémunéré, c\'est toi qui choisis',
+      'Contact direct avec tes voisins'
     ],
-    examples: ['Bricolage', 'Jardinage', 'Cours', 'Garde d\'animaux', 'Déménagement']
+    examples: ['Jardinage', 'Cours de guitare', 'Bricolage', 'Garde d\'animaux', 'Déménagement']
   }
 };
 
