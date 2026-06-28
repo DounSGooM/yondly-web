@@ -10,19 +10,56 @@ import {
   Clock,
   Shield,
   Heart,
-  ChevronRight,
   Leaf,
   PiggyBank,
+  Repeat,
+  Hand,
+  Sparkles,
+  Recycle,
+  Gauge,
+  Store,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 import WaitlistForm from '../components/shared/WaitlistForm';
-import { antigaspiContent } from '../data/mock';
 
 const Features = () => {
   const detailedFeatures = [
+    {
+      key: 'scan',
+      icon: Camera,
+      color: 'from-[var(--accent-primary)] to-[var(--accent-strong)]',
+      title: 'Yondly Scan',
+      subtitle: 'La magie de l\'IA',
+      description:
+        "Photographie ton objet : l'IA l'identifie, estime son prix de revente et son impact carbone, puis te recommande la meilleure orientation. Chaque objet reçoit un Circular Score de 0 à 100. Ta fiche d'annonce est pré-remplie en quelques secondes.",
+      image: '/assets/feature_sell.png',
+      features: [
+        {
+          icon: Camera,
+          title: 'Une simple photo',
+          description: "L'IA reconnaît l'objet et son état.",
+        },
+        {
+          icon: Sparkles,
+          title: 'Fiche auto-générée',
+          description: 'Catégorie, prix, description — pré-remplis.',
+        },
+        {
+          icon: Gauge,
+          title: 'Circular Score',
+          description: 'Un score de circularité de 0 à 100 par objet.',
+        },
+        {
+          icon: Recycle,
+          title: 'Bonne orientation',
+          description: 'Revente, don, réparation ou recyclage.',
+        },
+      ],
+      examples: ['Mobilier', 'Électronique', 'Vêtements', 'Jouets', 'Électroménager'],
+    },
     {
       key: 'vendre',
       icon: ShoppingBag,
@@ -129,25 +166,100 @@ const Features = () => {
       ],
     },
     {
+      key: 'echange',
+      icon: Repeat,
+      color: 'from-[#A78BFA] to-[#7C3AED]',
+      title: 'Échanger',
+      subtitle: 'Le troc nouvelle génération',
+      description:
+        "Troque tes objets contre d'autres, sans sortir un centime. Idéal pour les objets de valeur équivalente entre voisins.",
+      image: '/assets/feature_donate.png',
+      features: [
+        {
+          icon: Repeat,
+          title: 'Proposer un échange',
+          description: 'En un geste, depuis n\'importe quelle annonce.',
+        },
+        {
+          icon: MessageCircle,
+          title: 'Négociation simple',
+          description: 'Mettez-vous d\'accord via le chat intégré.',
+        },
+        {
+          icon: Shield,
+          title: 'Entre voisins',
+          description: 'Rencontres locales, en confiance.',
+        },
+        {
+          icon: MapPin,
+          title: 'Remise locale',
+          description: 'RDV près de chez toi pour échanger.',
+        },
+      ],
+      examples: ['Jeux vidéo', 'Livres', 'Vêtements', 'Plantes', 'Vinyles'],
+    },
+    {
+      key: 'services',
+      icon: Hand,
+      color: 'from-[#22D3EE] to-[#0891B2]',
+      title: 'Rendre service',
+      subtitle: 'Le coup de main entre voisins',
+      description:
+        "Propose un service ou trouve de l'aide près de chez toi. Bricolage, jardinage, cours, garde — l'entraide qui renforce le quartier.",
+      image: '/assets/feature_donate.png',
+      features: [
+        {
+          icon: Hand,
+          title: 'Mille et un services',
+          description: 'Bricolage, jardinage, cours, garde…',
+        },
+        {
+          icon: MessageCircle,
+          title: 'Contact direct',
+          description: 'Échange avec tes voisins en un clic.',
+        },
+        {
+          icon: Heart,
+          title: 'Lien social',
+          description: 'On se rend service, on se reconnecte.',
+        },
+        {
+          icon: MapPin,
+          title: 'Hyperlocal',
+          description: 'Des voisins à quelques rues de toi.',
+        },
+      ],
+      examples: ['Bricolage', 'Jardinage', 'Cours', 'Garde d\'animaux', 'Déménagement'],
+    },
+    {
       key: 'antigaspi',
       icon: Leaf,
       color: 'from-orange-400 to-orange-600',
-      title: 'Antigaspi',
-      subtitle: antigaspiContent.badge,
-      description: antigaspiContent.description,
+      title: 'Anti-gaspi',
+      subtitle: 'Qualité garantie',
+      description:
+        "Récupère des paniers d'invendus chez tes commerçants locaux à prix réduits, avec une transparence totale sur le contenu et une qualité garantie.",
       image: '/assets/feature_antigaspi.png',
-      isComingSoon: true,
       features: [
         {
           icon: ShoppingBag,
-          title: 'Paniers Surprises',
-          description: 'Des produits frais du jour à sauver de la poubelle.',
+          title: 'Contenu transparent',
+          description: 'Tu sais ce que contient le panier avant de réserver.',
+        },
+        {
+          icon: Store,
+          title: 'Commerçants fiables',
+          description: 'Un badge "% de paniers conformes" basé sur les avis réels.',
         },
         {
           icon: PiggyBank,
-          title: 'Prix Mini',
-          description:
-            "Faites des économies (jusqu'à -70%) tout en faisant une bonne action.",
+          title: 'Prix mini',
+          description: "Jusqu'à -70% sur de bons produits du jour.",
+        },
+        {
+          icon: Heart,
+          title: 'Remboursé si non conforme',
+          description: 'Panier décevant ? Crédit Yondly automatique.',
         },
       ],
       examples: ['Fruits & Légumes', 'Boulangerie', 'Traiteur', 'Épicerie'],
@@ -196,13 +308,6 @@ const Features = () => {
                       className="w-full h-auto max-w-sm object-contain mix-blend-multiply transition-transform duration-700 hover:scale-105 animate-float"
                     />
                   </div>
-                  {feature.isComingSoon && (
-                    <div className="absolute top-6 left-6 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm border border-[var(--border-light)] z-10 animate-bounce-subtle">
-                      <span className="text-sm font-bold text-[var(--accent-strong)] uppercase tracking-wide">
-                        {antigaspiContent.comingSoonText}
-                      </span>
-                    </div>
-                  )}
                 </div>
 
                 {/* Content Section */}

@@ -49,7 +49,7 @@ const AntigaspiSection = () => {
                         {/* Label Overlay */}
                         <div className="absolute top-6 left-6 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm border border-[var(--border-light)] z-10">
                             <span className="text-sm font-bold text-[var(--accent-strong)] uppercase tracking-wide">
-                                Bientôt disponible
+                                Qualité garantie
                             </span>
                         </div>
                     </div>
