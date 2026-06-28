@@ -2044,7 +2044,99 @@ async function deleteDictionaryEntry(id) {
 }
 
 function showAddDictionaryModal() {
-    alert('Fonctionnalité à implémenter: Modal d\'ajout de champ');
+    let modal = document.getElementById('dict-add-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'dict-add-modal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+          <div class="modal-overlay" onclick="closeDictModal()"></div>
+          <div class="modal-content" style="max-width:520px;">
+            <div class="modal-header">
+              <h2>Ajouter un champ</h2>
+              <button class="btn-icon" onclick="closeDictModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="padding:20px;display:flex;flex-direction:column;gap:14px;">
+              <div><label>Nom du champ *</label><input id="dict-field-name" class="form-input" placeholder="ex: price_cents"></div>
+              <div style="display:flex;gap:12px;">
+                <div style="flex:1;"><label>Type *</label>
+                  <select id="dict-data-type" class="form-select">
+                    <option>string</option><option>integer</option><option>float</option>
+                    <option>boolean</option><option>uuid</option><option>timestamp</option>
+                    <option>jsonb</option><option>array</option>
+                  </select>
+                </div>
+                <div style="flex:1;"><label>Collection *</label><input id="dict-collection" class="form-input" placeholder="ex: items"></div>
+              </div>
+              <div><label>Description *</label><input id="dict-description" class="form-input" placeholder="À quoi sert ce champ"></div>
+              <div><label>Exemple</label><input id="dict-example" class="form-input" placeholder="(optionnel)"></div>
+              <div style="display:flex;gap:12px;">
+                <div style="flex:1;"><label>Sensibilité *</label>
+                  <select id="dict-sensitivity" class="form-select">
+                    <option value="EXPORT_SAFE">Export Safe</option>
+                    <option value="INTERNAL">Interne</option>
+                    <option value="NEVER_EXPORT">Jamais exporter</option>
+                  </select>
+                </div>
+                <div style="flex:1;"><label>Politique *</label>
+                  <select id="dict-policy" class="form-select">
+                    <option value="EXPORT_AGREGE">Export agrégé</option>
+                    <option value="INTERNE">Interne</option>
+                    <option value="JAMAIS_EXPORTER">Jamais exporter</option>
+                  </select>
+                </div>
+              </div>
+              <div><label>Transformation export</label><input id="dict-transform" class="form-input" placeholder="ex: aggregate_by_zone (optionnel)"></div>
+            </div>
+            <div style="padding:0 20px 20px;display:flex;gap:10px;justify-content:flex-end;">
+              <button class="btn-secondary" onclick="closeDictModal()">Annuler</button>
+              <button class="btn-primary" onclick="submitDictionaryEntry()">Ajouter</button>
+            </div>
+          </div>`;
+        document.body.appendChild(modal);
+    }
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+}
+
+function closeDictModal() {
+    const m = document.getElementById('dict-add-modal');
+    if (m) { m.classList.add('hidden'); m.style.display = 'none'; }
+}
+
+async function submitDictionaryEntry() {
+    const val = id => (document.getElementById(id)?.value || '').trim();
+    const payload = {
+        field_name: val('dict-field-name'),
+        data_type: document.getElementById('dict-data-type').value,
+        source_collection: val('dict-collection'),
+        description: val('dict-description'),
+        example: val('dict-example') || null,
+        sensitivity_tag: document.getElementById('dict-sensitivity').value,
+        usage_policy: document.getElementById('dict-policy').value,
+        export_transform: val('dict-transform') || null,
+    };
+    if (!payload.field_name || !payload.source_collection || !payload.description) {
+        showToast('Nom, collection et description sont requis', 'error');
+        return;
+    }
+    try {
+        const res = await fetch(`${API_URL}/admin/data-dictionary`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+            body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+            showToast('Champ ajouté');
+            closeDictModal();
+            loadDataDictionary();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.detail || 'Erreur lors de l\'ajout', 'error');
+        }
+    } catch (e) {
+        showToast('Erreur réseau', 'error');
+    }
 }
 
 // ============ EVENT EXPLORER ============
