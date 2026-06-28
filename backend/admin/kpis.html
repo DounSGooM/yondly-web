@@ -293,6 +293,11 @@
 
     <script>
         const API_URL = '/api';
+        const ADMIN_TOKEN = localStorage.getItem('admin_token');
+        if (!ADMIN_TOKEN) { window.location.href = '/admin'; }
+        function authFetch(url, opts = {}) {
+            return fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + ADMIN_TOKEN } });
+        }
         let kpiData = null;
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -305,7 +310,7 @@
             const url = city ? `${API_URL}/admin/kpis?city=${encodeURIComponent(city)}` : `${API_URL}/admin/kpis`;
 
             try {
-                const res = await fetch(url);
+                const res = await authFetch(url);
                 kpiData = await res.json();
 
                 document.getElementById('loading').style.display = 'none';
