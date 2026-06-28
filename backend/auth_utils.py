@@ -30,6 +30,25 @@ if JWT_SECRET == _DEV_JWT_FALLBACK:
 
 security = HTTPBearer()
 
+# Liste des emails administrateurs (configurable via la variable d'env ADMIN_EMAILS,
+# séparée par des virgules). Sert au contrôle d'accès de toute l'API /api/admin.
+ADMIN_EMAILS = {
+    e.strip().lower()
+    for e in os.environ.get(
+        'ADMIN_EMAILS',
+        'lagaville.gerald@outlook.fr,admin@yondly.com'
+    ).split(',')
+    if e.strip()
+}
+
+
+async def require_admin(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+    """Dépendance FastAPI : exige un utilisateur authentifié ET administrateur."""
+    user = await get_current_user(credentials)
+    if (user.get("email") or "").lower() not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs")
+    return user
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 

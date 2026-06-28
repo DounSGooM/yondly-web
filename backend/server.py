@@ -39,7 +39,7 @@ stripe_config = get_stripe_config()
 stripe.api_key = stripe_config['secret_key']
 
 # Password hashing (moved to auth_utils)
-from auth_utils import security, hash_password, verify_password, create_access_token, get_current_user
+from auth_utils import security, hash_password, verify_password, create_access_token, get_current_user, ADMIN_EMAILS
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -324,6 +324,55 @@ async def join_waitlist(entry: WaitlistEntry, background_tasks: BackgroundTasks)
 # ============ BLOG ROUTES ============
 
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "SECRET_KEY_YONDLY_ADMIN_2025")
+
+
+# ════════════════════════════════════════════════════════════════════════
+# GARDE-FOU ADMIN — protège TOUTE l'API /api/admin/* en un point unique.
+# Accès autorisé si : token JWT d'un email ∈ ADMIN_EMAILS, OU admin_key valide
+# (endpoints machine : reindex-embeddings, import-all-france, ai-models).
+# Les fichiers statiques de l'admin (/admin/*.html) ne sont PAS concernés.
+# ════════════════════════════════════════════════════════════════════════
+from starlette.responses import JSONResponse as _JSONResponse
+
+
+async def _request_is_admin(request: Request) -> bool:
+    # 1) admin_key (query ou header) pour les endpoints machine
+    key = (
+        request.query_params.get("admin_key")
+        or request.headers.get("x-admin-key")
+        or request.headers.get("admin_key")
+        or request.headers.get("admin-key")
+    )
+    if key and key == ADMIN_KEY:
+        return True
+    # 2) Token JWT d'un administrateur
+    auth = request.headers.get("authorization") or ""
+    if auth.lower().startswith("bearer "):
+        token = auth.split(" ", 1)[1].strip()
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            uid = payload.get("sub")
+            if uid:
+                user = await db.users.find_one({"id": uid})
+                if user and (user.get("email") or "").lower() in ADMIN_EMAILS:
+                    return True
+        except Exception:
+            return False
+    return False
+
+
+@app.middleware("http")
+async def admin_auth_guard(request: Request, call_next):
+    path = request.url.path
+    # Protège uniquement l'API admin (pas les pages statiques /admin/*.html)
+    if path.startswith("/api/admin"):
+        if not await _request_is_admin(request):
+            return _JSONResponse(
+                status_code=403,
+                content={"detail": "Accès réservé aux administrateurs"},
+            )
+    return await call_next(request)
+
 
 @api_router.get("/blog")
 async def get_blog_posts():

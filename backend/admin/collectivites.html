@@ -382,6 +382,11 @@
 
     <script>
         const API_URL = '/api';
+        const ADMIN_TOKEN = localStorage.getItem('admin_token');
+        if (!ADMIN_TOKEN) { window.location.href = '/admin'; }
+        function authFetch(url, opts = {}) {
+            return fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + ADMIN_TOKEN } });
+        }
         let dashboardData = null;
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -391,7 +396,7 @@
         async function loadDashboard() {
             console.log('Loading dashboard...');
             try {
-                const res = await fetch(`${API_URL}/admin/analytics/dashboard`);
+                const res = await authFetch(`${API_URL}/admin/analytics/dashboard`);
                 console.log('Response status:', res.status);
                 dashboardData = await res.json();
                 console.log('Dashboard data:', dashboardData);
@@ -533,7 +538,7 @@
 
             // Load neighborhoods
             try {
-                const res = await fetch(`${API_URL}/admin/analytics/cities/${encodeURIComponent(cityName)}/neighborhoods`);
+                const res = await authFetch(`${API_URL}/admin/analytics/cities/${encodeURIComponent(cityName)}/neighborhoods`);
                 const neighborhoods = await res.json();
                 currentCity = cityName;
 
@@ -589,7 +594,7 @@
 
             // Load streets
             try {
-                const res = await fetch(`${API_URL}/admin/analytics/cities/${encodeURIComponent(cityName)}/streets?neighborhood=${encodeURIComponent(neighborhoodName)}`);
+                const res = await authFetch(`${API_URL}/admin/analytics/cities/${encodeURIComponent(cityName)}/streets?neighborhood=${encodeURIComponent(neighborhoodName)}`);
                 const streets = await res.json();
 
                 // Calculate neighborhood stats
@@ -693,7 +698,7 @@
                 : `${API_URL}/admin/analytics/timeseries`;
 
             try {
-                const res = await fetch(url);
+                const res = await authFetch(url);
                 trendsData = await res.json();
                 renderTrends();
             } catch (e) {
@@ -787,7 +792,7 @@
             if (dashboardData && dashboardData.cities) {
                 for (const city of dashboardData.cities) {
                     try {
-                        const res = await fetch(`${API_URL}/admin/analytics/cities/${encodeURIComponent(city.city)}/neighborhoods`);
+                        const res = await authFetch(`${API_URL}/admin/analytics/cities/${encodeURIComponent(city.city)}/neighborhoods`);
                         const neighborhoods = await res.json();
                         neighborhoods.forEach(n => {
                             csv += `${city.city},${n.neighborhood},${n.users_count},${n.items_count}\n`;
