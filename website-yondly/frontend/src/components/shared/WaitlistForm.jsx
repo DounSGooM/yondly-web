@@ -15,7 +15,7 @@ import {
 import { cities } from '../../data/mock';
 import { Loader2 } from 'lucide-react';
 
-const API = 'https://yondly-backend-951855414282.europe-west1.run.app/api/waitlist';
+const API = '/mail.php';
 
 const WaitlistForm = ({ compact = false, onSuccess }) => {
   const navigate = useNavigate();
@@ -62,6 +62,7 @@ const WaitlistForm = ({ compact = false, onSuccess }) => {
 
     try {
       await axios.post(API, {
+        type: 'waitlist',
         email: formData.email,
         city: formData.city || null,
         status: formData.status,

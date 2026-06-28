@@ -30,7 +30,7 @@ import Footer from '../components/layout/Footer';
 import { cities } from '../data/mock';
 import SEO from '../components/shared/SEO';
 
-const API = 'https://yondly-backend-951855414282.europe-west1.run.app/api/partners';
+const API = '/mail.php';
 
 const Pros = () => {
   const [formData, setFormData] = useState({

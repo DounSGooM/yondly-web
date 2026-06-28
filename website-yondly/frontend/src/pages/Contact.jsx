@@ -10,7 +10,7 @@ import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 import SEO from '../components/shared/SEO';
 
-const API = 'https://yondly-backend-951855414282.europe-west1.run.app/api/contact';
+const API = '/mail.php';
 
 const Contact = () => {
   const [formData, setFormData] = useState({
