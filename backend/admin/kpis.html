@@ -295,8 +295,13 @@
         const API_URL = '/api';
         const ADMIN_TOKEN = localStorage.getItem('admin_token');
         if (!ADMIN_TOKEN) { window.location.href = '/admin'; }
-        function authFetch(url, opts = {}) {
-            return fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + ADMIN_TOKEN } });
+        async function authFetch(url, opts = {}) {
+            const res = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + ADMIN_TOKEN } });
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem('admin_token');
+                window.location.href = '/admin';
+            }
+            return res;
         }
         let kpiData = null;
 
