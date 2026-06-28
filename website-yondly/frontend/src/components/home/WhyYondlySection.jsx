@@ -38,9 +38,9 @@ const WhyYondlySection = () => {
         <section className="py-20 md:py-28">
             <div className="container-main">
                 <div className="text-center mb-12">
-                    <h2 className="heading-2 mb-4">Pourquoi Yondly ?</h2>
+                    <h2 className="heading-2 mb-4">Une seule app, mille façons de mieux consommer</h2>
                     <p className="body-large max-w-2xl mx-auto">
-                        Une app pensée pour simplifier ton quotidien et celui de tes voisins.
+                        Économise, désencombre et tisse du lien dans ton quartier — sans surconsommer.
                     </p>
                 </div>
 
