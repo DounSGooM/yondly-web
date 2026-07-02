@@ -2282,14 +2282,33 @@ async def get_order(order_id: str, current_user: dict = Depends(get_current_user
 
 @api_router.post("/orders/{order_id}/confirm-payment")
 async def confirm_payment(order_id: str, current_user: dict = Depends(get_current_user)):
-    """Confirm payment and mark order as escrowed"""
+    """Confirm payment and mark order as escrowed — vérifié auprès de Stripe."""
     order = await db.orders.find_one({"id": order_id})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
+
     if order["buyer_id"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
+    # Ne JAMAIS faire confiance au client pour l'état de paiement : vérifier
+    # auprès de Stripe que le PaymentIntent a bien été réglé avant de passer
+    # la commande en escrow (sinon l'acheteur peut déclencher la remise du bien
+    # sans avoir payé). Le webhook Stripe signé reste la source de vérité.
+    intent_id = order.get("payment_intent_id")
+    if intent_id:
+        try:
+            intent = stripe.PaymentIntent.retrieve(intent_id)
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Stripe verify error for order {order_id}: {e}")
+            raise HTTPException(status_code=502, detail="Impossible de vérifier le paiement")
+        if getattr(intent, "status", None) != "succeeded":
+            raise HTTPException(status_code=402, detail="Le paiement n'a pas été confirmé")
+    else:
+        # Pas de PaymentIntent : acceptable uniquement pour un don ou une remise
+        # en main propre payée cash, créés directement en 'escrowed'.
+        if order.get("payment_status") != "escrowed":
+            raise HTTPException(status_code=402, detail="Aucun paiement associé à cette commande")
+
     # Update order to escrowed
     await db.orders.update_one(
         {"id": order_id},
@@ -2400,35 +2419,37 @@ async def confirm_handoff(
     
     is_cash_order = order.get("payment_method") == "cash"
 
-    async with await client.start_session() as session:
-        async with session.start_transaction():
-            # Update order status
-            await db.orders.update_one(
-                {"id": order_id},
-                {"$set": {
-                    "payment_status": "released",
-                    "handover_status": "confirmed",
-                    "status": "completed"
-                }},
-                session=session
-            )
+    # NB : le backend tourne désormais sur Supabase/PostgREST, qui n'expose pas
+    # les transactions multi-documents de Mongo. On effectue donc les mises à
+    # jour séquentiellement (remplace l'ancien code `client.start_session()` qui
+    # crashait, `client` étant maintenant Supabase).
+    # TODO fiabilité : déplacer le crédit du wallet dans une RPC Postgres
+    # (`UPDATE users SET wallet_balance_cents = wallet_balance_cents + :p`) pour
+    # garantir l'atomicité sous concurrence (le shim fait un read-modify-write).
+    # Update order status
+    await db.orders.update_one(
+        {"id": order_id},
+        {"$set": {
+            "payment_status": "released",
+            "handover_status": "confirmed",
+            "status": "completed"
+        }}
+    )
 
-            # Update item status
-            if "item_id" in order:
-                await db.items.update_one(
-                    {"id": order["item_id"]},
-                    {"$set": {"status": "completed"}},
-                    session=session
-                )
+    # Update item status
+    if "item_id" in order:
+        await db.items.update_one(
+            {"id": order["item_id"]},
+            {"$set": {"status": "completed"}}
+        )
 
-            # Credit seller wallet only for Stripe payments (cash is paid physically)
-            if not is_cash_order and payout_amount > 0:
-                await db.users.update_one(
-                    {"id": seller_id},
-                    {"$inc": {"wallet_balance_cents": payout_amount}},
-                    session=session
-                )
-                await db.transactions.insert_one(tx_dict, session=session)
+    # Credit seller wallet only for Stripe payments (cash is paid physically)
+    if not is_cash_order and payout_amount > 0:
+        await db.users.update_one(
+            {"id": seller_id},
+            {"$inc": {"wallet_balance_cents": payout_amount}}
+        )
+        await db.transactions.insert_one(tx_dict)
 
     # Award points for cash handoff (CO2 + level handled below)
     if is_cash_order:
@@ -2614,14 +2635,16 @@ async def validate_pickup_by_code(
     """Validate a pickup using just the code (for Pro scanner)"""
     code = data.pickup_code.upper().strip()
     
-    # Find order by handoff code
+    # Find order by handoff code.
+    # On n'accepte QUE 'escrowed' (fonds réellement séquestrés) : une commande
+    # 'initiated' n'a pas été payée et ne doit jamais créditer le wallet vendeur.
     order = await db.orders.find_one({
         "handoff.code": code,
-        "payment_status": {"$in": ["escrowed", "initiated"]}
+        "payment_status": "escrowed"
     })
-    
+
     if not order:
-        raise HTTPException(status_code=404, detail="Code invalide ou commande introuvable")
+        raise HTTPException(status_code=404, detail="Code invalide ou commande non payée")
     
     # Check seller is the pro user
     if order["seller_id"] != current_user["id"]:
@@ -4565,22 +4588,22 @@ async def request_withdrawal(
         "created_at": datetime.utcnow()
     }
     
-    # Execute transaction (atomic update)
-    async with await client.start_session() as session:
-        async with session.start_transaction():
-            # Deduct from user balance
-            await db.users.update_one(
-                {"id": current_user["id"]},
-                {"$inc": {"wallet_balance_cents": -amount}},
-                session=session
-            )
-            
-            # Insert withdrawal request
-            await db.withdrawals.insert_one(withdrawal_dict, session=session)
-            
-            # Insert transaction record
-            await db.transactions.insert_one(tx_dict, session=session)
-            
+    # Supabase/PostgREST ne supporte pas les transactions multi-documents de Mongo
+    # (remplace l'ancien `client.start_session()` qui crashait). On débite le
+    # solde puis on enregistre la demande et la transaction séquentiellement.
+    # TODO fiabilité : passer le débit du solde dans une RPC Postgres atomique
+    # pour empêcher un double retrait concurrent de passer le solde en négatif.
+    await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$inc": {"wallet_balance_cents": -amount}}
+    )
+
+    # Insert withdrawal request
+    await db.withdrawals.insert_one(withdrawal_dict)
+
+    # Insert transaction record
+    await db.transactions.insert_one(tx_dict)
+
     return {"message": "Withdrawal request submitted successfully", "withdrawal_id": withdrawal_id}
 
 
@@ -5121,7 +5144,7 @@ async def create_deal_order(deal_id: str, current_user: dict = Depends(get_curre
         "amount_cents": fee_info["amount_cents"],
         "platform_fee_cents": fee_info["platform_fee_cents"],
         "payout_cents": fee_info["payout_cents"],
-        "payment_status": "released", # Mock payment success immediately
+        "payment_status": "initiated",  # Passe à 'escrowed' via le webhook Stripe une fois payé
         "type": "suspension_gift" if is_suspension_gift else "deal", # New type to distinguish
         "store_id": store["id"],
         "handoff": {
@@ -5134,22 +5157,29 @@ async def create_deal_order(deal_id: str, current_user: dict = Depends(get_curre
     
     payout_amount = order_doc["amount_cents"] # No fee for deals? Or yes? Assuming full amount for now or calculate fee
     
-    # Create Payment Intent
-    try:
-        payment_intent = stripe.PaymentIntent.create(
-            amount=order_doc["amount_cents"],
-            currency="eur",
-            metadata={"order_id": order_id, "type": order_doc["type"]},
-            automatic_payment_methods={"enabled": True},
-        )
-        order_doc["payment_intent_id"] = payment_intent.id
-        client_secret = payment_intent.client_secret
-    except Exception as e:
-        logger.error(f"Stripe error: {e}")
-        # raise HTTPException(status_code=500, detail=f"Stripe Payment Error: {str(e)}")
-        # MOCK FOR DEV if Stripe fails (no API key)
-        client_secret = "mock_secret"
-    
+    # Create Payment Intent.
+    # On n'accepte JAMAIS de secret factice : sans PaymentIntent réel, le bien
+    # pourrait être retiré sans paiement. En dev (clés placeholder), on saute
+    # simplement Stripe et la commande reste 'initiated' (non payable).
+    client_secret = None
+    stripe_keys_real = (
+        stripe_config['secret_key'].startswith('sk_') and len(stripe_config['secret_key']) > 20
+        and 'xxx' not in stripe_config['secret_key']
+    )
+    if stripe_keys_real:
+        try:
+            payment_intent = stripe.PaymentIntent.create(
+                amount=order_doc["amount_cents"],
+                currency="eur",
+                metadata={"order_id": order_id, "type": order_doc["type"]},
+                automatic_payment_methods={"enabled": True},
+            )
+            order_doc["payment_intent_id"] = payment_intent.id
+            client_secret = payment_intent.client_secret
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Stripe error (deal order {order_id}): {e}")
+            raise HTTPException(status_code=502, detail="Erreur lors de la création du paiement")
+
     await db.orders.insert_one(order_doc)
     
     # Mark deal as sold OR update suspended counts
@@ -6559,7 +6589,21 @@ async def confirm_rental_payment(rental_id: str, current_user: dict = Depends(ge
     
     if rental["renter_id"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
+    # Vérifier auprès de Stripe que le PaymentIntent a réellement été réglé
+    # avant de marquer la location comme payée (anti-bypass de paiement).
+    intent_id = rental.get("payment_intent_id")
+    if intent_id:
+        try:
+            intent = stripe.PaymentIntent.retrieve(intent_id)
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Stripe verify error for rental {rental_id}: {e}")
+            raise HTTPException(status_code=502, detail="Impossible de vérifier le paiement")
+        if getattr(intent, "status", None) != "succeeded":
+            raise HTTPException(status_code=402, detail="Le paiement n'a pas été confirmé")
+    elif rental.get("payment_status") != "fully_paid":
+        raise HTTPException(status_code=402, detail="Aucun paiement associé à cette location")
+
     # Update rental status
     await db.rentals.update_one(
         {"id": rental_id},
