@@ -61,7 +61,7 @@ const WaitlistForm = ({ compact = false, onSuccess }) => {
     setIsSubmitting(true);
 
     try {
-      await axios.post(API, {
+      const res = await axios.post(API, {
         type: 'waitlist',
         email: formData.email,
         city: formData.city || null,
@@ -70,17 +70,19 @@ const WaitlistForm = ({ compact = false, onSuccess }) => {
         rgpd_consent: Boolean(formData.rgpdConsent),
       });
 
+      // mail.php renvoie { success, message } — ne pas se fier au seul code HTTP.
+      if (!res.data?.success) {
+        setError(res.data?.message || 'Une erreur est survenue. Réessaie.');
+        return;
+      }
+
       if (onSuccess) {
         onSuccess();
       } else {
         navigate('/merci');
       }
     } catch (err) {
-      if (err.response?.data?.detail) {
-        setError(err.response.data.detail);
-      } else {
-        setError('Une erreur est survenue. Réessaie.');
-      }
+      setError(err.response?.data?.message || 'Une erreur est survenue. Réessaie.');
     } finally {
       setIsSubmitting(false);
     }

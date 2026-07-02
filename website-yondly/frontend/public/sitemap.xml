@@ -1,31 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://yondly.vercel.app/</loc>
+    <loc>https://www.yondly.app/</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://yondly.vercel.app/pros</loc>
+    <loc>https://www.yondly.app/pros</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://yondly.vercel.app/don-alimentaire</loc>
+    <loc>https://www.yondly.app/don-alimentaire</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://yondly.vercel.app/contact</loc>
+    <loc>https://www.yondly.app/contact</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://yondly.vercel.app/securite</loc>
+    <loc>https://www.yondly.app/securite</loc>
     <lastmod>2026-01-12</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>

@@ -31,10 +31,10 @@ const Home = () => {
           "@context": "https://schema.org",
           "@type": "WebSite",
           "name": "Yondly",
-          "url": "https://yondly.vercel.app",
+          "url": "https://www.yondly.app",
           "potentialAction": {
             "@type": "SearchAction",
-            "target": "https://yondly.vercel.app/search?q={search_term_string}",
+            "target": "https://www.yondly.app/search?q={search_term_string}",
             "query-input": "required name=search_term_string"
           }
         }}

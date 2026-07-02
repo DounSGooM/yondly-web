@@ -46,7 +46,7 @@ const Contact = () => {
     setIsSubmitting(true);
 
     try {
-      await axios.post(API, {
+      const res = await axios.post(API, {
         type: 'contact',
         name: formData.name,
         email: formData.email,
@@ -54,13 +54,13 @@ const Contact = () => {
         message: formData.message,
         rgpd_consent: formData.rgpdConsent,
       });
+      if (!res.data?.success) {
+        setError(res.data?.message || 'Une erreur est survenue. Réessayez.');
+        return;
+      }
       setIsSubmitted(true);
     } catch (err) {
-      if (err.response?.data?.detail) {
-        setError(err.response.data.detail);
-      } else {
-        setError('Une erreur est survenue. Réessayez.');
-      }
+      setError(err.response?.data?.message || 'Une erreur est survenue. Réessayez.');
     } finally {
       setIsSubmitting(false);
     }
@@ -78,7 +78,7 @@ const Contact = () => {
           "name": "Yondly",
           "contactPoint": {
             "@type": "ContactPoint",
-            "email": "contact@yondly.com",
+            "email": "contact@yondly.app",
             "contactType": "customer service"
           }
         }}
@@ -149,8 +149,8 @@ const Contact = () => {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-[var(--text-muted)] mb-1">Email</p>
-                      <a href="mailto:contact@yondly.fr" className="text-lg font-semibold text-[var(--text-primary)] hover:text-[var(--accent-primary)] transition-colors">
-                        contact@yondly.fr
+                      <a href="mailto:contact@yondly.app" className="text-lg font-semibold text-[var(--text-primary)] hover:text-[var(--accent-primary)] transition-colors">
+                        contact@yondly.app
                       </a>
                     </div>
                   </div>

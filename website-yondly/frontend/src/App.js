@@ -45,7 +45,6 @@ function App() {
 
             {/* Partner Pages */}
             <Route path="/pros" element={<Pros />} />
-            <Route path="/pros" element={<Pros />} />
 
             {/* Support Pages */}
             <Route path="/faq" element={<FAQ />} />

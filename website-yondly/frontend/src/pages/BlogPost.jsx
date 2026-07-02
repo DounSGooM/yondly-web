@@ -47,7 +47,7 @@ const BlogPost = () => {
         return { __html: DOMPurify.sanitize(post.content) };
     };
 
-    const shareUrl = `https://yondly.vercel.app/blog/${post.slug}`;
+    const shareUrl = `https://www.yondly.app/blog/${post.slug}`;
 
     return (
         <div className="min-h-screen bg-white">
@@ -72,7 +72,7 @@ const BlogPost = () => {
                         "name": "Yondly",
                         "logo": {
                             "@type": "ImageObject",
-                            "url": "https://yondly.vercel.app/logo192.png"
+                            "url": "https://www.yondly.app/logo192.png"
                         }
                     },
                     "datePublished": "2026-01-01", // Should be dynamic in real app

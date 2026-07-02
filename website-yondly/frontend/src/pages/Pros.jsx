@@ -12,6 +12,7 @@ import {
   Briefcase,
   Heart,
   Sprout,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
@@ -126,7 +127,7 @@ const Pros = () => {
     setIsSubmitting(true);
 
     try {
-      await axios.post(API, {
+      const res = await axios.post(API, {
         type: 'partner',
         name: formData.name,
         business: formData.business,
@@ -136,13 +137,13 @@ const Pros = () => {
         message: formData.message || null,
         rgpd_consent: formData.rgpdConsent,
       });
+      if (!res.data?.success) {
+        setError(res.data?.message || 'Une erreur est survenue. Réessayez.');
+        return;
+      }
       setIsSubmitted(true);
     } catch (err) {
-      if (err.response?.data?.detail) {
-        setError(err.response.data.detail);
-      } else {
-        setError('Une erreur est survenue. Réessayez.');
-      }
+      setError(err.response?.data?.message || 'Une erreur est survenue. Réessayez.');
     } finally {
       setIsSubmitting(false);
     }

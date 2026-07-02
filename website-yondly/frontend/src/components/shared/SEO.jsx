@@ -10,7 +10,7 @@ const SEO = ({
     type = 'website',
     schema
 }) => {
-    const siteUrl = 'https://yondly.vercel.app'; // Remplacez par votre domaine final
+    const siteUrl = 'https://www.yondly.app';
     const fullUrl = url ? `${siteUrl}${url}` : siteUrl;
     const fullImage = image.startsWith('http') ? image : `${siteUrl}${image}`;
 

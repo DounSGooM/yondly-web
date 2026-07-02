@@ -62,7 +62,7 @@ const Confidentialite = () => {
                 <li>Droit de retirer votre consentement à tout moment</li>
               </ul>
               <p className="mb-6">
-                Pour exercer ces droits, contactez-nous à : contact@yondly.fr
+                Pour exercer ces droits, contactez-nous à : contact@yondly.app
               </p>
 
               <h2 className="heading-3 mt-8 mb-4">7. Sécurité des données</h2>
@@ -82,7 +82,7 @@ const Confidentialite = () => {
               <h2 className="heading-3 mt-8 mb-4">9. Contact</h2>
               <p className="mb-6">
                 Pour toute question concernant cette politique :<br />
-                Email : contact@yondly.fr<br />
+                Email : contact@yondly.app<br />
                 Adresse : [Adresse postale]
               </p>
 

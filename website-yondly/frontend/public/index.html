@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#1f5421" />
     <meta name="description"
         content="Yondly est l’application locale pour acheter, vendre, donner et louer des objets près de chez vous. Favorisez l’économie circulaire et l’entraide de proximité." />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
@@ -31,14 +31,8 @@
       "url": "https://www.yondly.app"
     }
     </script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        // Configure Tailwind
-        window.tailwind = window.tailwind || {};
-        tailwind.config = {
-            corePlugins: { preflight: false },
-        };
-    </script>
+    <!-- Tailwind est compilé via PostCSS au build (cf. tailwind.config.js) ;
+         le CDN cdn.tailwindcss.com (déconseillé en production) a été retiré. -->
 </head>
 
 <body>

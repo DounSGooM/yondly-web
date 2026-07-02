@@ -262,7 +262,10 @@ export const faqFull = [
   },
   {
     id: 11,
-
+    question: 'Puis-je utiliser Yondly si je déménage souvent ?',
+    answer: "Oui ! Yondly te géolocalise automatiquement : où que tu sois, tu vois les annonces et les voisins autour de toi."
+  },
+  {
     id: 12,
     question: 'Je suis commerçant, comment ça marche ?',
     answer: "Tu peux vendre ou louer en local avec une visibilité quartier/ville. Remplis le formulaire partenaire pour en savoir plus."

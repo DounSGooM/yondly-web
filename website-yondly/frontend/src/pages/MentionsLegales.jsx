@@ -18,7 +18,7 @@ const MentionsLegales = () => {
               <p className="mb-6">
                 Le site Yondly est édité par l'équipe du projet Yondly.<br />
                 En cours de constitution.<br />
-                Email : contact@yondly.fr
+                Email : contact@yondly.app
               </p>
 
               <h2 className="heading-3 mt-8 mb-4">Directeur de la publication</h2>
