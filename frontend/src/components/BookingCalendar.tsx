@@ -226,7 +226,7 @@ export default function BookingCalendar({
                         paymentIntentClientSecret: client_secret,
                         merchantDisplayName: 'Yondly',
                         applePay: { merchantCountryCode: 'FR' },
-                        googlePay: { merchantCountryCode: 'FR', testEnv: true },
+                        googlePay: { merchantCountryCode: 'FR', testEnv: __DEV__ },
                         style: 'automatic',
                     });
 

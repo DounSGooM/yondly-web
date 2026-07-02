@@ -11,10 +11,14 @@ export const api = axios.create({
   },
 });
 
+// Clé de stockage du token — DOIT être identique partout (le store écrit
+// 'auth_token'). Utiliser une autre clé (ex. 'token') envoie "Bearer null".
+const TOKEN_KEY = 'auth_token';
+
 // Add request interceptor to include auth token
 api.interceptors.request.use(
   async (config) => {
-    const token = await AsyncStorage.getItem('token');
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -28,10 +32,16 @@ api.interceptors.request.use(
 // Add response interceptor to handle errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid - could trigger logout here
-      AsyncStorage.removeItem('token');
+      // Token expiré/invalide : on déconnecte proprement via le store pour
+      // resynchroniser l'état applicatif (et pas seulement le storage).
+      try {
+        const { useAuthStore } = require('./store/authStore');
+        await useAuthStore.getState().logout();
+      } catch {
+        await AsyncStorage.removeItem(TOKEN_KEY);
+      }
     }
     return Promise.reject(error);
   }

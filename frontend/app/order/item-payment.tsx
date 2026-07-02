@@ -124,7 +124,8 @@ export default function ItemPaymentScreen() {
                     style: 'automatic',
                     googlePay: {
                         merchantCountryCode: 'FR',
-                        testEnv: true,
+                        // testEnv suit le mode de build : jamais en test en production.
+                        testEnv: __DEV__,
                     },
                     applePay: {
                         merchantCountryCode: 'FR',

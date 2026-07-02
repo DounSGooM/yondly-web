@@ -88,7 +88,7 @@ export default function RentalPaymentScreen() {
                     style: 'automatic',
                     googlePay: {
                         merchantCountryCode: 'FR',
-                        testEnv: true,
+                        testEnv: __DEV__,
                     },
                     applePay: {
                         merchantCountryCode: 'FR',

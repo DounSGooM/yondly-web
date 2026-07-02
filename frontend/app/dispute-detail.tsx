@@ -79,7 +79,8 @@ export default function DisputeDetailScreen() {
     const [offerDetails, setOfferDetails] = useState('');
 
     const getAuthHeaders = async () => {
-        const token = await AsyncStorage.getItem('token');
+        // Clé unifiée 'auth_token' (le store écrit sous cette clé).
+        const token = await AsyncStorage.getItem('auth_token');
         return { Authorization: `Bearer ${token}` };
     };
 
