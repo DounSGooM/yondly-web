@@ -323,7 +323,22 @@ async def join_waitlist(entry: WaitlistEntry, background_tasks: BackgroundTasks)
 
 # ============ BLOG ROUTES ============
 
-ADMIN_KEY = os.environ.get("ADMIN_KEY", "SECRET_KEY_YONDLY_ADMIN_2025")
+_DEV_ADMIN_KEY_FALLBACK = "SECRET_KEY_YONDLY_ADMIN_2025"
+ADMIN_KEY = os.environ.get("ADMIN_KEY", _DEV_ADMIN_KEY_FALLBACK)
+
+# En production, refuser de démarrer avec la clé admin par défaut : sinon toute
+# l'API /api/admin/* (stats, suppression d'utilisateurs, exports DAC7, blog…)
+# serait accessible avec une clé publique présente dans le repo.
+if ADMIN_KEY == _DEV_ADMIN_KEY_FALLBACK:
+    if os.environ.get("ENVIRONMENT", "").lower() in ("production", "prod"):
+        raise RuntimeError(
+            "ADMIN_KEY non défini en production. Configure la variable "
+            "d'environnement ADMIN_KEY avec une valeur secrète et aléatoire."
+        )
+    logging.getLogger(__name__).warning(
+        "ADMIN_KEY utilise la valeur de développement par défaut — "
+        "à NE PAS utiliser en production."
+    )
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -336,10 +351,11 @@ from starlette.responses import JSONResponse as _JSONResponse
 
 
 async def _request_is_admin(request: Request) -> bool:
-    # 1) admin_key (query ou header) pour les endpoints machine
+    # 1) admin_key (header uniquement) pour les endpoints machine.
+    #    NB : jamais en query string — cela serait journalisé dans les logs
+    #    serveur/proxy et l'historique navigateur.
     key = (
-        request.query_params.get("admin_key")
-        or request.headers.get("x-admin-key")
+        request.headers.get("x-admin-key")
         or request.headers.get("admin_key")
         or request.headers.get("admin-key")
     )
@@ -594,7 +610,13 @@ async def register(user_data: UserRegister):
     existing_user = await db.users.find_one({"email": user_data.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
-    
+
+    # Anti-escalade de privilèges : interdire l'inscription sur un email admin.
+    # Le statut admin est dérivé de l'appartenance à ADMIN_EMAILS ; sans ce
+    # garde-fou, un attaquant pourrait s'inscrire sur admin@… et obtenir les droits.
+    if (user_data.email or "").lower() in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Cette adresse ne peut pas être utilisée à l'inscription")
+
     # GEO-RESTRICTION ENFORCEMENT
     is_allowed = await check_zone_coverage(
         postcode=user_data.postcode, 
@@ -773,20 +795,11 @@ class ResetPasswordRequest(BaseModel):
     code: str
     new_password: str
 
-@api_router.post("/auth/admin-reset-password")
-async def admin_reset_password(data: dict):
-    """Temporary admin endpoint — remove after use."""
-    if data.get("secret") != "yondly-reset-2024":
-        raise HTTPException(status_code=403, detail="Forbidden")
-    user = await db.users.find_one({"email": data.get("email")})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    new_hash = hash_password(data.get("password", "Yondly2024!"))
-    await db.users.update_one(
-        {"email": data.get("email")},
-        {"$set": {"password_hash": new_hash, "verified_email": True}}
-    )
-    return {"message": "Password reset OK"}
+# NB : l'endpoint /auth/admin-reset-password a été SUPPRIMÉ (faille critique).
+# Il autorisait la réinitialisation du mot de passe de n'importe quel compte
+# (admin compris) à quiconque connaissait un secret statique codé en dur.
+# La réinitialisation légitime passe par /auth/forgot-password + /auth/reset-password
+# (code envoyé par email).
 
 @api_router.post("/auth/forgot-password")
 async def forgot_password(data: ForgotPasswordRequest):
