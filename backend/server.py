@@ -597,6 +597,22 @@ async def check_zone_coverage(postcode=None, citycode=None, location=None):
         logging.error(f"Zone check error: {e}")
         return False  # Fail safe
 
+# Champs du profil vendeur exposables publiquement (endpoints non authentifiés).
+# On NE renvoie JAMAIS email, téléphone, adresse précise ni coordonnées GPS exactes.
+_PUBLIC_OWNER_FIELDS = (
+    "id", "display_name", "photo_url", "avatar_url",
+    "ratings_avg", "ratings_count", "level", "badges",
+    "city", "created_at", "is_pro", "store_id",
+)
+
+
+def public_owner_view(owner: dict) -> dict:
+    """Projection publique d'un profil : uniquement les champs non sensibles."""
+    if not owner:
+        return {}
+    return {k: owner.get(k) for k in _PUBLIC_OWNER_FIELDS if k in owner}
+
+
 def generate_beneficiary_id():
     """Generate a unique beneficiary ID in format YND-XXXXXX"""
     import random
@@ -1603,10 +1619,9 @@ async def get_items(
         item.pop("_id", None)
         owner = await db.users.find_one({"id": item["owner_id"]})
         if owner:
-            owner.pop("password_hash", None)
-            owner.pop("_id", None)
-            item["owner"] = owner
-            
+            # Projection publique : pas d'email/téléphone/adresse/GPS exact (RGPD).
+            item["owner"] = public_owner_view(owner)
+
             # Filter by min_rating
             if min_rating is not None:
                 if (owner.get("ratings_avg") or 0) < min_rating:
@@ -1738,13 +1753,11 @@ async def get_item(item_id: str):
     
     item.pop("_id", None)
     
-    # Populate owner info
+    # Populate owner info — projection publique (pas de PII, cf. RGPD).
     owner = await db.users.find_one({"id": item["owner_id"]})
     if owner:
-        owner.pop("password_hash", None)
-        owner.pop("_id", None)
-        item["owner"] = owner
-        
+        item["owner"] = public_owner_view(owner)
+
     # Populate Store (if applicable)
     if "store_id" in item and item["store_id"]:
         store = await db.stores.find_one({"id": item["store_id"]})
@@ -3231,18 +3244,20 @@ async def mark_all_read(current_user: dict = Depends(get_current_user)):
 # ============ UTILITY ROUTES ============
 
 @api_router.get("/users/{user_id}")
-async def get_user_info(user_id: str):
-    """Get basic user info (for chat, etc)"""
+async def get_user_info(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Get basic public user info (for chat, etc). Authentifié, sans email exposé."""
     user = await db.users.find_one({"id": user_id})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    # Return only safe fields
+
+    # Ne pas exposer l'email (énumération/récolte). display_name uniquement.
     return {
         "id": user["id"],
-        "email": user["email"],
-        "display_name": user.get("display_name", user["email"].split("@")[0]),
-        "created_at": user.get("created_at")
+        "display_name": user.get("display_name") or "Utilisateur",
+        "photo_url": user.get("photo_url"),
+        "ratings_avg": user.get("ratings_avg"),
+        "ratings_count": user.get("ratings_count"),
+        "created_at": user.get("created_at"),
     }
 
 @api_router.get("/config/stripe")
@@ -3258,13 +3273,14 @@ async def get_fee_info(amount_cents: int):
 # ============ STORE ROUTES ============
 
 @api_router.post("/stores", response_model=Store)
-async def create_store(store_data: StoreCreate):
-    """Create a new store (admin only for now, will add auth later)"""
+async def create_store(store_data: StoreCreate, current_user: dict = Depends(get_current_user)):
+    """Create a new store — réservé aux utilisateurs authentifiés (propriétaire)."""
     store_id = str(uuid.uuid4())
-    
+
     store_dict = store_data.dict()
     store_dict.update({
         "id": store_id,
+        "owner_id": current_user["id"],
         "followers_count": 0,
         "created_at": datetime.utcnow()
     })
@@ -7885,53 +7901,73 @@ async def get_dispute(dispute_id: str, current_user: dict = Depends(get_current_
     return dispute
 
 # ============ UPLOAD ROUTE (CLOUDINARY) ============
+# Types d'images autorisés → extension sûre côté serveur (jamais celle du client).
+_ALLOWED_IMAGE_TYPES = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+}
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 Mo
+
+_ALLOWED_UPLOAD_FOLDERS = {"items", "profiles", "baskets", "documents", "chat"}
+
+
 @api_router.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
-    folder: str = "items"  # items, profiles, baskets, documents, chat
+    folder: str = "items",  # items, profiles, baskets, documents, chat
+    current_user: dict = Depends(get_current_user),  # authentification obligatoire
 ):
-    """Upload file to Cloudinary"""
+    """Upload d'image (Cloudinary) — authentifié, type et taille validés."""
+    # Whitelist du dossier (évite un path/segment arbitraire)
+    if folder not in _ALLOWED_UPLOAD_FOLDERS:
+        folder = "items"
+
+    # Validation du type MIME (whitelist images uniquement)
+    content_type = (file.content_type or "").lower()
+    safe_ext = _ALLOWED_IMAGE_TYPES.get(content_type)
+    if not safe_ext:
+        raise HTTPException(status_code=415, detail="Type de fichier non autorisé (images uniquement)")
+
+    # Lecture + contrôle de taille (évite la saturation disque/mémoire)
+    content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Fichier trop volumineux (max 10 Mo)")
+    if not content:
+        raise HTTPException(status_code=400, detail="Fichier vide")
+
     try:
         from cloudinary_service import upload_image
         import base64
-        
-        # Read file content
-        content = await file.read()
+
         base64_data = base64.b64encode(content).decode("utf-8")
-        
-        # Determine content type
-        content_type = file.content_type or "image/jpeg"
         data_uri = f"data:{content_type};base64,{base64_data}"
-        
-        # Upload to Cloudinary
-        result = upload_image(
-            image_data=data_uri,
-            folder=f"yondly/{folder}"
-        )
-        
+
+        result = upload_image(image_data=data_uri, folder=f"yondly/{folder}")
+
         if result.get("success"):
             return {
                 "url": result["url"],
                 "public_id": result.get("public_id"),
                 "width": result.get("width"),
-                "height": result.get("height")
+                "height": result.get("height"),
             }
-        else:
-            # Fallback to local storage if Cloudinary fails
-            file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
-            filename = f"{uuid.uuid4()}.{file_ext}"
-            file_path = ROOT_DIR / "uploads" / filename
-            
-            with open(file_path, "wb") as buffer:
-                buffer.write(content)
-            
-            return {
-                "url": f"/uploads/{filename}",
-                "fallback": True
-            }
-            
+
+        # Fallback stockage local — extension FORCÉE d'après le type MIME validé
+        # (jamais l'extension fournie par le client → pas de .html/.svg/.js servi).
+        filename = f"{uuid.uuid4()}.{safe_ext}"
+        file_path = ROOT_DIR / "uploads" / filename
+        with open(file_path, "wb") as buffer:
+            buffer.write(content)
+
+        return {"url": f"/uploads/{filename}", "fallback": True}
+
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload error: {str(e)}")
+        logging.getLogger(__name__).error(f"Upload error: {e}")
+        raise HTTPException(status_code=500, detail="Erreur lors de l'upload")
 
 # Include router at the end after all routes are defined
 app.include_router(api_router)
