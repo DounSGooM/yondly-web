@@ -27,8 +27,10 @@ next-env.d.ts
 
 # Production builds
 /build
+build/
 dist/
 dist
+dist_final/
 
 # Environment files (comprehensive coverage)
 
@@ -75,6 +77,16 @@ agenthub/agents/youtube/db
 
 # Build caches
 .cache/
+.metro-cache/
+**/.metro-cache/
+.expo/
+**/.expo/
+
+# Databases / dumps
+*.sqlite
+*.db
+*.sql.gz
+*.dump
 
 # Mobile development
 android-sdk/
