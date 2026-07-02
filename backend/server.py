@@ -4162,8 +4162,10 @@ async def get_user_stats(current_user: dict = Depends(get_current_user)):
         "co2_saved": round(co2_saved, 2)
     }
 
-# Include the router in the# Mount API router
-app.include_router(api_router)
+# NB : api_router est monté une seule fois, tout à la fin du fichier (après la
+# définition de TOUTES les routes). Les include_router(api_router) intermédiaires
+# ont été supprimés : ils enregistraient en double/triple les routes définies
+# avant eux (OpenAPI dupliqué, résolution fragile).
 
 # ============ BOOKING ENDPOINTS (for rental calendar) ============
 
@@ -5481,8 +5483,6 @@ async def assign_beneficiary_to_order(
         "pickup_code": order.get("handoff", {}).get("code")
     }
 
-    
-app.include_router(api_router)
 
 # ============ ANALYTICS MODULE ============
 # Import and initialize analytics routes (additive module for collectivités reports)

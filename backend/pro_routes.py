@@ -651,7 +651,14 @@ Yondly ne vend pas les produits : le professionnel reste responsable de son offr
     ):
         """Create an anti-gaspi order"""
         import secrets
-        
+
+        # Validation de la quantité : une valeur <= 0 produirait un montant nul
+        # ou négatif (fraude/incohérence comptable).
+        if quantity < 1:
+            raise HTTPException(status_code=400, detail="La quantité doit être au moins 1")
+        if quantity > 50:
+            raise HTTPException(status_code=400, detail="Quantité maximale dépassée")
+
         # Get offer
         offer = await db.offers_pro.find_one({"id": offer_id, "kind": "ANTIGASPI_SALE", "status": "PUBLISHED"})
         if not offer:

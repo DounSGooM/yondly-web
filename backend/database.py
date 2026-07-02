@@ -271,23 +271,38 @@ class SupabaseCollection:
 
         update_data = _serialize(update_data)
 
+        # Sémantique Mongo « update_one » : ne modifier QU'UNE ligne. PostgREST
+        # applique l'UPDATE à toutes les lignes filtrées ; si le filtre n'est pas
+        # déjà sur une clé unique, on le restreint à l'id du premier document.
+        one_filter = await self._narrow_to_one(filter_dict)
+        if one_filter is None:
+            return SupabaseResult(None, "update")
+
         def _execute():
             q = supabase.table(self._table).update(update_data)
-            q = _apply_filter(q, filter_dict)
+            q = _apply_filter(q, one_filter)
             return q.execute()
 
         resp = await asyncio.to_thread(_execute)
 
         if return_document:
-            return await self.find_one(filter_dict)
+            return await self.find_one(one_filter)
         return SupabaseResult(resp, "update")
 
     async def update_many(self, filter_dict: dict, update_dict: dict) -> SupabaseResult:
-        # For $set: Supabase update already applies to all matching rows
-        if "$set" in update_dict and len(update_dict) == 1:
-            return await self.update_one(filter_dict, update_dict)
+        # $set pur : PostgREST applique nativement à TOUTES les lignes filtrées.
+        if set(update_dict.keys()) == {"$set"}:
+            update_data = _serialize(update_dict["$set"])
 
-        # For per-doc operators ($inc, $addToSet, $pull, $push): iterate
+            def _execute():
+                q = supabase.table(self._table).update(update_data)
+                q = _apply_filter(q, filter_dict)
+                return q.execute()
+
+            resp = await asyncio.to_thread(_execute)
+            return SupabaseResult(resp, "update")
+
+        # Opérateurs par document ($inc, $addToSet, $pull, $push) : on itère.
         cursor = SupabaseCursor(self._table, filter_dict)
         rows = await cursor.to_list(10000)
         updated = 0
@@ -307,6 +322,21 @@ class SupabaseCollection:
         return _FakeResult()
 
     async def delete_one(self, filter_dict: dict) -> SupabaseResult:
+        # Sémantique « delete_one » : ne supprimer qu'une ligne.
+        one_filter = await self._narrow_to_one(filter_dict)
+        if one_filter is None:
+            return SupabaseResult(None, "delete")
+
+        def _execute():
+            q = supabase.table(self._table).delete()
+            q = _apply_filter(q, one_filter)
+            return q.execute()
+
+        resp = await asyncio.to_thread(_execute)
+        return SupabaseResult(resp, "delete")
+
+    async def delete_many(self, filter_dict: dict) -> SupabaseResult:
+        # Supprime TOUTES les lignes correspondant au filtre (vraie sémantique many).
         def _execute():
             q = supabase.table(self._table).delete()
             q = _apply_filter(q, filter_dict)
@@ -315,8 +345,18 @@ class SupabaseCollection:
         resp = await asyncio.to_thread(_execute)
         return SupabaseResult(resp, "delete")
 
-    async def delete_many(self, filter_dict: dict) -> SupabaseResult:
-        return await self.delete_one(filter_dict)
+    async def _narrow_to_one(self, filter_dict: dict) -> Optional[dict]:
+        """Restreint un filtre à une seule ligne (par id) pour les opérations
+        « one ». Si le filtre porte déjà sur `id`, il est renvoyé tel quel.
+        Renvoie None si aucun document ne correspond."""
+        if "id" in filter_dict:
+            return filter_dict
+        doc = await self.find_one(filter_dict)
+        if not doc or "id" not in doc:
+            # Pas d'id exploitable : on retombe sur le filtre d'origine plutôt
+            # que de risquer de ne rien faire (comportement historique).
+            return filter_dict if doc else None
+        return {"id": doc["id"]}
 
     async def find_one_and_update(
         self, filter_dict: dict, update_dict: dict, return_document: bool = True
@@ -328,59 +368,69 @@ class SupabaseCollection:
     # ── helpers ────────────────────────────────────────────────────────────
 
     async def _resolve_update(self, filter_dict: dict, update_dict: dict) -> Optional[dict]:
-        """Translate MongoDB update operators to a flat dict for Supabase."""
+        """Translate MongoDB update operators to a flat dict for Supabase.
+
+        Fusionne TOUS les opérateurs présents (un update peut combiner $set et
+        $inc, etc.) : l'ancienne version retournait au premier opérateur trouvé
+        et perdait silencieusement les autres (ex. compteurs jamais incrémentés).
+        """
+        # Cas simple : dict brut sans opérateur Mongo → utilisé tel quel.
+        if not any(k.startswith("$") for k in update_dict):
+            return update_dict
+
+        # Les opérateurs de tableau et $inc nécessitent l'état courant du document.
+        needs_current = any(
+            op in update_dict for op in ("$inc", "$addToSet", "$pull", "$push")
+        )
+        current = None
+        if needs_current:
+            current = await self.find_one(filter_dict)
+            if current is None:
+                return None
+
+        data: dict = {}
+
+        # $set en premier pour que les opérateurs suivants voient ses valeurs.
         if "$set" in update_dict:
-            return update_dict["$set"]
+            data.update(update_dict["$set"])
+
+        def _base(field):
+            # Valeur de départ : le $set courant sinon la valeur en base.
+            if field in data:
+                return data[field]
+            return (current or {}).get(field)
 
         if "$inc" in update_dict:
-            current = await self.find_one(filter_dict)
-            if current is None:
-                return None
-            data = {}
             for field, delta in update_dict["$inc"].items():
-                data[field] = (current.get(field) or 0) + delta
-            return data
+                data[field] = (_base(field) or 0) + delta
 
         if "$addToSet" in update_dict:
-            current = await self.find_one(filter_dict)
-            if current is None:
-                return None
-            data = {}
             for field, val in update_dict["$addToSet"].items():
-                arr = list(current.get(field) or [])
+                arr = list(_base(field) or [])
                 if val not in arr:
                     arr.append(val)
                 data[field] = arr
-            return data
 
         if "$pull" in update_dict:
-            current = await self.find_one(filter_dict)
-            if current is None:
-                return None
-            data = {}
             for field, val in update_dict["$pull"].items():
-                arr = list(current.get(field) or [])
+                arr = list(_base(field) or [])
                 data[field] = [x for x in arr if x != val]
-            return data
 
         if "$push" in update_dict:
-            current = await self.find_one(filter_dict)
-            if current is None:
-                return None
-            data = {}
             for field, val in update_dict["$push"].items():
+                arr = list(_base(field) or [])
                 if isinstance(val, dict) and "$each" in val:
-                    arr = list(current.get(field) or [])
                     arr.extend(val["$each"])
-                    data[field] = arr
                 else:
-                    arr = list(current.get(field) or [])
                     arr.append(val)
-                    data[field] = arr
-            return data
+                data[field] = arr
 
-        # Plain dict (no operator) — use as-is
-        return update_dict
+        # $unset : mettre les champs à None
+        if "$unset" in update_dict:
+            for field in update_dict["$unset"]:
+                data[field] = None
+
+        return data
 
     def aggregate(self, pipeline: list) -> "AggregateCursor":
         return AggregateCursor(self._table, pipeline)
